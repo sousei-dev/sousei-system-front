@@ -1,0 +1,157 @@
+import { api } from '@/utils/api'
+import type { Company } from './company'
+import type { Grade } from './grade'
+
+// API 응답용 인터페이스
+export interface Student {
+  id: string
+  name: string
+  name_katakana: string
+  company_id: string
+  company: Company
+  consultant: number
+  phone: string
+  email: string
+  avatar?: string
+  gender: string
+  birth_date: string
+  nationality: string
+  local_address: string
+  address: string | null
+  ward: string | null
+  residence_card_number: string | null
+  residence_card_start: string | null
+  residence_card_expiry: string | null
+  resignation_date: string | null
+  grade_id: string,
+  grade: Grade
+  cooperation_submitted_date: string
+  cooperation_submitted_place: string
+  has_spouse: boolean
+  japanese_level: string
+  assignment_date: string | null
+  passport_number: string
+  created_at: string,
+  status: string,
+  entry_date: string,
+  experience_over_2_years: boolean,
+  arrival_type: string,
+  current_room_id?: string,
+  current_room?: {
+    room_number: string
+    building_name: string
+  }
+  student_type: string
+  pre_guidance_date: string
+  orientation_date: string
+  certification_application_date: string
+
+}
+
+// API 요청용 인터페이스
+export interface StudentInput {
+  name: string
+  name_katakana: string
+  company_id: string
+  consultant: number
+  phone: string
+  email: string
+  avatar?: string
+  gender: string
+  birth_date: string
+  nationality: string
+  local_address: string
+  address?: string
+  ward?: string
+  residence_card_number?: string
+  residence_card_start?: string
+  residence_card_expiry?: string
+  resignation_date?: string
+  cooperation_submitted_date: string
+  cooperation_submitted_place: string
+  has_spouse: boolean
+  japanese_level: string
+  assignment_date?: string
+  passport_number: string
+  experience_over_2_years: boolean
+  arrival_type: string
+  entry_date: string  
+  student_type: string
+  pre_guidance_date: string
+  orientation_date: string
+  certification_application_date: string
+}
+
+// 수정용 인터페이스 (모든 필드가 선택적)
+export interface StudentUpdate extends Partial<StudentInput> {}
+
+export interface StudentFilters {
+  name?: string
+  company?: string
+  consultant?: number
+  email?: string
+  name_katakana?: string
+  nationality?: string
+  japanese_level?: string
+  current_room_id?: string
+  page?: number
+  size?: number
+}
+
+// 페이지네이션 응답 인터페이스
+export interface PaginatedResponse<T> {
+  items: T[]
+  total: number
+  page: number
+  size: number
+  total_pages: number
+}
+
+export const studentService = {
+  // 학생 목록 조회
+  getStudents: async (filters?: StudentFilters): Promise<PaginatedResponse<Student>> => {
+    const response = await api.get<PaginatedResponse<Student>>('/students', { 
+      params: {
+        ...filters,
+        page: filters?.page || 1,
+        page_size: filters?.size || 10
+      }
+    })
+    return response.data
+  },
+
+  // 학생 생성
+  createStudent: async (student: StudentInput): Promise<Student> => {
+    const response = await api.post<Student>('/students', student)
+    return response.data
+  },
+
+  // 학생 상세 조회
+  getStudent: async (id: string): Promise<Student> => {
+    const response = await api.get<Student>(`/students/${id}`)
+    return response.data
+  },
+
+  // 학생 수정
+  updateStudent: async (id: string, student: StudentUpdate): Promise<Student> => {
+    const response = await api.put<Student>(`/students/${id}`, student)
+    return response.data
+  },
+
+  // 학생 삭제
+  deleteStudent: async (id: string): Promise<void> => {
+    await api.delete(`/students/${id}`)
+  },
+
+  // 아바타 업로드
+  uploadAvatar: async (id: string, file: File): Promise<{ avatar: string }> => {
+    const formData = new FormData()
+    formData.append('avatar', file)
+    const response = await api.post<{ avatar: string }>(`/students/${id}/changeAvatar`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    })
+    return response.data
+  },
+} 
