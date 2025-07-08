@@ -149,13 +149,13 @@ import VerticalNavSectionTitle from '@layouts/components/VerticalNavSectionTitle
     }"
   />
 
-  <VerticalNavLink
+  <!-- <VerticalNavLink
     :item="{
       title: 'スケジュール',
       icon: 'ri-calendar-line',
       to: '/calendar',
     }"
-  />
+  /> -->
 
   <!-- 👉 Apps & Pages -->
   <!-- <VerticalNavSectionTitle
