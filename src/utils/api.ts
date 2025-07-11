@@ -31,8 +31,8 @@ api.interceptors.response.use(
     return response
   },
   (error) => {
-    if (error.response?.status === 401) {
-      // 토큰이 만료되었거나 유효하지 않은 경우
+    if (error.response?.status === 401 || error.response?.status === 403) {
+      // 토큰이 만료되었거나 유효하지 않은 경우, 또는 권한이 없는 경우
       localStorage.removeItem('token')
       window.location.href = '/login'
     }

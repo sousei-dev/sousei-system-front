@@ -41,7 +41,7 @@ const handleLogin = async () => {
     })
 
     // 로그인 성공 후 메인 페이지로 이동
-    router.push('/')
+    router.push('/all-student-list?type=ALL')
   }
   catch (error: any) {
     // 에러 메시지 처리
