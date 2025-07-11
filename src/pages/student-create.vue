@@ -1,15 +1,18 @@
 <script lang="ts" setup>
-import { buildingService, type BuildingOption, type EmptyRoomOption } from '@/services/building';
-import { companyService, type Company } from '@/services/company';
-import { studentService } from '@/services/student';
-import avatar1 from '@images/avatars/avatar-1.png';
-import { computed, onMounted, ref } from 'vue';
+import { buildingService, type BuildingOption, type EmptyRoomOption } from '@/services/building'
+import { companyService, type Company } from '@/services/company'
+import { gradeService, type Grade } from '@/services/grade'
+import { studentService } from '@/services/student'
+import avatar1 from '@images/avatars/avatar-1.png'
+import { computed, onMounted, ref } from 'vue'
 
 const router = useRouter()
 const refInputEl = ref<HTMLElement>()
 
 const form = ref({
   avatarImg: avatar1,
+  avatarFile: null as File | null,
+
   // 필수항목
   name: '',
   name_katakana: '',
@@ -17,9 +20,11 @@ const form = ref({
   nationality: '',
   japanese_level: '',
   student_type: '',
+
   // 일반항목
   email: '',
   phone: '',
+  facebook_name: '',
   company: '',
   assignment_date: '',
   consultant: 0,
@@ -29,10 +34,6 @@ const form = ref({
   ward: '',
   building: '',
   room: '',
-  residence_card_number: '',
-  residence_card_start: '',
-  residence_card_expiry: '',
-  has_spouse: false,
   passport_number: '',
   cooperation_submitted_date: '',
   cooperation_submitted_place: '',
@@ -43,14 +44,23 @@ const form = ref({
   orientation_date: '',
   certification_application_date: '',
   interview_date: '',
+  has_spouse: false,
+  grade: '',
+
+  // 재류카드 관련
+  residence_card_number: '',
+  residence_card_start: '',
+  residence_card_expiry: '',
+  passport_expiration_date: '',
+  visa_application_date: '',
+  visa_year: '',
 })
 
 const loading = ref(false)
 const error = ref<string | null>(null)
 const success = ref<string | null>(null)
 const companies = ref<Company[]>([])
-const buildingOptions = ref<BuildingOption[]>([])
-const emptyRoomOptions = ref<EmptyRoomOption[]>([])
+const grades = ref<Grade[]>([])
 
 const nationalityOptions = [
   { title: '🇲🇲 ミャンマー', value: 'ミャンマー' },
@@ -70,49 +80,16 @@ const fetchCompanies = async () => {
   }
 }
 
-// 빌딩 옵션 조회
-const fetchBuildingOptions = async () => {
+// 등급 목록 조회
+const fetchGrades = async () => {
   try {
-    const response = await buildingService.getBuildingOptions()
-    buildingOptions.value = response.options
+    grades.value = await gradeService.getGrades()
   } catch (err: any) {
-    error.value = err.response?.data?.message || '建物リストの取得に失敗しました。'
+    error.value = err.response?.data?.message || '期生リストの取得に失敗しました。'
   }
 }
 
-// 빈 호실 조회
-const fetchEmptyRooms = async (buildingId: string) => {
-  try {
-    const response = await buildingService.getEmptyRoomsByBuilding(buildingId)
-    emptyRoomOptions.value = response.options
-  } catch (err: any) {
-    error.value = err.response?.data?.message || '空室リストの取得に失敗しました。'
-  }
-}
-
-// 빌딩 선택 시 호실 목록 업데이트
-const onBuildingChange = (buildingId: string) => {
-  form.value.address = ''
-  emptyRoomOptions.value = []
-  form.value.room = ''
-  
-  if (buildingId) {
-    fetchEmptyRooms(buildingId)
-  }
-}
-
-// 호실 선택 시 주소 자동 입력
-const onRoomChange = (roomId: string) => {
-  const selectedRoom = emptyRoomOptions.value.find(room => room.value === roomId)
-  if (selectedRoom) {
-    const selectedBuilding = buildingOptions.value.find(building => building.value === form.value.building)
-    if (selectedBuilding) {
-      form.value.address = `${selectedBuilding.address} ${selectedRoom.room_number}号室`
-    }
-  }
-}
-
-// 아바타 이미지 변경
+// 아바타 이미지 변경 (로컬 미리보기)
 const changeAvatar = async (file: Event) => {
   const { files } = file.target as HTMLInputElement
 
@@ -131,15 +108,19 @@ const changeAvatar = async (file: Event) => {
         return
       }
 
+      // 로컬에서 미리보기용으로 FileReader 사용
       const fileReader = new FileReader()
       fileReader.readAsDataURL(files[0])
       fileReader.onload = () => {
-        if (typeof fileReader.result === 'string')
+        if (typeof fileReader.result === 'string') {
           form.value.avatarImg = fileReader.result
+          // 파일 객체도 저장 (나중에 업로드용)
+          form.value.avatarFile = files[0]
+        }
       }
     }
     catch (err: any) {
-      error.value = err.response?.data?.message || '画像のアップロードに失敗しました。'
+      error.value = '画像の読み込みに失敗しました。'
     }
   }
 }
@@ -152,18 +133,18 @@ const resetAvatar = () => {
 // 필수항목 검증
 const isFormValid = computed(() => {
   return !!(
-    form.value.name &&
-    form.value.name_katakana &&
-    form.value.birth_date &&
-    form.value.nationality &&
-    form.value.japanese_level &&
-    form.value.student_type
+    form.value.name
+    && form.value.name_katakana
+    && form.value.birth_date
+    && form.value.nationality
+    && form.value.japanese_level
+    && form.value.student_type
   )
 })
 
 onMounted(() => {
   fetchCompanies()
-  fetchBuildingOptions()
+  fetchGrades()
 })
 
 // 학생 정보 생성
@@ -173,7 +154,8 @@ const createStudent = async () => {
     error.value = null
     success.value = null
 
-    await studentService.createStudent({
+    // 학생 정보 생성 (아바타는 기본값으로)
+    const student = await studentService.createStudent({
       name: form.value.name,
       name_katakana: form.value.name_katakana,
       email: form.value.email,
@@ -181,7 +163,7 @@ const createStudent = async () => {
       consultant: form.value.consultant,
       assignment_date: form.value.assignment_date,
       company_id: form.value.company,
-      avatar: form.value.avatarImg,
+      avatar: avatar1, // 기본 아바타로 생성
       gender: form.value.gender,
       birth_date: form.value.birth_date,
       nationality: form.value.nationality,
@@ -202,8 +184,26 @@ const createStudent = async () => {
       pre_guidance_date: form.value.pre_guidance_date || '',
       orientation_date: form.value.orientation_date || '',
       certification_application_date: form.value.certification_application_date || '',
+      interview_date: form.value.interview_date || '',
       student_type: form.value.student_type,
+      current_room_id: form.value.room,
+      grade_id: form.value.grade || undefined,
+      passport_expiration_date: form.value.passport_expiration_date || undefined,
+      visa_application_date: form.value.visa_application_date || undefined,
+      visa_year: form.value.visa_year || undefined,
+      facebook_name: form.value.facebook_name || undefined,
     })
+
+    // 아바타 파일이 있으면 업로드
+    if (form.value.avatarFile) {
+      try {
+        console.log(student.student.id)
+        await studentService.uploadAvatar(student.student.id, form.value.avatarFile)
+      } catch (avatarErr: any) {
+        console.error('아바타 업로드 실패:', avatarErr)
+        // 아바타 업로드 실패해도 학생 생성은 성공으로 처리
+      }
+    }
 
     success.value = '学生情報が正常に作成されました。'
     router.push('/student-list')
@@ -330,7 +330,7 @@ const createStudent = async () => {
                   v-model="form.student_type"
                   :items="[
                     { title: '特定技能', value: 'SPECIFIED' },
-                    { title: '技能実習', value: 'GENERAL' }
+                    { title: '技能実習', value: 'GENERAL' },
                   ]"
                   item-title="title"
                   item-value="value"
@@ -393,6 +393,73 @@ const createStudent = async () => {
           </VCard>
         </VCol>
 
+        <!-- 재류카드 섹션 -->
+        <VCol cols="12">
+          <VCard variant="outlined" class="pa-4 mb-6">
+            <VCardTitle class="text-h6 text-info">
+              <VIcon class="me-2">ri-id-card-line</VIcon>
+              在留カード情報
+            </VCardTitle>
+            <VRow>
+              <VCol cols="12" md="6">
+                <VSelect
+                  v-model="form.visa_year"
+                  :items="[
+                    { title: '1年目', value: '1' },
+                    { title: '2年目', value: '2' },
+                    { title: '3年目', value: '3' },
+                    { title: '4年目', value: '4' },
+                    { title: '5年目', value: '5' },
+                  ]"
+                  item-title="title"
+                  item-value="value"
+                  label="ビザ年目"
+                  placeholder="ビザ年目を選択してください"
+                  :disabled="loading"
+                />
+              </VCol>
+              <VCol cols="12" md="6">
+                <VTextField
+                  v-model="form.residence_card_number"
+                  label="在留番号"
+                  variant="outlined"
+                  :disabled="loading"
+                />
+              </VCol>
+
+              <VCol cols="12" md="6">
+                <VTextField
+                  v-model="form.residence_card_start"
+                  label="在留番号発行日"
+                  type="date"
+                  variant="outlined"
+                  :disabled="loading"
+                />
+              </VCol>
+
+              <VCol cols="12" md="6">
+                <VTextField
+                  v-model="form.residence_card_expiry"
+                  label="在留番号有効期限"
+                  variant="outlined"
+                  type="date"
+                  :disabled="loading"
+                />
+              </VCol>
+
+              <VCol cols="12" md="6">
+                <VTextField
+                  v-model="form.visa_application_date"
+                  label="ビザ申請日"
+                  variant="outlined"
+                  type="date"
+                  :disabled="loading"
+                />
+              </VCol>
+            </VRow>
+          </VCard>
+        </VCol>
+
         <!-- 일반항목 섹션 -->
         <VCol cols="12">
           <VCard variant="outlined" class="pa-4 mb-6">
@@ -423,6 +490,16 @@ const createStudent = async () => {
                 />
               </VCol>
 
+              <!-- 페이스북 이름 -->
+              <VCol cols="12" md="6">
+                <VTextField
+                  v-model="form.facebook_name"
+                  label="フェイスブック名"
+                  placeholder="フェイスブック名を入力してください"
+                  :disabled="loading"
+                />
+              </VCol>
+
               <!-- 입사 일 -->
               <VCol cols="12" md="6">
                 <VTextField
@@ -447,6 +524,19 @@ const createStudent = async () => {
                 />
               </VCol>
 
+              <!-- 期生 -->
+              <VCol cols="12" md="6">
+                <VSelect
+                  v-model="form.grade"
+                  :items="grades"
+                  item-title="name"
+                  item-value="id"
+                  label="期生"
+                  placeholder="期生を選択してください"
+                  :disabled="loading"
+                />
+              </VCol>
+
               <VCol cols="12" md="6">
                 <VTextField
                   v-model="form.ward"
@@ -463,36 +553,6 @@ const createStudent = async () => {
                   variant="outlined"
                   :disabled="loading"
                 />
-              </VCol>
-
-              <!-- 빌딩 선택 -->
-              <VCol cols="12" md="6">
-                <VSelect
-                  v-model="form.building"
-                  :items="buildingOptions"
-                  item-title="label"
-                  item-value="value"
-                  label="建物"
-                  placeholder="建物を選択してください"
-                  :disabled="loading"
-                  @update:model-value="onBuildingChange"
-                >
-                </VSelect>
-              </VCol>
-
-              <!-- 호실 선택 -->
-              <VCol cols="12" md="6">
-                <VSelect
-                  v-model="form.room"
-                  :items="emptyRoomOptions"
-                  item-title="label"
-                  item-value="value"
-                  label="部屋"
-                  placeholder="部屋を選択してください"
-                  :disabled="loading || !form.building"
-                  @update:model-value="onRoomChange"
-                >
-                </VSelect>
               </VCol>
 
               <VCol cols="12" md="6">
@@ -543,28 +603,8 @@ const createStudent = async () => {
 
               <VCol cols="12" md="6">
                 <VTextField
-                  v-model="form.residence_card_number"
-                  label="在留番号"
-                  variant="outlined"
-                  :disabled="loading"
-                />
-              </VCol>
-
-              <VCol cols="12" md="6">
-                <VTextField
-                  v-model="form.residence_card_start"
-                  label="在留番号発行日"
-                  type="date"
-                  variant="outlined"
-                  :disabled="loading"
-                />
-              </VCol>
-
-              <VCol cols="12" md="6">
-                <VTextField
-                  v-model="form.residence_card_expiry"
-                  label="在留番号有効期限"
-                  variant="outlined"
+                  v-model="form.interview_date"
+                  label="面接日"
                   type="date"
                   :disabled="loading"
                 />
@@ -589,16 +629,11 @@ const createStudent = async () => {
               </VCol>
 
               <VCol cols="12" md="6">
-                <VSelect
-                  v-model="form.has_spouse"
-                  :items="[
-                    { title: 'あり', value: true },
-                    { title: 'なし', value: false }
-                  ]"
-                  item-title="title"
-                  item-value="value"
-                  label="配偶者同伴"
-                  placeholder="配偶者同伴の有無を選択してください"
+                <VTextField
+                  v-model="form.passport_expiration_date"
+                  label="パスポート期限"
+                  variant="outlined"
+                  type="date"
                   :disabled="loading"
                 />
               </VCol>
@@ -608,7 +643,7 @@ const createStudent = async () => {
                   v-model="form.experience_over_2_years"
                   :items="[
                     { title: 'あり', value: true },
-                    { title: 'なし', value: false }
+                    { title: 'なし', value: false },
                   ]"
                   item-title="title"
                   item-value="value"
@@ -623,7 +658,7 @@ const createStudent = async () => {
                   v-model="form.arrival_type"
                   :items="[
                     { title: '船舶', value: 'SHIP' },
-                    { title: '飛行機', value: 'FLIGHT' }
+                    { title: '飛行機', value: 'FLIGHT' },
                   ]"
                   item-title="title"
                   item-value="value"

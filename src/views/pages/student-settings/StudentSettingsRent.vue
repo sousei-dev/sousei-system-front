@@ -482,65 +482,6 @@ const calculateDaysInResidenceForRoom = (resident: any, targetMonth: string) => 
   return Math.max(0, diffDays)
 }
 
-// 청구서 생성
-const generateInvoice = async () => {
-  try {
-    loading.value = true
-    error.value = null
-    
-    // 각 방별 청구서 데이터 준비
-    const roomInvoicesData = invoiceForm.value.room_invoices.map(roomInvoice => {
-      // 각 방별 총 요금 계산 (임대료 + 요금)
-      const roomTotal = Number(roomInvoice.rent_amount) + 
-                       Number(roomInvoice.electricity_amount) + 
-                       Number(roomInvoice.gas_amount) + 
-                       Number(roomInvoice.water_amount)
-      
-      return {
-        room_id: roomInvoice.room_id,
-        room_number: roomInvoice.room_number,
-        building_name: roomInvoice.building_name,
-        daily_rate: roomInvoice.daily_rate,
-        days_in_month: roomInvoice.days_in_month,
-        rent_amount: roomInvoice.rent_amount,
-        electricity_amount: Number(roomInvoice.electricity_amount) || 0,
-        electricity_start_date: roomInvoice.electricity_start_date,
-        electricity_end_date: roomInvoice.electricity_end_date,
-        gas_amount: Number(roomInvoice.gas_amount) || 0,
-        gas_start_date: roomInvoice.gas_start_date,
-        gas_end_date: roomInvoice.gas_end_date,
-        water_amount: Number(roomInvoice.water_amount) || 0,
-        water_start_date: roomInvoice.water_start_date,
-        water_end_date: roomInvoice.water_end_date,
-        check_in_date: roomInvoice.check_in_date,
-        check_out_date: roomInvoice.check_out_date,
-        room_total: roomTotal
-      }
-    })
-    
-    // 청구서 데이터 준비
-    const invoiceData = {
-      student_id: studentId.value,
-      target_month: invoiceForm.value.target_month,
-      total_amount: invoiceForm.value.total_amount,
-      note: invoiceForm.value.note,
-      room_invoices: roomInvoicesData
-    }
-    
-    // TODO: 실제 API 호출로 변경
-    console.log('청구서 생성:', invoiceData)
-    
-    // 성공 처리
-    closeInvoiceModal()
-    alert('請求書が正常に生成されました。')
-    
-  } catch (err: any) {
-    error.value = err.response?.data?.message || '請求書の生成に失敗しました。'
-  } finally {
-    loading.value = false
-  }
-}
-
 // 컴포넌트 마운트 시 데이터 로드
 onMounted(() => {
   fetchResidentInfo()
@@ -1051,7 +992,7 @@ watch(() => invoiceForm.value.room_invoices, () => {
       </VCardTitle>
 
       <VCardText class="pa-4">
-        <VForm @submit.prevent="generateInvoice">
+        <VForm>
           <VRow>
             <!-- 청구 월 -->
             <VCol cols="12" md="6">
@@ -1222,13 +1163,6 @@ watch(() => invoiceForm.value.room_invoices, () => {
           :disabled="loading"
         >
           キャンセル
-        </VBtn>
-        <VBtn
-          color="primary"
-          :loading="loading"
-          @click="generateInvoice"
-        >
-          請求書生成
         </VBtn>
       </VCardActions>
     </VCard>
