@@ -561,7 +561,6 @@ const createStudent = async () => {
                   label="現地住所"
                   variant="outlined"
                   :disabled="loading"
-                  readonly
                 />
               </VCol>
 

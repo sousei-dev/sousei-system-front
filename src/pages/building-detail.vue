@@ -326,7 +326,7 @@ onMounted(async () => {
                       @click="goToRoomDetail(room.id)"
                       class="me-2"
                     >
-                      <VIcon>ri-eye-line</VIcon>
+                      <VIcon>ri-edit-line</VIcon>
                     </VBtn>
                   </td>
                 </tr>

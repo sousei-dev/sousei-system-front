@@ -108,5 +108,10 @@ export const buildingService = {
   async getEmptyRoomsByBuilding(buildingId: string): Promise<EmptyRoomsResponse> {
     const response = await api.get(`/buildings/${buildingId}/empty-rooms`)
     return response.data
-  }
+  },
+
+  // 방에대한 청구리스트 조회
+  getBuildingDownloadMonthlyInvoice: async (year: number, month: number) => {
+    return api.get(`/buildings/download-monthly-invoice/${year}/${month}`, { responseType: 'blob' })
+  },
 } 

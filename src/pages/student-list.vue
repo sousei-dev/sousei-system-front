@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { companyService, type Company } from '@/services/company'
 import { invoiceService } from '@/services/invoice'
+import { buildingService } from '@/services/building'
 import { studentService, type Student } from '@/services/student'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -188,11 +189,23 @@ const openInvoiceModal = () => {
   showInvoiceModal.value = true
 }
 
+const openRentListModal = () => {
+  showRentListModal.value = true
+}
+
 // 청구서 발행 모달 관련 상태
 const showInvoiceModal = ref(false)
 const selectedMonth = ref(new Date().getMonth() + 1) // 현재 월
 const selectedCompany = ref('')
 const monthOptions = Array.from({ length: 12 }, (_, i) => ({
+  title: `${i + 1}月`,
+  value: i + 1,
+}))
+
+// 가정 리스트 다운로드 모달 관련 상태
+const showRentListModal = ref(false)
+const selectedRentMonth = ref(new Date().getMonth() + 1) // 현재 월
+const rentMonthOptions = Array.from({ length: 12 }, (_, i) => ({
   title: `${i + 1}月`,
   value: i + 1,
 }))
@@ -223,6 +236,33 @@ const handleCreateInvoices = async () => {
   }
 }
 
+// 가정 리스트 다운로드 함수
+const handleDownloadRentList = async () => {
+  try {
+    loading.value = true
+    error.value = null
+    
+    // TODO: 가정 리스트 다운로드 API 호출
+    const response = await buildingService.getBuildingDownloadMonthlyInvoice(new Date().getFullYear(), selectedRentMonth.value)
+    
+    const url = window.URL.createObjectURL(new Blob([response.data]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `請求リスト_${new Date().getFullYear()}_${selectedMonth.value}.pdf`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    
+    // 임시로 성공 메시지만 표시
+    showRentListModal.value = false
+    alert('家賃リストが正常にダウンロードされました。')
+  } catch (err: any) {
+    error.value = err.response?.data?.message || '家賃リストのダウンロードに失敗しました。'
+  } finally {
+    loading.value = false
+  }
+}
+
 // 페이지 변경 이벤트 핸들러
 const handlePageChange = (newPage: number) => {
   page.value = newPage
@@ -234,15 +274,6 @@ const handleItemsPerPageChange = (newItemsPerPage: number) => {
   itemsPerPage.value = newItemsPerPage
   fetchStudents()
 }
-
-// URL 파라미터 디버깅용 함수
-const logUrlParams = () => {
-  console.log('Current URL params:', urlParams.value)
-  console.log('Route params:', route.params)
-  console.log('Route query:', route.query)
-  console.log('Current filters:', filters.value)
-}
-
 // 페이지 제목 계산
 const pageTitle = computed(() => {
   const type = urlParams.value.type
@@ -267,13 +298,14 @@ const pageTitle = computed(() => {
                 color="primary"
                 prepend-icon="ri-add-line"
                 @click="openInvoiceModal()"
+                disabled
               >
                 受入請求書発行
               </VBtn>
               <VBtn
                 color="primary"
                 prepend-icon="ri-add-line"
-                @click="openInvoiceModal()"
+                @click="openRentListModal"
               >
                 家賃リストダウンロード
               </VBtn>
@@ -510,6 +542,52 @@ const pageTitle = computed(() => {
           @click="handleCreateInvoices"
         >
           発行
+        </VBtn>
+      </VCardActions>
+    </VCard>
+  </VDialog>
+
+  <!-- 가정 리스트 다운로드 모달 -->
+  <VDialog
+    v-model="showRentListModal"
+    max-width="400px"
+  >
+    <VCard>
+      <VCardTitle class="text-h5 pa-4">
+        家賃リストダウンロード
+      </VCardTitle>
+
+      <VCardText>
+        <VRow>
+          <VCol cols="12">
+            <VSelect
+              v-model="selectedRentMonth"
+              :items="rentMonthOptions"
+              item-title="title"
+              item-value="value"
+              label="対象月"
+              hide-details
+              class="mb-4"
+            />
+          </VCol>
+        </VRow>
+      </VCardText>
+
+      <VCardActions class="pa-4">
+        <VSpacer />
+        <VBtn
+          color="error"
+          variant="text"
+          @click="showRentListModal = false"
+        >
+          キャンセル
+        </VBtn>
+        <VBtn
+          color="primary"
+          :loading="loading"
+          @click="handleDownloadRentList"
+        >
+          ダウンロード
         </VBtn>
       </VCardActions>
     </VCard>

@@ -847,7 +847,7 @@ const updateStudent = async () => {
               </VCol>
 
               <!-- 빌딩 선택 -->
-              <VCol cols="12" md="6">
+              <!-- <VCol cols="12" md="6">
                 <VSelect
                   v-model="form.building"
                   :items="buildingOptions"
@@ -859,10 +859,10 @@ const updateStudent = async () => {
                   @update:model-value="onBuildingChange"
                 >
                 </VSelect>
-              </VCol>
+              </VCol> -->
 
               <!-- 호실 선택 -->
-              <VCol cols="12" md="6">
+              <!-- <VCol cols="12" md="6">
                 <VSelect
                   v-model="form.room"
                   :items="emptyRoomOptions"
@@ -874,7 +874,7 @@ const updateStudent = async () => {
                   @update:model-value="onRoomChange"
                 >
                 </VSelect>
-              </VCol>
+              </VCol> -->
 
               <VCol cols="12" md="6">
                 <VTextField
@@ -882,7 +882,6 @@ const updateStudent = async () => {
                   label="現地住所"
                   variant="outlined"
                   :disabled="loading"
-                  readonly
                 />
               </VCol>
 
@@ -1030,6 +1029,9 @@ const updateStudent = async () => {
                   type="date"
                   placeholder="退職日を入力してください"
                   :disabled="loading"
+                  color="error"
+                  variant="outlined"
+                  class="resignation-date-field"
                 />
               </VCol>
             </VRow>
@@ -1168,3 +1170,84 @@ const updateStudent = async () => {
     </VCard>
   </VDialog>
 </template>
+
+<style scoped>
+/* 기본 상태에서도 진한 색상 유지 */
+.resignation-date-field :deep(.v-field__outline) {
+  border-color: #d32f2f !important;
+  color: red !important;
+}
+
+.resignation-date-field :deep(.v-field__outline__start) {
+  border-color: #d32f2f !important;
+}
+
+.resignation-date-field :deep(.v-field__outline__end) {
+  border-color: #d32f2f !important;
+}
+
+.resignation-date-field :deep(.v-field__outline__notch) {
+  border-color: #d32f2f !important;
+}
+
+.resignation-date-field :deep(.v-field__outline__notch::before) {
+  border-color: #d32f2f !important;
+}
+
+.resignation-date-field :deep(.v-field__outline__notch::after) {
+  border-color: #d32f2f !important;
+}
+
+/* 포커스 상태에서도 동일한 색상 유지 */
+.resignation-date-field :deep(.v-field--focused .v-field__outline) {
+  border-color: #d32f2f !important;
+}
+
+.resignation-date-field :deep(.v-field--focused .v-field__outline__start) {
+  border-color: #d32f2f !important;
+}
+
+.resignation-date-field :deep(.v-field--focused .v-field__outline__end) {
+  border-color: #d32f2f !important;
+}
+
+.resignation-date-field :deep(.v-field--focused .v-field__outline__notch) {
+  border-color: #d32f2f !important;
+}
+
+.resignation-date-field :deep(.v-field--focused .v-field__outline__notch::before) {
+  border-color: #d32f2f !important;
+}
+
+.resignation-date-field :deep(.v-field--focused .v-field__outline__notch::after) {
+  border-color: #d32f2f !important;
+}
+.resignation-date-field :deep(.v-field) {
+  color: red !important;
+}
+
+/* 호버 상태에서도 진한 색상 유지 */
+.resignation-date-field :deep(.v-field:hover .v-field__outline) {
+  border-color: #d32f2f !important;
+}
+
+.resignation-date-field :deep(.v-field:hover .v-field__outline__start) {
+  border-color: #d32f2f !important;
+}
+
+.resignation-date-field :deep(.v-field:hover .v-field__outline__end) {
+  border-color: #d32f2f !important;
+}
+
+.resignation-date-field :deep(.v-field:hover .v-field__outline__notch) {
+  border-color: #d32f2f !important;
+}
+
+.resignation-date-field :deep(.v-field:hover .v-field__outline__notch::before) {
+  border-color: #d32f2f !important;
+}
+
+.resignation-date-field :deep(.v-field:hover .v-field__outline__notch::after) {
+  border-color: #d32f2f !important;
+}
+</style>

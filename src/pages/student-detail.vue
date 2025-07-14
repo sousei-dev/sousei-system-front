@@ -38,8 +38,7 @@ onMounted(() => {
 const tabs = [
   { title: '学生情報', icon: 'ri-user-line', tab: 'account' },
   { title: '家賃請求情報', icon: 'ri-home-4-line', tab: 'rent' },
-  { title: '受入請求情報', icon: 'ri-shake-hands-line', tab: 'acceptance' },
-  { title: '相談情報', icon: 'ri-chat-smile-2-line', tab: 'consultation' },
+  { title: '受入請求情報', icon: 'ri-shake-hands-line', tab: 'acceptance' }
 ]
 
 const activeTab = ref('account')
