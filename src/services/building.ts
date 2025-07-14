@@ -114,4 +114,9 @@ export const buildingService = {
   getBuildingDownloadMonthlyInvoice: async (year: number, month: number) => {
     return api.get(`/buildings/download-monthly-invoice/${year}/${month}`, { responseType: 'blob' })
   },
+
+  getBuildingDownloadMonthlyInvoiceValidate: async (year: number, month: number) => {
+    const response = await api.get(`/buildings/download-monthly-invoice/validate/${year}/${month}`)
+    return response.data
+  }
 } 

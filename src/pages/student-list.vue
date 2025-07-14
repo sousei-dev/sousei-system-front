@@ -11,13 +11,13 @@ const route = useRoute()
 
 // 검색 필터 상태
 const filters = ref({
-  nationality: '',
-  name: '',
-  name_katakana: '',
-  company: '',
-  consultant: 0,
-  building_name: '',
-  room_number: '',
+  nationality: route.query.nationality as string || '',
+  name: route.query.name as string || '',
+  name_katakana: route.query.name_katakana as string || '',
+  company: route.query.company as string || '',
+  consultant: route.query.consultant ? Number(route.query.consultant) : 0,
+  building_name: route.query.building_name as string || '',
+  room_number: route.query.room_number as string || '',
   student_type: route.query.type as string || ''
 })
 
@@ -54,6 +54,29 @@ const urlParams = computed(() => {
 
 // URL 파라미터를 상태에 적용하는 함수
 const applyUrlParams = () => {
+  // 검색 필터 파라미터 적용
+  if (urlParams.value.allQueries.nationality && urlParams.value.allQueries.nationality !== filters.value.nationality) {
+    filters.value.nationality = urlParams.value.allQueries.nationality as string
+  }
+  if (urlParams.value.allQueries.name && urlParams.value.allQueries.name !== filters.value.name) {
+    filters.value.name = urlParams.value.allQueries.name as string
+  }
+  if (urlParams.value.allQueries.name_katakana && urlParams.value.allQueries.name_katakana !== filters.value.name_katakana) {
+    filters.value.name_katakana = urlParams.value.allQueries.name_katakana as string
+  }
+  if (urlParams.value.allQueries.company && urlParams.value.allQueries.company !== filters.value.company) {
+    filters.value.company = urlParams.value.allQueries.company as string
+  }
+  if (urlParams.value.allQueries.consultant && Number(urlParams.value.allQueries.consultant) !== filters.value.consultant) {
+    filters.value.consultant = Number(urlParams.value.allQueries.consultant)
+  }
+  if (urlParams.value.allQueries.building_name && urlParams.value.allQueries.building_name !== filters.value.building_name) {
+    filters.value.building_name = urlParams.value.allQueries.building_name as string
+  }
+  if (urlParams.value.allQueries.room_number && urlParams.value.allQueries.room_number !== filters.value.room_number) {
+    filters.value.room_number = urlParams.value.allQueries.room_number as string
+  }
+  
   // type 파라미터 적용
   if (urlParams.value.type && urlParams.value.type !== filters.value.student_type) {
     filters.value.student_type = urlParams.value.type
@@ -118,6 +141,39 @@ onMounted(() => {
   fetchStudents()
 })
 
+// URL 업데이트 함수
+const updateUrlWithFilters = (newFilters: any) => {
+  const query = { ...route.query }
+  
+  // 검색 필터를 URL 쿼리에 추가
+  if (newFilters.nationality) query.nationality = newFilters.nationality
+  else delete query.nationality
+  
+  if (newFilters.name) query.name = newFilters.name
+  else delete query.name
+  
+  if (newFilters.name_katakana) query.name_katakana = newFilters.name_katakana
+  else delete query.name_katakana
+  
+  if (newFilters.company) query.company = newFilters.company
+  else delete query.company
+  
+  if (newFilters.consultant) query.consultant = newFilters.consultant.toString()
+  else delete query.consultant
+  
+  if (newFilters.building_name) query.building_name = newFilters.building_name
+  else delete query.building_name
+  
+  if (newFilters.room_number) query.room_number = newFilters.room_number
+  else delete query.room_number
+  
+  // 페이지 리셋
+  query.page = '1'
+  
+  // URL 업데이트
+  router.replace({ query })
+}
+
 // 디바운스된 검색 필터 변경 감지
 let searchTimeout: NodeJS.Timeout | null = null
 watch(filters, (newFilters) => {
@@ -130,6 +186,7 @@ watch(filters, (newFilters) => {
   searchTimeout = setTimeout(() => {
     debouncedFilters.value = { ...newFilters }
     page.value = 1
+    updateUrlWithFilters(newFilters)
     fetchStudents()
   }, 300)
 }, { deep: true })
@@ -242,18 +299,35 @@ const handleDownloadRentList = async () => {
     loading.value = true
     error.value = null
     
-    // TODO: 가정 리스트 다운로드 API 호출
+    // 먼저 검증 수행
+    const validationResponse = await buildingService.getBuildingDownloadMonthlyInvoiceValidate(new Date().getFullYear(), selectedRentMonth.value)
+    
+    // 검증 결과 확인
+    console.log(validationResponse)
+    if (!validationResponse.is_valid) {
+      let errorMessage = '選択された月の家賃リストデータに光熱費が含まれていません。確認してください。'
+      
+      // missing_rooms가 있는 경우 상세 정보 추가
+      if (validationResponse.missing_rooms && validationResponse.missing_rooms.length > 0) {
+        const missingRoomNumbers = validationResponse.missing_rooms.map(room => room.room_number).join(', ')
+        errorMessage += `\n\n不足している部屋番号: ${missingRoomNumbers}`
+      }
+      
+      error.value = errorMessage
+      return
+    }
+    
+    // 검증 통과 시 다운로드 수행
     const response = await buildingService.getBuildingDownloadMonthlyInvoice(new Date().getFullYear(), selectedRentMonth.value)
     
     const url = window.URL.createObjectURL(new Blob([response.data]))
     const link = document.createElement('a')
     link.href = url
-    link.setAttribute('download', `請求リスト_${new Date().getFullYear()}_${selectedMonth.value}.pdf`)
+    link.setAttribute('download', `請求リスト_${new Date().getFullYear()}_${selectedRentMonth.value}.pdf`)
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
     
-    // 임시로 성공 메시지만 표시
     showRentListModal.value = false
     alert('家賃リストが正常にダウンロードされました。')
   } catch (err: any) {
@@ -266,12 +340,25 @@ const handleDownloadRentList = async () => {
 // 페이지 변경 이벤트 핸들러
 const handlePageChange = (newPage: number) => {
   page.value = newPage
+  
+  // URL 업데이트
+  const query = { ...route.query }
+  query.page = newPage.toString()
+  router.replace({ query })
+  
   fetchStudents()
 }
 
 // 아이템 페이지 변경 이벤트 핸들러
 const handleItemsPerPageChange = (newItemsPerPage: number) => {
   itemsPerPage.value = newItemsPerPage
+  
+  // URL 업데이트
+  const query = { ...route.query }
+  query.size = newItemsPerPage.toString()
+  query.page = '1' // 페이지 크기 변경 시 첫 페이지로 리셋
+  router.replace({ query })
+  
   fetchStudents()
 }
 // 페이지 제목 계산
@@ -407,7 +494,10 @@ const pageTitle = computed(() => {
                 color="error"
                 variant="tonal"
                 block
-                @click="filters = { name: '', name_katakana: '', company: '', consultant: 0, nationality: '', building_name: '', room_number: '', student_type: filters.student_type }"
+                @click="() => {
+                  filters = { name: '', name_katakana: '', company: '', consultant: 0, nationality: '', building_name: '', room_number: '', student_type: filters.student_type }
+                  updateUrlWithFilters(filters)
+                }"
               >
                 フィルターリセット
               </VBtn>
