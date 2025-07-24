@@ -549,7 +549,7 @@ const createStudent = async () => {
               <VCol cols="12" md="6">
                 <VTextField
                   v-model="form.local_address"
-                  label="在留住所"
+                  label="本国住所"
                   variant="outlined"
                   :disabled="loading"
                 />
@@ -558,7 +558,7 @@ const createStudent = async () => {
               <VCol cols="12" md="6">
                 <VTextField
                   v-model="form.address"
-                  label="現地住所"
+                  label="現在住所"
                   variant="outlined"
                   :disabled="loading"
                 />
