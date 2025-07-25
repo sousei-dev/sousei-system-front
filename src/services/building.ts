@@ -6,6 +6,7 @@ export interface Building {
   address?: string
   total_rooms?: number
   note?: string
+  resident_type?: 'elderly' | 'student'
 }
 
 export interface BuildingCreateRequest {
@@ -70,6 +71,7 @@ export const buildingService = {
     size?: number
     name?: string
     address?: string
+    resident_type?: 'elderly' | 'student'
   }): Promise<BuildingListResponse> {
     const response = await api.get('/buildings', { params })
     return response.data

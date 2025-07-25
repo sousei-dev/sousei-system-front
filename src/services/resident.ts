@@ -3,7 +3,7 @@ import { api } from '@/utils/api'
 export interface Resident {
   id: string
   room_id: string
-  student_id: string
+  resident_id: string
   check_in_date: string
   check_out_date?: string
   is_active: boolean
@@ -51,7 +51,7 @@ export interface Resident {
 
 export interface ResidentCreateRequest {
   room_id: string
-  student_id: string
+  resident_id: string
   check_in_date: string
   check_out_date?: string
   is_active?: boolean

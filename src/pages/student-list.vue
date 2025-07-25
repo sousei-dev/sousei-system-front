@@ -50,49 +50,33 @@ const totalPages = ref(0)
 const urlParams = computed(() => {
   return {
     type: route.query.type as string || '',
-    page: route.query.page ? Number(route.query.page) : 1,
-    size: route.query.size ? Number(route.query.size) : 10,
+    page: route.query.page ? Number(route.query.page) : undefined,
+    size: route.query.size ? Number(route.query.size) : undefined,
     allQueries: route.query
   }
 })
 
 // URL 파라미터를 상태에 적용하는 함수
 const applyUrlParams = () => {
-  // 검색 필터 파라미터 적용
-  if (urlParams.value.allQueries.nationality && urlParams.value.allQueries.nationality !== filters.value.nationality) {
-    filters.value.nationality = urlParams.value.allQueries.nationality as string
-  }
-  if (urlParams.value.allQueries.name && urlParams.value.allQueries.name !== filters.value.name) {
-    filters.value.name = urlParams.value.allQueries.name as string
-  }
-  if (urlParams.value.allQueries.name_katakana && urlParams.value.allQueries.name_katakana !== filters.value.name_katakana) {
-    filters.value.name_katakana = urlParams.value.allQueries.name_katakana as string
-  }
-  if (urlParams.value.allQueries.company && urlParams.value.allQueries.company !== filters.value.company) {
-    filters.value.company = urlParams.value.allQueries.company as string
-  }
-  if (urlParams.value.allQueries.status && urlParams.value.allQueries.status !== filters.value.status) {
-    filters.value.status = urlParams.value.allQueries.status as string
-  }
-  if (urlParams.value.allQueries.building_name && urlParams.value.allQueries.building_name !== filters.value.building_name) {
-    filters.value.building_name = urlParams.value.allQueries.building_name as string
-  }
-  if (urlParams.value.allQueries.room_number && urlParams.value.allQueries.room_number !== filters.value.room_number) {
-    filters.value.room_number = urlParams.value.allQueries.room_number as string
-  }
+  // 검색 필터 파라미터 적용 (URL에 값이 없으면 빈 문자열로 설정)
+  filters.value.nationality = (urlParams.value.allQueries.nationality as string) || ''
+  filters.value.name = (urlParams.value.allQueries.name as string) || ''
+  filters.value.name_katakana = (urlParams.value.allQueries.name_katakana as string) || ''
+  filters.value.company = (urlParams.value.allQueries.company as string) || ''
+  filters.value.status = (urlParams.value.allQueries.status as string) || ''
+  filters.value.building_name = (urlParams.value.allQueries.building_name as string) || ''
+  filters.value.room_number = (urlParams.value.allQueries.room_number as string) || ''
   
   // type 파라미터 적용
-  if (urlParams.value.type && urlParams.value.type !== filters.value.student_type) {
-    filters.value.student_type = urlParams.value.type
-  }
+  filters.value.student_type = urlParams.value.type || ''
   
-  // 페이지 파라미터 적용
-  if (urlParams.value.page && urlParams.value.page !== page.value) {
+  // 페이지 파라미터 적용 (URL에 값이 있을 때만 number로 변환해서 업데이트)
+  if (urlParams.value.page !== undefined) {
     page.value = urlParams.value.page
   }
   
-  // 페이지 크기 파라미터 적용
-  if (urlParams.value.size && urlParams.value.size !== itemsPerPage.value) {
+  // 페이지 크기 파라미터 적용 (URL에 값이 있을 때만 number로 변환해서 업데이트)
+  if (urlParams.value.size !== undefined) {
     itemsPerPage.value = urlParams.value.size
   }
 }
@@ -141,12 +125,13 @@ const fetchStudents = async () => {
 // 컴포넌트 마운트 시 데이터 로드
 onMounted(() => {
   applyUrlParams() // URL 파라미터 적용
+  debouncedFilters.value = { ...filters.value } // debouncedFilters도 동기화
   fetchCompanies()
-  fetchStudents()
+  // fetchStudents() 호출 제거
 })
 
 // URL 업데이트 함수
-const updateUrlWithFilters = (newFilters: any) => {
+const updateUrlWithFilters = (newFilters: any, resetPage: boolean = true) => {
   const query = { ...route.query }
   
   // 검색 필터를 URL 쿼리에 추가
@@ -171,8 +156,12 @@ const updateUrlWithFilters = (newFilters: any) => {
   if (newFilters.room_number) query.room_number = newFilters.room_number
   else delete query.room_number
   
-  // 페이지 리셋
-  query.page = '1'
+  // 페이지 처리
+  if (resetPage || page.value === 1) {
+    delete query.page
+  } else {
+    query.page = page.value.toString()
+  }
   
   // URL 업데이트
   router.replace({ query })
@@ -189,8 +178,8 @@ watch(filters, (newFilters) => {
   // 300ms 후에 검색 실행
   searchTimeout = setTimeout(() => {
     debouncedFilters.value = { ...newFilters }
-    page.value = 1
-    updateUrlWithFilters(newFilters)
+    // 검색 필터 변경 시에는 페이지를 리셋하지 않음
+    updateUrlWithFilters(newFilters, false)
     fetchStudents()
   }, 300)
 }, { deep: true })
@@ -199,8 +188,9 @@ watch(filters, (newFilters) => {
 watch(() => route.query, (newQuery) => {
   console.log('Route query changed:', newQuery)
   applyUrlParams()
+  debouncedFilters.value = { ...filters.value } // debouncedFilters도 동기화
   fetchStudents()
-}, { deep: true })
+}, { deep: true, immediate: true })
 
 // 회사 옵션
 const companyOptions = computed(() => {
@@ -241,9 +231,28 @@ const handleDelete = async (id: string) => {
 }
 
 const handleEdit = (id: string, tab: string = '') => {
+  // 현재 페이지 정보를 포함한 쿼리 생성
+  const query: any = {}
+  
+  if (tab) {
+    query.tab = tab
+  }
+  
+  // 현재 검색 필터와 페이지 정보를 전달
+  if (filters.value.nationality) query.nationality = filters.value.nationality
+  if (filters.value.name) query.name = filters.value.name
+  if (filters.value.name_katakana) query.name_katakana = filters.value.name_katakana
+  if (filters.value.company) query.company = filters.value.company
+  if (filters.value.status) query.status = filters.value.status
+  if (filters.value.building_name) query.building_name = filters.value.building_name
+  if (filters.value.room_number) query.room_number = filters.value.room_number
+  if (filters.value.student_type) query.type = filters.value.student_type
+  if (page.value > 1) query.page = page.value.toString()
+  if (itemsPerPage.value !== 10) query.size = itemsPerPage.value.toString()
+  
   router.push({
     path: `/student-detail/${id}`,
-    query: tab ? { tab } : undefined,
+    query: Object.keys(query).length > 0 ? query : undefined,
   })
 }
 
@@ -346,7 +355,7 @@ const handleDownloadRentList = async () => {
 const handlePageChange = (newPage: number) => {
   page.value = newPage
   
-  // URL 업데이트
+  // URL 업데이트 (검색 필터 유지)
   const query = { ...route.query }
   query.page = newPage.toString()
   router.replace({ query })
@@ -503,7 +512,7 @@ const pageTitle = computed(() => {
                 block
                 @click="() => {
                   filters = { name: '', name_katakana: '', company: '', status: '', nationality: '', building_name: '', room_number: '', student_type: filters.student_type }
-                  updateUrlWithFilters(filters)
+                  updateUrlWithFilters(filters, true)
                 }"
               >
                 フィルターリセット

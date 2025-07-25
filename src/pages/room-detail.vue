@@ -18,6 +18,8 @@ const residentHistory = ref<Resident[]>([])
 const residentLoading = ref(false)
 const residentError = ref<string | null>(null)
 
+const residentType = ref<string | null>(null)
+
 // 편집 모드
 const isEditing = ref(false)
 
@@ -28,7 +30,9 @@ const form = ref<RoomUpdateRequest>({
   floor: 1,
   capacity: 1,
   is_available: true,
-  note: ''
+  note: '',
+  maintenance: 0,
+  service: 0,
 })
 
 // 날짜 포맷팅
@@ -330,27 +334,27 @@ const saveUtility = async () => {
       await Promise.all(promises)
       await loadUtilitiesForMonth(selectedMonth.value)
       closeUtilityModal()
-      showSuccessMessage('유틸리티 비용이 저장되었습니다.')
+      showSuccessMessage('光熱費が保存されました。')
     } else {
-      showErrorMessage('저장할 데이터가 없습니다. 필수 필드를 입력해주세요.')
+      showErrorMessage('保存するデータがありません。必須項目を入力してください。')
     }
   } catch (error) {
     console.error('유틸리티 비용 저장 실패:', error)
-    showErrorMessage('유틸리티 비용 저장에 실패했습니다.')
+    showErrorMessage('光熱費の保存に失敗しました。')
   }
 }
 
 const deleteUtility = async (utilityId: string) => {
-  if (!confirm('이 유틸리티 비용을 삭제하시겠습니까?')) return
+  if (!confirm('この光熱費を削除しますか？')) return
   
   try {
     const roomId = route.params.id as string
     await roomService.deleteUtility(roomId, utilityId)
     await loadUtilitiesForMonth(selectedMonth.value)
-    showSuccessMessage('유틸리티 비용이 삭제되었습니다.')
+    showSuccessMessage('光熱費が削除されました。')
   } catch (error) {
     console.error('유틸리티 비용 삭제 실패:', error)
-    showErrorMessage('유틸리티 비용 삭제에 실패했습니다.')
+    showErrorMessage('光熱費の削除に失敗しました。')
   }
 }
 
@@ -359,12 +363,12 @@ const fetchRoom = async () => {
   try {
     loading.value = true
     error.value = null
-    
+
     const roomId = route.params.id as string
     const response = await roomService.getRoom(roomId)
-    
+
     room.value = response
-    
+    residentType.value = (response.building.resident_type as string) || null
     if (room.value) {
       form.value = {
         room_number: room.value.room_number,
@@ -372,15 +376,17 @@ const fetchRoom = async () => {
         floor: room.value.floor,
         capacity: room.value.capacity,
         is_available: room.value.is_available,
-        note: room.value.note
+        note: room.value.note,
+        maintenance: room.value.maintenance || 0,
+        service: room.value.service || 0,
       }
-      
+
       // 현재 월의 유틸리티 비용 로드
       await loadUtilitiesForMonth(selectedMonth.value)
     }
   } catch (err: any) {
     console.error('방 정보 로드 실패:', err)
-    error.value = '방 정보를 불러오는데 실패했습니다.'
+    error.value = '部屋情報の取得に失敗しました。'
   } finally {
     loading.value = false
   }
@@ -421,7 +427,9 @@ const handleUpdate = async () => {
       floor: form.value.floor,
       capacity: form.value.capacity,
       is_available: form.value.is_available,
-      note: form.value.note || undefined
+      note: form.value.note || undefined,
+      maintenance: form.value.maintenance,
+      service: form.value.service,
     })
     
     // 성공 시 편집 모드 해제
@@ -600,6 +608,32 @@ onMounted(async () => {
                 />
               </VCol>
               
+              <!-- 관리비용 (노인 거주자만) -->
+              <VCol v-if="residentType === 'elderly'" cols="12" md="6">
+                <VTextField
+                  v-model="form.maintenance"
+                  label="管理費"
+                  :readonly="!isEditing"
+                  type="number"
+                  min="0"
+                  hide-details="auto"
+                  prepend-inner-icon="ri-money-dollar-circle-line"
+                />
+              </VCol>
+              
+              <!-- 서비스비용 (노인 거주자만) -->
+              <VCol v-if="residentType === 'elderly'" cols="12" md="6">
+                <VTextField
+                  v-model="form.service"
+                  label="サービス費"
+                  :readonly="!isEditing"
+                  type="number"
+                  min="0"
+                  hide-details="auto"
+                  prepend-inner-icon="ri-service-line"
+                />
+              </VCol>
+              
               <VCol cols="12" md="6">
                 <VSelect
                   v-model="form.is_available"
@@ -625,8 +659,8 @@ onMounted(async () => {
                 />
               </VCol>
 
-              <!-- 월별 유틸리티 비용 섹션 -->
-              <VCol cols="12">
+              <!-- 월별 유틸리티 비용 섹션 (학생 거주자만 표시) -->
+              <VCol v-if="residentType !== 'elderly'" cols="12">
                 <VCard variant="outlined" class="pa-4">
                   <VCardTitle class="text-h6 mb-4 d-flex justify-space-between align-center">
                     <div class="d-flex align-center">

@@ -9,7 +9,8 @@ const route = useRoute()
 // 검색 필터 상태
 const filters = ref({
   name: '',
-  address: ''
+  address: '',
+  resident_type: (route.query.type as string)
 })
 
 // 빌딩 데이터 상태
@@ -86,6 +87,7 @@ onMounted(() => {
 // route.query 변경 감지 (URL 파라미터 변경 시)
 watch(() => route.query, (newQuery) => {
   console.log('Route query changed:', newQuery)
+  filters.value.resident_type = newQuery.type
   applyUrlParams()
   fetchBuildings()
 }, { deep: true })

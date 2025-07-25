@@ -16,7 +16,7 @@ const form = ref({
   note: ''
 })
 
-const loading = ref(false)
+const loading = ref(false) 
 const error = ref<string | null>(null)
 
 // 빌딩 ID

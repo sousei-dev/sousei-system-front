@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { buildingService, type Building } from '@/services/building'
-import { roomService, type Room } from '@/services/room'
 import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { type Building, buildingService } from '@/services/building'
+import { type Room, roomService } from '@/services/room'
 
 const router = useRouter()
 const route = useRoute()
@@ -11,6 +11,9 @@ const route = useRoute()
 const building = ref<Building | null>(null)
 const loading = ref(false)
 const error = ref<string | null>(null)
+
+// 거주자 타입 (빌딩 데이터에서 확인)
+const residentType = ref<string | null>(null)
 
 // 방 데이터
 const rooms = ref<Room[]>([])
@@ -25,7 +28,7 @@ const form = ref({
   name: '',
   address: '',
   total_rooms: undefined as number | undefined,
-  note: ''
+  note: '',
 })
 
 // 빌딩 데이터 로드
@@ -33,22 +36,25 @@ const fetchBuilding = async () => {
   try {
     loading.value = true
     error.value = null
-    
+
     const buildingId = route.params.id as string
     const data = await buildingService.getBuilding(buildingId)
-    
+
     building.value = data
-    
+    residentType.value = data.resident_type
+
     // 폼 데이터 초기화
     form.value = {
       name: data.name,
       address: data.address || '',
       total_rooms: data.total_rooms,
-      note: data.note || ''
+      note: data.note || '',
     }
-  } catch (err: any) {
+  }
+  catch (err: any) {
     error.value = err.response?.data?.message || '建物の取得に失敗しました。'
-  } finally {
+  }
+  finally {
     loading.value = false
   }
 }
@@ -58,14 +64,16 @@ const fetchRooms = async () => {
   try {
     roomsLoading.value = true
     roomsError.value = null
-    
+
     const buildingId = route.params.id as string
     const response = await roomService.getRoomsByBuilding(buildingId)
-    
+
     rooms.value = response.items
-  } catch (err: any) {
+  }
+  catch (err: any) {
     roomsError.value = err.response?.data?.message || '部屋リストの取得に失敗しました。'
-  } finally {
+  }
+  finally {
     roomsLoading.value = false
   }
 }
@@ -75,21 +83,24 @@ const handleUpdate = async () => {
   try {
     loading.value = true
     error.value = null
-    
+
     const buildingId = route.params.id as string
+
     await buildingService.updateBuilding(buildingId, {
       name: form.value.name,
       address: form.value.address || undefined,
       total_rooms: form.value.total_rooms,
-      note: form.value.note || undefined
+      note: form.value.note || undefined,
     })
-    
+
     // 성공 시 편집 모드 해제
     isEditing.value = false
     await fetchBuilding() // 데이터 다시 로드
-  } catch (err: any) {
+  }
+  catch (err: any) {
     error.value = err.response?.data?.message || '建物の更新に失敗しました。'
-  } finally {
+  }
+  finally {
     loading.value = false
   }
 }
@@ -99,16 +110,17 @@ const toggleEdit = () => {
   isEditing.value = !isEditing.value
 }
 
-// 취소
+// キャンセル
 const handleCancel = () => {
   isEditing.value = false
+
   // 폼 데이터를 원래 데이터로 복원
   if (building.value) {
     form.value = {
       name: building.value.name,
       address: building.value.address || '',
       total_rooms: building.value.total_rooms,
-      note: building.value.note || ''
+      note: building.value.note || '',
     }
   }
 }
@@ -126,19 +138,23 @@ const goToRoomDetail = (roomId: string) => {
 // 방 생성으로 이동
 const goToRoomCreate = () => {
   const buildingId = route.params.id as string
+
   router.push(`/room-create?building_id=${buildingId}`)
 }
 
-// 방 삭제
-const handleRoomDelete = async (roomId: string) => {
-  if (confirm('本当にこの部屋を削除しますか？')) {
+// 部屋削除
+const _handleRoomDelete = async (roomId: string) => {
+  // eslint-disable-next-line no-alert
+  if (window.confirm('本当にこの部屋を削除しますか？')) {
     try {
       roomsLoading.value = true
       await roomService.deleteRoom(roomId)
       await fetchRooms() // 방 목록 다시 로드
-    } catch (err: any) {
+    }
+    catch (err: any) {
       roomsError.value = err.response?.data?.message || '部屋の削除に失敗しました。'
-    } finally {
+    }
+    finally {
       roomsLoading.value = false
     }
   }
@@ -176,7 +192,7 @@ onMounted(async () => {
         </VCardTitle>
 
         <VCardText>
-          <!-- 에러 메시지 -->
+          <!-- エラーメッセージ -->
           <VAlert
             v-if="error"
             type="error"
@@ -185,15 +201,21 @@ onMounted(async () => {
             {{ error }}
           </VAlert>
 
-          <!-- 로딩 중 -->
-          <div v-if="loading" class="d-flex justify-center pa-8">
+          <!-- 読み込み中 -->
+          <div
+            v-if="loading"
+            class="d-flex justify-center pa-8"
+          >
             <VProgressCircular indeterminate />
           </div>
 
           <!-- 빌딩 정보 -->
           <div v-else-if="building">
             <VRow>
-              <VCol cols="12" md="6">
+              <VCol
+                cols="12"
+                md="6"
+              >
                 <VTextField
                   v-model="form.name"
                   label="建物名"
@@ -202,8 +224,11 @@ onMounted(async () => {
                   prepend-inner-icon="ri-building-line"
                 />
               </VCol>
-              
-              <VCol cols="12" md="6">
+
+              <VCol
+                cols="12"
+                md="6"
+              >
                 <VTextField
                   v-model="form.address"
                   label="住所"
@@ -212,8 +237,11 @@ onMounted(async () => {
                   prepend-inner-icon="ri-map-pin-line"
                 />
               </VCol>
-              
-              <VCol cols="12" md="6">
+
+              <VCol
+                cols="12"
+                md="6"
+              >
                 <VTextField
                   v-model="form.total_rooms"
                   label="総部屋数"
@@ -224,7 +252,7 @@ onMounted(async () => {
                   prepend-inner-icon="ri-home-line"
                 />
               </VCol>
-              
+
               <VCol cols="12">
                 <VTextarea
                   v-model="form.note"
@@ -240,7 +268,10 @@ onMounted(async () => {
         </VCardText>
 
         <!-- 편집 모드일 때만 액션 버튼 표시 -->
-        <VCardActions v-if="isEditing" class="pa-4">
+        <VCardActions
+          v-if="isEditing"
+          class="pa-4"
+        >
           <VSpacer />
           <VBtn
             color="error"
@@ -284,7 +315,10 @@ onMounted(async () => {
           </VAlert>
 
           <!-- 방 로딩 중 -->
-          <div v-if="roomsLoading" class="d-flex justify-center pa-8">
+          <div
+            v-if="roomsLoading"
+            class="d-flex justify-center pa-8"
+          >
             <VProgressCircular indeterminate />
           </div>
 
@@ -296,17 +330,32 @@ onMounted(async () => {
                   <th>部屋番号</th>
                   <th>階数</th>
                   <th>家賃</th>
-                  <th>面積</th>
+                  <th v-if="residentType === 'elderly'">
+                    管理費
+                  </th>
+                  <th v-if="residentType === 'elderly'">
+                    サービス費
+                  </th>
+                  <th>定員</th>
                   <th>利用可能</th>
                   <th>メモ</th>
                   <th>操作</th>
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="room in rooms" :key="room.id">
+                <tr
+                  v-for="room in rooms"
+                  :key="room.id"
+                >
                   <td>{{ room.room_number }}</td>
                   <td>{{ room.floor || '-' }}</td>
                   <td>{{ room.rent ? `¥${room.rent.toLocaleString()}` : '-' }}</td>
+                  <td v-if="residentType === 'elderly'">
+                    {{ room.maintenance ? `¥${room.maintenance.toLocaleString()}` : '-' }}
+                  </td>
+                  <td v-if="residentType === 'elderly'">
+                    {{ room.service ? `¥${room.service.toLocaleString()}` : '-' }}
+                  </td>
                   <td>{{ room.capacity ? `${room.capacity}` : '-' }}</td>
                   <td>
                     <VChip
@@ -323,18 +372,30 @@ onMounted(async () => {
                       variant="text"
                       size="small"
                       color="primary"
-                      @click="goToRoomDetail(room.id)"
                       class="me-2"
+                      @click="goToRoomDetail(room.id)"
                     >
                       <VIcon>ri-edit-line</VIcon>
+                    </VBtn>
+                    <VBtn
+                      icon
+                      variant="text"
+                      size="small"
+                      color="error"
+                      @click="_handleRoomDelete(room.id)"
+                    >
+                      <VIcon>ri-delete-bin-line</VIcon>
                     </VBtn>
                   </td>
                 </tr>
               </tbody>
             </VTable>
-            
+
             <!-- 방이 없을 때 -->
-            <div v-else class="text-center pa-8 text-medium-emphasis">
+            <div
+              v-else
+              class="text-center pa-8 text-medium-emphasis"
+            >
               部屋が登録されていません。
             </div>
           </div>
@@ -342,4 +403,4 @@ onMounted(async () => {
       </VCard>
     </VCol>
   </VRow>
-</template> 
+</template>

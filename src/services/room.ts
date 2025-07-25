@@ -1,4 +1,5 @@
 import { api } from '@/utils/api'
+import type { Building } from './building'
 
 export interface RoomUtility {
   id: string
@@ -17,10 +18,17 @@ export interface Room {
   building_id: string
   room_number: string
   rent?: number
+  monthly_rent?: number
+  maintenance?: number
+  service?: number
   floor?: number
   capacity?: number
   is_available: boolean
   note?: string
+  building: Building
+  security_months?: number
+  security_deposit?: number
+
   // 광열비 정보 (월별)
   utilities?: RoomUtility[]
 }
@@ -42,6 +50,8 @@ export interface RoomUpdateRequest {
   capacity?: number
   is_available?: boolean
   note?: string
+  maintenance?: number
+  service?: number
 }
 
 export interface RoomUtilityCreateRequest {

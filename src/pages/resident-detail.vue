@@ -76,7 +76,7 @@ const goToBilling = () => {
 // 학생 상세로 이동
 const goToStudentDetail = () => {
   if (resident.value?.student_id) {
-    router.push(`/student-detail/${resident.value.student_id}`)
+    router.push(`/student-detail/${resident.value.resident_id}`)
   }
 }
 

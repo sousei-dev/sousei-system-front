@@ -1032,6 +1032,7 @@ const updateStudent = async () => {
                   color="error"
                   variant="outlined"
                   class="resignation-date-field"
+                  :max="new Date().toISOString().slice(0, 10)"
                 />
               </VCol>
             </VRow>

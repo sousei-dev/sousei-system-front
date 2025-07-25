@@ -221,7 +221,7 @@ const createStudent = async () => {
   <VCard>
     <VCardText>
       <VRow>
-        <!-- 에러 메시지 -->
+        <!-- エラーメッセージ -->
         <VCol
           v-if="error"
           cols="12"
@@ -235,7 +235,7 @@ const createStudent = async () => {
           </VAlert>
         </VCol>
 
-        <!-- 성공 메시지 -->
+        <!-- 成功メッセージ -->
         <VCol
           v-if="success"
           cols="12"
@@ -249,17 +249,17 @@ const createStudent = async () => {
           </VAlert>
         </VCol>
 
-        <!-- 아바타 섹션 -->
+        <!-- アバターセクション -->
         <VCol cols="12">
           <div class="d-flex align-center gap-6">
-            <!-- 아바타 이미지 -->
+            <!-- アバター画像 -->
             <VAvatar
               rounded="lg"
               size="100"
               :image="form.avatarImg"
             />
 
-            <!-- 아바타 업로드 폼 -->
+            <!-- アバターアップロードフォーム -->
             <form class="d-flex flex-column justify-center gap-5">
               <div class="d-flex flex-wrap gap-2">
                 <VBtn
@@ -303,7 +303,7 @@ const createStudent = async () => {
           </div>
         </VCol>
 
-        <!-- 필수항목 섹션 -->
+        <!-- 必須項目セクション -->
         <VCol cols="12">
           <VCard variant="outlined" class="pa-4 mb-6">
             <VCardTitle class="text-h6 text-primary">
