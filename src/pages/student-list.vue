@@ -15,7 +15,7 @@ const filters = ref({
   name: route.query.name as string || '',
   name_katakana: route.query.name_katakana as string || '',
   company: route.query.company as string || '',
-  consultant: route.query.consultant ? Number(route.query.consultant) : 0,
+  status: route.query.status as string || '',
   building_name: route.query.building_name as string || '',
   room_number: route.query.room_number as string || '',
   student_type: route.query.type as string || ''
@@ -32,6 +32,10 @@ const nationalityOptions = [
   { title: '🇻🇳 ベトナム', value: 'ベトナム' },
   { title: '🇰🇷 韓国', value: '韓国' },
   { title: '🇰🇭 カンボジア', value: 'カンボジア' },
+]
+const statusOptions = [
+  { title: '在留中', value: 'ACTIVE' },
+  { title: '退職', value: 'RESIGNED' },
 ]
 const loading = ref(false)
 const error = ref<string | null>(null)
@@ -67,8 +71,8 @@ const applyUrlParams = () => {
   if (urlParams.value.allQueries.company && urlParams.value.allQueries.company !== filters.value.company) {
     filters.value.company = urlParams.value.allQueries.company as string
   }
-  if (urlParams.value.allQueries.consultant && Number(urlParams.value.allQueries.consultant) !== filters.value.consultant) {
-    filters.value.consultant = Number(urlParams.value.allQueries.consultant)
+  if (urlParams.value.allQueries.status && urlParams.value.allQueries.status !== filters.value.status) {
+    filters.value.status = urlParams.value.allQueries.status as string
   }
   if (urlParams.value.allQueries.building_name && urlParams.value.allQueries.building_name !== filters.value.building_name) {
     filters.value.building_name = urlParams.value.allQueries.building_name as string
@@ -158,8 +162,8 @@ const updateUrlWithFilters = (newFilters: any) => {
   if (newFilters.company) query.company = newFilters.company
   else delete query.company
   
-  if (newFilters.consultant) query.consultant = newFilters.consultant.toString()
-  else delete query.consultant
+  if (newFilters.status) query.status = newFilters.status
+  else delete query.status
   
   if (newFilters.building_name) query.building_name = newFilters.building_name
   else delete query.building_name
@@ -212,10 +216,11 @@ const nationalityFlags: Record<string, string> = {
 
 const tableHeaders = [
   { title: '国籍', key: 'nationality' },
+  { title: '期生', key: 'grade.name' },
   { title: '名前', key: 'name' },
   { title: '会社', key: 'company.name' },
   { title: '建物', key: 'building' },
-  { title: '相談回数', key: 'consultant' },
+  { title: '状態', key: 'status' },
   { title: '操作', key: 'actions', sortable: false },
 ]
 
@@ -456,15 +461,17 @@ const pageTitle = computed(() => {
             </VCol>
 
             <VCol cols="12" sm="6" md="3">
-              <VTextField
-                v-model="filters.consultant"
-                label="相談回数"
-                placeholder="最小相談回数"
-                type="number"
+              <VSelect
+                v-model="filters.status"
+                label="状態"
+                placeholder="状態で検索"
                 hide-details
                 density="compact"
                 clearable
-                prepend-inner-icon="ri-customer-service-2-line"
+                prepend-inner-icon="ri-checkbox-line"
+                :items="statusOptions"
+                item-title="title"
+                item-value="value"
               />
             </VCol>
             <VCol cols="12" sm="6" md="3">
@@ -495,7 +502,7 @@ const pageTitle = computed(() => {
                 variant="tonal"
                 block
                 @click="() => {
-                  filters = { name: '', name_katakana: '', company: '', consultant: 0, nationality: '', building_name: '', room_number: '', student_type: filters.student_type }
+                  filters = { name: '', name_katakana: '', company: '', status: '', nationality: '', building_name: '', room_number: '', student_type: filters.student_type }
                   updateUrlWithFilters(filters)
                 }"
               >
@@ -549,6 +556,17 @@ const pageTitle = computed(() => {
                 <div>{{ item.current_room?.building_name || '-' }}</div>
                 <div class="text-caption text-medium-emphasis">{{ item.current_room?.room_number || '-' }}</div>
               </div>
+            </template>
+
+            <!-- 상태 컬럼 템플릿 -->
+            <template #[`item.status`]="{ item }">
+              <VChip
+                :color="item.status === 'ACTIVE' ? 'success' : 'error'"
+                size="small"
+                variant="tonal"
+              >
+                {{ item.status === 'ACTIVE' ? '在留中' : item.status === 'RESIGNED' ? '退職' : item.status }}
+              </VChip>
             </template>
 
             <!-- 작업 컬럼 템플릿 -->
