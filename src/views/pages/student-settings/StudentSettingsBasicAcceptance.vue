@@ -562,9 +562,6 @@ onMounted(() => {
                 <td class="total-column">
                   <!-- 빈 셀 -->
                 </td>
-                <td class="add-column">
-                  <!-- 빈 셀 -->
-                </td>
               </tr>
               <!-- 월별 합계 행 -->
               <tr class="monthly-total-row">
@@ -645,11 +642,6 @@ onMounted(() => {
   min-width: 120px;
   text-align: center;
   background: rgba(var(--v-theme-primary), 0.1);
-}
-
-.add-column {
-  min-width: 60px;
-  text-align: center;
 }
 
 .add-item-row {
