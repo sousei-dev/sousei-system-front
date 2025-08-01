@@ -198,7 +198,7 @@ const logUrlParams = () => {
                 color="error"
                 variant="tonal"
                 block
-                @click="filters = { name: '', address: '' }"
+                @click="filters = { name: '', address: '', resident_type: (route.query.type as string) || 'student' }"
               >
                 フィルターリセット
               </VBtn>

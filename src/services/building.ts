@@ -12,6 +12,7 @@ export interface Building {
 export interface BuildingCreateRequest {
   name: string
   address?: string
+  building_type?: string
   total_rooms?: number
   note?: string
 }
@@ -19,6 +20,7 @@ export interface BuildingCreateRequest {
 export interface BuildingUpdateRequest {
   name?: string
   address?: string
+  building_type?: string
   total_rooms?: number
   note?: string
 }
@@ -62,6 +64,30 @@ export interface EmptyRoomsResponse {
   }
   options: EmptyRoomOption[]
   total: number
+}
+
+// 월별 청구서 미리보기 응답 인터페이스
+export interface MonthlyInvoicePreview {
+  building_id: string
+  building_name: string
+  year: number
+  month: number
+  invoices: Array<{
+    student_id: string
+    student_name: string
+    total_amount: number
+    items: Array<{
+      name: string
+      unit_price: number
+      quantity: number
+      amount: number
+      memo: string
+      type: string
+    }>
+    payment_status: string
+  }>
+  total_invoices: number
+  total_amount: number
 }
 
 export const buildingService = {
@@ -109,6 +135,22 @@ export const buildingService = {
   // 특정 빌딩의 빈 호실 목록 조회
   async getEmptyRoomsByBuilding(buildingId: string): Promise<EmptyRoomsResponse> {
     const response = await api.get(`/buildings/${buildingId}/empty-rooms`)
+    return response.data
+  },
+
+  // 월별 청구서 미리보기 조회
+  async getMonthlyInvoicePreview(
+    year: number,
+    month: number,
+    companyId?: string,
+  ): Promise<MonthlyInvoicePreview> {
+    const params: any = {}
+    if (companyId) {
+      params.company_id = companyId
+    }
+
+    const response = await api.get(`/buildings/monthly-invoice-preview/students/${year}/${month}`, { params })
+
     return response.data
   },
 

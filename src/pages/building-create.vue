@@ -9,9 +9,16 @@ const router = useRouter()
 const form = ref({
   name: '',
   address: '',
+  building_type: 'mansion',
   total_rooms: undefined as number | undefined,
   note: ''
 })
+
+// 건물 타입 옵션
+const buildingTypeOptions = [
+  { title: 'マンション', value: 'mansion' },
+  { title: '一戸建て', value: 'house' }
+]
 
 const loading = ref(false)
 const error = ref<string | null>(null)
@@ -25,6 +32,7 @@ const handleSubmit = async () => {
     await buildingService.createBuilding({
       name: form.value.name,
       address: form.value.address || undefined,
+      building_type: form.value.building_type || undefined,
       total_rooms: form.value.total_rooms,
       note: form.value.note || undefined
     })
@@ -82,6 +90,17 @@ const handleCancel = () => {
                   placeholder="住所を入力"
                   hide-details="auto"
                   prepend-inner-icon="ri-map-pin-line"
+                />
+              </VCol>
+              
+              <VCol cols="12" md="6">
+                <VSelect
+                  v-model="form.building_type"
+                  :items="buildingTypeOptions"
+                  label="建物タイプ"
+                  placeholder="建物タイプを選択"
+                  hide-details="auto"
+                  prepend-inner-icon="ri-building-line"
                 />
               </VCol>
               

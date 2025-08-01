@@ -37,6 +37,10 @@ export const routes = [
         component: () => import('@/pages/calendar.vue'),
       },
       {
+        path: 'billing',
+        component: () => import('@/pages/billing.vue'),
+      },
+      {
         path: 'building-list',
         component: () => import('@/pages/building-list.vue'),
       },
@@ -59,6 +63,22 @@ export const routes = [
       {
         path: 'resident-detail/:id',
         component: () => import('@/pages/resident-detail.vue'),
+      },
+      {
+        path: 'care-facility-meal-record',
+        component: () => import('@/pages/care-facility-meal-record.vue'),
+      },
+      {
+        path: 'elderly-list',
+        component: () => import('@/pages/elderly-list.vue'),
+      },
+      {
+        path: 'elderly-create',
+        component: () => import('@/pages/elderly-list.vue'),
+      },
+      {
+        path: 'elderly-building-list',
+        component: () => import('@/pages/building-list.vue'),
       },
       {
         path: 'typography',

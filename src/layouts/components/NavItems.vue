@@ -1,6 +1,21 @@
 <script lang="ts" setup>
 import VerticalNavLink from '@layouts/components/VerticalNavLink.vue';
 import VerticalNavSectionTitle from '@layouts/components/VerticalNavSectionTitle.vue';
+import VerticalNavGroup from '@layouts/components/VerticalNavGroup.vue';
+import { authService } from '@/services/auth';
+import { computed } from 'vue';
+
+// 사용자 역할 가져오기
+const userRole = computed(() => authService.getUserRole());
+
+// 관리자 권한 확인
+const isAdmin = computed(() => userRole.value === 'admin' || userRole.value === 'Admin');
+
+// 스킬생 관리 권한 확인 (관리자 또는 스킬생 관리자)
+const canManageStudents = computed(() => {
+  console.log(userRole.value)
+  return isAdmin.value || userRole.value === 'manager' || userRole.value === 'manager';
+});
 </script>
 
 <template>
@@ -110,44 +125,100 @@ import VerticalNavSectionTitle from '@layouts/components/VerticalNavSectionTitle
     />
   </VerticalNavGroup> -->
 
-  <VerticalNavSectionTitle
-    :item="{
-      heading: 'ユーザー管理',
-    }"
-  />
-  <VerticalNavLink
-    :item="{
-      title: '全て',
-      icon: 'ri-group-3-line',
-      to: '/all-student-list?type=ALL',
-    }"
-  />
-  <VerticalNavLink
-    :item="{
-      title: '機能',
-      icon: 'ri-user-line',
-      to: '/student-list?type=general',
-    }"
-  />
-  <VerticalNavLink
-    :item="{
-      title: '特定',
-      icon: 'ri-user-star-line',
-      to: '/special-student-list?type=specified',
-    }"
-  />
-  <VerticalNavSectionTitle
-    :item="{
-      heading: '家賃管理',
-    }"
-  />
-  <VerticalNavLink
-    :item="{
-      title: '家賃',
-      icon: 'ri-home-4-line',
-      to: '/building-list',
-    }"
-  />
+  <!-- 스킬생 관리 섹션 - 권한이 있는 사용자만 표시 -->
+  <template v-if="canManageStudents">
+    <VerticalNavSectionTitle
+      :item="{
+        heading: '技能生管理',
+      }"
+    />
+    <VerticalNavLink
+      :item="{
+        title: '全て',
+        icon: 'ri-group-3-line',
+        to: '/all-student-list?type=ALL',
+      }"
+    />
+    <VerticalNavLink
+      :item="{
+        title: '機能',
+        icon: 'ri-user-line',
+        to: '/student-list?type=general',
+      }"
+    />
+    <VerticalNavLink
+      :item="{
+        title: '特定',
+        icon: 'ri-user-star-line',
+        to: '/special-student-list?type=specified',
+      }"
+    />
+  </template>
+  <template v-if="isAdmin">
+    <VerticalNavSectionTitle
+      :item="{
+        heading: '請求管理',
+      }"
+    />
+    <VerticalNavLink
+      :item="{
+        title: '請求リスト',
+        icon: 'ri-home-4-line',
+        to: '/billing',
+      }"
+    />
+    <VerticalNavSectionTitle
+      :item="{
+        heading: '技能生家賃管理',
+      }"
+    />
+    <VerticalNavLink
+      :item="{
+        title: '物件',
+        icon: 'ri-home-4-line',
+        to: '/building-list?type=student',
+      }"
+    />
+    <VerticalNavSectionTitle
+      :item="{
+        heading: '介護管理',
+      }"
+    />
+    <VerticalNavGroup
+      :item="{
+        title: '山本施設',
+        icon: 'ri-hospital-line',
+      }"
+    >
+    <VerticalNavLink
+        :item="{
+          title: '入居者リスト',
+          icon: 'ri-user-line',
+          to: '/elderly-list',
+        }"
+      />
+      <VerticalNavLink
+        :item="{
+          title: '請求関連',
+          icon: 'ri-receipt-line',
+          to: '/care-facility-meal-record',
+        }"
+      />
+      
+    </VerticalNavGroup>
+    <VerticalNavSectionTitle
+      :item="{
+        heading: '介護賃管理',
+      }"
+    />
+    <VerticalNavLink
+      :item="{
+        title: '物件',
+        icon: 'ri-home-4-line',
+        to: '/elderly-building-list?type=elderly',
+      }"
+    />
+  </template>
 
   <!-- <VerticalNavLink
     :item="{

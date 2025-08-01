@@ -2,6 +2,13 @@ import { api } from '@/utils/api'
 
 interface LoginResponse {
   access_token: string
+  role: string
+  user?: {
+    id: string
+    email: string
+    role: string
+    name: string
+  }
 }
 
 interface LoginInput {
@@ -22,6 +29,12 @@ export const authService = {
     // 로그인 성공 시 토큰 저장
     if (response.data.access_token) {
       localStorage.setItem('token', response.data.access_token)
+
+      // 사용자 정보 저장
+      if (response.data.role) {
+        localStorage.setItem('userRole', response.data.role)
+      }
+      
       // remember me가 체크되어 있다면 토큰을 더 오래 저장
       if (data.remember) {
         localStorage.setItem('rememberId', data.email)
@@ -61,5 +74,19 @@ export const authService = {
   // 로그인 상태 확인
   isAuthenticated: (): boolean => {
     return !!localStorage.getItem('token')
+  },
+
+  // 사용자 역할 가져오기
+  getUserRole: (): string | null => {
+    return localStorage.getItem('userRole')
+  },
+
+  // 사용자 정보 가져오기
+  getUserInfo: () => {
+    return {
+      role: localStorage.getItem('userRole'),
+      name: localStorage.getItem('userName'),
+      email: localStorage.getItem('userEmail'),
+    }
   }
 } 
