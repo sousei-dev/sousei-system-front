@@ -225,10 +225,17 @@ const handleCompanySelectFromDropdown = async (companyId: string) => {
   if (!companyId) {
     selectedCompany.value = null
     companyInvoices.value = []
+    return
   }
   
   selectedCompany.value = companyId
   await fetchCompanyInvoices(selectedCompany.value || '')
+}
+
+// 년도/월 변경 시 회사 초기화
+const handleYearMonthChange = () => {
+  selectedCompany.value = null
+  companyInvoices.value = []
 }
 
 // 청구서 상태에 따른 색상 반환
@@ -325,6 +332,7 @@ onMounted(() => {
               :items="yearOptions"
               label="年"
               variant="outlined"
+              @update:model-value="handleYearMonthChange"
             />
           </VCol>
           
@@ -335,6 +343,7 @@ onMounted(() => {
               :items="monthOptions"
               label="月"
               variant="outlined"
+              @update:model-value="handleYearMonthChange"
             />
           </VCol>
           
@@ -363,12 +372,13 @@ onMounted(() => {
       <VCardTitle class="text-h6 d-flex align-center justify-space-between">
         <div class="d-flex align-center">
           <VIcon class="me-2">ri-file-text-line</VIcon>
-          {{ selectedCompany.name }} - {{ selectedYear }}年{{ selectedMonth }}月 請求書一覧
+            {{ selectedYear }}年{{ selectedMonth }}月 請求書一覧
         </div>
         <VBtn
           color="primary"
           prepend-icon="ri-add-line"
           @click="goToCreateInvoice(selectedCompany.id || '')"
+          disabled
         >
           請求書作成
         </VBtn>
@@ -377,7 +387,7 @@ onMounted(() => {
       <VCardText>
         <VDataTable
           :headers="[
-            { title: '学生名', key: 'student_name' },
+            { title: '名前', key: 'student_name' },
             { title: '部屋番号', key: 'room_number' },
             { title: '在留資格', key: 'student_type' },
             { title: '等級', key: 'grade_name' },
@@ -402,6 +412,7 @@ onMounted(() => {
           :items="companyInvoices"
           :loading="loading"
           :items-per-page="-1"
+          :items-per-page-options="[-1]"
           class="elevation-1 custom-table"
         >
           <!-- 학생명 컬럼 -->
@@ -543,6 +554,11 @@ onMounted(() => {
 /* 헤더 높이 조정 */
 .custom-table table__td {
   height: 25px;
+}
+
+/* 푸터 완전 숨기기 */
+.custom-table .v-data-table-footer {
+  display: none !important;
 }
 </style>
 

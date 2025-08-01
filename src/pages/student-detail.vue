@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import * as BillingAuto from '@/pages/billing-auto.vue'
 import { studentService, type Student } from '@/services/student'
-import * as StudentSettingsAcceptance from '@/views/pages/student-settings/StudentSettingsAcceptance.vue'
+import * as StudentSettingsAcceptance from '@/views/pages/student-settings/StudentSettingsBasicAcceptance.vue'
 import * as StudentSettingsAccount from '@/views/pages/student-settings/StudentSettingsAccount.vue'
 import * as StudentSettingsRent from '@/views/pages/student-settings/StudentSettingsRent.vue'
 import { useRoute } from 'vue-router'
