@@ -39,7 +39,7 @@ const monthlyData = ref<MonthlyData>({})
 // 년도 옵션 (현재 년도 기준 전후 2년)
 const yearOptions = computed(() => {
   const currentYear = new Date().getFullYear()
-  return Array.from({ length: 5 }, (_, i) => currentYear - 1 + i)
+  return Array.from({ length: 5 }, (_, i) => currentYear - 2 + i)
 })
 
 // 월 옵션
@@ -99,7 +99,8 @@ const confirmAddItem = async () => {
         student_id: props.student.id,
         item_name: newItemName.value.trim(),
         memo: ''
-      }
+      },
+      selectedYear.value
     )
 
     // 항목 생성 후 데이터를 다시 불러와서 매칭
@@ -483,12 +484,9 @@ onMounted(() => {
                 </td>
                 <td class="total-column">
                   <span class="font-weight-bold">
-                    ¥{{ formatAmount(billingItems.reduce((sum, item) => {
-                      const itemTotal = monthOptions.reduce((monthSum, month) => {
-                        const amount = Number(monthlyData[month]?.[item.id]?.amount) || 0
-                        return monthSum + amount
-                      }, 0)
-                      return sum + itemTotal
+                    ¥{{ formatAmount(monthOptions.reduce((monthSum, month) => {
+                      const amount = Number(monthlyData[month]?.[item.id]?.amount) || 0
+                      return monthSum + amount
                     }, 0)) }}
                   </span>
                 </td>
@@ -504,7 +502,6 @@ onMounted(() => {
                       hide-details
                       variant="outlined"
                       size="small"
-                      @keyup.enter="confirmAddItem"
                       @keyup.esc="cancelAddItem"
                       style="min-width: 120px;"
                       ref="newItemInput"
@@ -629,12 +626,12 @@ onMounted(() => {
   left: 0;
   background: white;
   z-index: 1;
-  min-width: 150px;
-  max-width: 200px;
+  min-width: 280px;
+  max-width: 280px;
 }
 
 .month-column {
-  min-width: 120px;
+  min-width: 150px;
   text-align: center;
 }
 

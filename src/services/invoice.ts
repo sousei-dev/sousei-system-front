@@ -71,8 +71,11 @@ export const invoiceService = {
   createInvoice: async (payload: InvoicePayload) => {
     return api.post('/invoices', payload)
   },
-  createStudentMonthlyItems: async (studentId: string, itemData: BillingMonthlyItemCreate) => {
-    return api.post(`/students/${studentId}/monthly-items`, itemData)
+  createStudentMonthlyItems: async (studentId: string, itemData: BillingMonthlyItemCreate, year?: number) => {
+    const params = new URLSearchParams()
+    if (year !== undefined) params.append('year', year.toString())
+    
+    return api.post(`/students/${studentId}/monthly-items?${params.toString()}`, itemData)
   },
   updateMonthlyItem: async (itemId: string, itemData: BillingMonthlyItemUpdate) => {
     return api.put(`/monthly-items/${itemId}`, itemData)
