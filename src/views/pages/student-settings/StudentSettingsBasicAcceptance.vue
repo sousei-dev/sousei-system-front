@@ -39,7 +39,7 @@ const monthlyData = ref<MonthlyData>({})
 // 년도 옵션 (현재 년도 기준 전후 2년)
 const yearOptions = computed(() => {
   const currentYear = new Date().getFullYear()
-  return Array.from({ length: 5 }, (_, i) => currentYear - 2 + i)
+  return Array.from({ length: 6 }, (_, i) => currentYear - 3 + i)
 })
 
 // 월 옵션
