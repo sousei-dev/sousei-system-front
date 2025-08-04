@@ -17,8 +17,8 @@ const filters = ref({
   company: route.query.company as string || '',
   status: route.query.status as string || '',
   building_name: route.query.building_name as string || '',
-  room_number: route.query.room_number as string || '',
-  student_type: route.query.type as string || ''
+  student_type: route.query.type as string || '',
+  grade: route.query.grade as string || ''
 })
 
 // 디바운스된 검색 필터
@@ -36,6 +36,18 @@ const nationalityOptions = [
 const statusOptions = [
   { title: '在留中', value: 'ACTIVE' },
   { title: '退職', value: 'RESIGNED' },
+]
+const gradeOptions = [
+  { title: '1期生', value: '1期生' },
+  { title: '2期生', value: '2期生' },
+  { title: '3期生', value: '3期生' },
+  { title: '4期生', value: '4期生' },
+  { title: '5期生', value: '5期生' },
+  { title: '6期生', value: '6期生' },
+  { title: '7期生', value: '7期生' },
+  { title: '8期生', value: '8期生' },
+  { title: '9期生', value: '9期生' },
+  { title: '10期生', value: '10期生' },
 ]
 const loading = ref(false)
 const error = ref<string | null>(null)
@@ -65,8 +77,8 @@ const applyUrlParams = () => {
   filters.value.company = (urlParams.value.allQueries.company as string) || ''
   filters.value.status = (urlParams.value.allQueries.status as string) || ''
   filters.value.building_name = (urlParams.value.allQueries.building_name as string) || ''
-  filters.value.room_number = (urlParams.value.allQueries.room_number as string) || ''
-  
+  filters.value.grade = (urlParams.value.allQueries.grade as string) || ''
+
   // type 파라미터 적용
   filters.value.student_type = urlParams.value.type || ''
   
@@ -153,8 +165,8 @@ const updateUrlWithFilters = (newFilters: any, resetPage: boolean = true) => {
   if (newFilters.building_name) query.building_name = newFilters.building_name
   else delete query.building_name
   
-  if (newFilters.room_number) query.room_number = newFilters.room_number
-  else delete query.room_number
+  if (newFilters.grade) query.grade = newFilters.grade
+  else delete query.grade
   
   // 페이지 처리
   if (resetPage || page.value === 1) {
@@ -205,13 +217,13 @@ const nationalityFlags: Record<string, string> = {
 }
 
 const tableHeaders = [
-  { title: '国籍', key: 'nationality' },
-  { title: '期生', key: 'grade.name' },
-  { title: '名前', key: 'name' },
-  { title: '会社', key: 'company.name' },
-  { title: '建物', key: 'building' },
-  { title: '状態', key: 'status' },
-  { title: '操作', key: 'actions', sortable: false },
+  { title: '国籍', key: 'nationality', sortable: true, filterable: true },
+  { title: '期生', key: 'grade.name', sortable: true, filterable: true },
+  { title: '名前', key: 'name', sortable: true, filterable: true },
+  { title: '会社', key: 'company.name', sortable: true, filterable: true },
+  { title: '建物', key: 'building', sortable: false, filterable: true },
+  { title: '状態', key: 'status', sortable: false, filterable: false },
+  { title: '操作', key: 'actions', sortable: false, filterable: false },
 ]
 
 // 학생 삭제
@@ -245,8 +257,8 @@ const handleEdit = (id: string, tab: string = '') => {
   if (filters.value.company) query.company = filters.value.company
   if (filters.value.status) query.status = filters.value.status
   if (filters.value.building_name) query.building_name = filters.value.building_name
-  if (filters.value.room_number) query.room_number = filters.value.room_number
   if (filters.value.student_type) query.type = filters.value.student_type
+  if (filters.value.grade) query.grade = filters.value.grade
   if (page.value > 1) query.page = page.value.toString()
   if (itemsPerPage.value !== 10) query.size = itemsPerPage.value.toString()
   
@@ -317,7 +329,6 @@ const handleDownloadRentList = async () => {
     const validationResponse = await buildingService.getBuildingDownloadMonthlyInvoiceValidate(new Date().getFullYear(), selectedRentMonth.value)
     
     // 검증 결과 확인
-    console.log(validationResponse)
     if (!validationResponse.is_valid) {
       let errorMessage = '選択された月の家賃リストデータに光熱費が含まれていません。確認してください。'
       
@@ -436,6 +447,19 @@ const pageTitle = computed(() => {
               />
             </VCol>
             <VCol cols="12" sm="6" md="3">
+              <VSelect
+                v-model="filters.grade"
+                :items="gradeOptions"
+                item-title="title"
+                item-value="value"
+                label="期生"
+                hide-details
+                density="compact"
+                clearable
+                prepend-inner-icon="ri-calendar-line"
+              />
+            </VCol>
+            <VCol cols="12" sm="6" md="3">
               <VTextField
                 v-model="filters.name"
                 label="名前"
@@ -495,23 +519,12 @@ const pageTitle = computed(() => {
               />
             </VCol>
             <VCol cols="12" sm="6" md="3">
-              <VTextField
-                v-model="filters.room_number"
-                label="部屋番号"
-                placeholder="部屋番号で検索"
-                hide-details
-                density="compact"
-                clearable
-                prepend-inner-icon="ri-home-line"
-              />
-            </VCol>
-            <VCol cols="12" sm="6" md="3">
               <VBtn
                 color="error"
                 variant="tonal"
                 block
                 @click="() => {
-                  filters = { name: '', name_katakana: '', company: '', status: '', nationality: '', building_name: '', room_number: '', student_type: filters.student_type }
+                  filters = { name: '', name_katakana: '', company: '', status: '', nationality: '', building_name: '', student_type: filters.student_type, grade: '' }
                   updateUrlWithFilters(filters, true)
                 }"
               >
@@ -531,7 +544,7 @@ const pageTitle = computed(() => {
 
 
           <!-- 학생 목록 테이블 -->
-          <VDataTableServer
+          <VDataTable
             v-model:page="page"
             v-model:items-per-page="itemsPerPage"
             :headers="tableHeaders"
@@ -542,6 +555,13 @@ const pageTitle = computed(() => {
             :items-per-page-options="[5, 10, 25, 50]"
             :show-current-page="true"
             :show-items-per-page="true"
+            :show-select="false"
+            :show-expand="false"
+            :show-group-by="false"
+            :show-column-select="true"
+            :show-density="true"
+            :show-sort="true"
+            :show-filter="true"
             @update:page="handlePageChange"
             @update:items-per-page="handleItemsPerPageChange"
             class="elevation-1"
@@ -601,7 +621,7 @@ const pageTitle = computed(() => {
                 <VIcon>ri-bank-card-line</VIcon>
               </VBtn>
             </template>
-          </VDataTableServer>
+          </VDataTable>
         </VCardText>
       </VCard>
     </VCol>

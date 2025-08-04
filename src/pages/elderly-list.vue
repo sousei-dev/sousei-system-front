@@ -107,10 +107,10 @@ const genderOptions = [
 
 // 테이블 헤더
 const tableHeaders = [
-  { title: '名前', key: 'name' },
-  { title: '部屋番号', key: 'current_room' },
-  { title: '生年月日', key: 'birth_date' },
-  { title: '性別', key: 'gender' },
+  { title: '名前', key: 'name', sortable: true, filterable: true },
+  { title: '部屋番号', key: 'current_room.room_number', sortable: true, filterable: true },
+  { title: '生年月日', key: 'birth_date', sortable: true, filterable: true },
+  { title: '性別', key: 'gender', sortable: true, filterable: true },
   { title: '介護度', key: 'care_level' },
   { title: '入居日', key: 'admission_date' },
   { title: '操作', key: 'actions', sortable: false },
@@ -260,7 +260,7 @@ onMounted(() => {
           </VAlert>
 
           <!-- 거주자 목록 테이블 -->
-          <VDataTableServer
+          <VDataTable
             v-model:page="page"
             v-model:items-per-page="itemsPerPage"
             :headers="tableHeaders"
@@ -323,7 +323,7 @@ onMounted(() => {
                 <VIcon>ri-restaurant-line</VIcon>
               </VBtn>
             </template>
-          </VDataTableServer>
+          </VDataTable>
         </VCardText>
       </VCard>
     </VCol>
