@@ -143,14 +143,14 @@ const canManageStudents = computed(() => {
       :item="{
         title: '機能',
         icon: 'ri-user-line',
-        to: '/student-list?type=general',
+        to: '/student-list?type=GENERAL',
       }"
     />
     <VerticalNavLink
       :item="{
         title: '特定',
         icon: 'ri-user-star-line',
-        to: '/special-student-list?type=specified',
+        to: '/special-student-list?type=SPECIFIED',
       }"
     />
   </template>
@@ -162,8 +162,8 @@ const canManageStudents = computed(() => {
     />
     <VerticalNavLink
       :item="{
-        title: '請求リスト',
-        icon: 'ri-home-4-line',
+        title: '家賃請求',
+        icon: 'ri-money-cny-circle-line',
         to: '/billing',
       }"
     />
@@ -175,7 +175,7 @@ const canManageStudents = computed(() => {
     <VerticalNavLink
       :item="{
         title: '物件',
-        icon: 'ri-home-4-line',
+        icon: 'ri-community-line',
         to: '/building-list?type=student',
       }"
     />
@@ -194,14 +194,14 @@ const canManageStudents = computed(() => {
         :item="{
           title: '入居者リスト',
           icon: 'ri-user-line',
-          to: '/elderly-list',
+          to: '/elderly-list?building_id=d7d58f49-9a96-427c-a468-c6940459b450',
         }"
       />
       <VerticalNavLink
         :item="{
           title: '請求関連',
           icon: 'ri-receipt-line',
-          to: '/care-facility-meal-record',
+          to: '/care-facility-meal-record?building_id=d7d58f49-9a96-427c-a468-c6940459b450',
         }"
       />
       
@@ -214,7 +214,7 @@ const canManageStudents = computed(() => {
     <VerticalNavLink
       :item="{
         title: '物件',
-        icon: 'ri-home-4-line',
+        icon: 'ri-community-line',
         to: '/elderly-building-list?type=elderly',
       }"
     />

@@ -1,4 +1,5 @@
 import { api } from '@/utils/api'
+import { s } from '@fullcalendar/core/internal-common'
 
 export interface Invoice {
   id: string | null
@@ -96,6 +97,25 @@ export const invoiceService = {
   },
   getCompanyInvoicePdf: async (companyId: string, year: number, month: number) => {
     return api.get(`/company-invoice-pdf/${companyId}/${year}/${month}`, { responseType: 'blob' })
+  },
+  getCompanyInvoicePdfV2: async (companyId: string, year: number, month: number, memo: string, studentType: string) => {
+    const params = new URLSearchParams()
+    params.append('company_id', companyId)
+    params.append('year', year.toString())
+    params.append('month', month.toString())
+    params.append('student_type', studentType)
+    params.append('memo', memo)
+    
+    return api.post(`/billing-invoices/generate?${params.toString()}`, {}, { responseType: 'blob' })
+  },
+  getCompanyInvoiceExcel: async (year: number, month: number, companyId: string, studentType: string) => {
+    const params = new URLSearchParams()
+    params.append('company_id', companyId)
+    params.append('year', year.toString())
+    params.append('month', month.toString())
+    params.append('student_type', studentType)
+    
+    return api.post(`/billing-invoices/generate/excel?${params.toString()}`, {}, { responseType: 'blob' })
   },
   getInvoices: async (student_id: string): Promise<Invoice[]> => {
     const response = await api.get<Invoice[]>(`/invoices?student_id=${student_id}`)

@@ -18,8 +18,12 @@ const filters = ref({
   status: route.query.status as string || '',
   building_name: route.query.building_name as string || '',
   student_type: route.query.type as string || '',
-  grade: route.query.grade as string || ''
+  grade: route.query.grade as string || '',
 })
+
+// 정렬 상태 (별도 관리)
+const sortBy = ref(route.query.sortBy as string || '')
+const sortDesc = ref(route.query.sortDesc === 'true')
 
 // 디바운스된 검색 필터
 const debouncedFilters = ref({ ...filters.value })
@@ -82,6 +86,10 @@ const applyUrlParams = () => {
   // type 파라미터 적용
   filters.value.student_type = urlParams.value.type || ''
   
+  // 정렬 파라미터 적용
+  sortBy.value = (urlParams.value.allQueries.sortBy as string) || ''
+  sortDesc.value = (urlParams.value.allQueries.sortDesc as string) === 'true'
+  
   // 페이지 파라미터 적용 (URL에 값이 있을 때만 number로 변환해서 업데이트)
   if (urlParams.value.page !== undefined) {
     page.value = urlParams.value.page
@@ -112,8 +120,10 @@ const fetchStudents = async () => {
     const response = await studentService.getStudents({
       ...debouncedFilters.value,
       page: page.value,
-      size: itemsPerPage.value
-    })
+      size: itemsPerPage.value,
+      sort_by: sortBy.value,
+      sort_desc: sortDesc.value
+    } as any)
     
     console.log('API Response:', response)
     
@@ -168,6 +178,15 @@ const updateUrlWithFilters = (newFilters: any, resetPage: boolean = true) => {
   if (newFilters.grade) query.grade = newFilters.grade
   else delete query.grade
   
+  // 정렬 파라미터 처리
+  if (newFilters.sort_by) {
+    query.sortBy = newFilters.sort_by
+    query.sortDesc = newFilters.sort_desc.toString()
+  } else {
+    delete query.sortBy
+    delete query.sortDesc
+  }
+  
   // 페이지 처리
   if (resetPage || page.value === 1) {
     delete query.page
@@ -201,6 +220,16 @@ watch(() => route.query, (newQuery) => {
   console.log('Route query changed:', newQuery)
   applyUrlParams()
   debouncedFilters.value = { ...filters.value } // debouncedFilters도 동기화
+  
+  // 정렬 상태도 동기화
+  if (newQuery.sortBy) {
+    sortBy.value = newQuery.sortBy as string
+    sortDesc.value = newQuery.sortDesc === 'true'
+  } else {
+    sortBy.value = ''
+    sortDesc.value = false
+  }
+  
   fetchStudents()
 }, { deep: true, immediate: true })
 
@@ -219,28 +248,12 @@ const nationalityFlags: Record<string, string> = {
 const tableHeaders = [
   { title: '国籍', key: 'nationality', sortable: true, filterable: true },
   { title: '期生', key: 'grade.name', sortable: true, filterable: true },
-  { title: '名前', key: 'name', sortable: true, filterable: true },
-  { title: '会社', key: 'company.name', sortable: true, filterable: true },
+  { title: '名前', key: 'name', sortable: false, filterable: true },
+  { title: '会社', key: 'company.name', sortable: false, filterable: true },
   { title: '建物', key: 'building', sortable: false, filterable: true },
   { title: '状態', key: 'status', sortable: false, filterable: false },
   { title: '操作', key: 'actions', sortable: false, filterable: false },
 ]
-
-// 학생 삭제
-const handleDelete = async (id: string) => {
-  if (confirm('本当にこの学生を削除しますか？')) {
-    try {
-      loading.value = true
-      error.value = null
-      await studentService.deleteStudent(id)
-      await fetchStudents()
-    } catch (err: any) {
-      error.value = err.response?.data?.message || '学生の削除に失敗しました。'
-    } finally {
-      loading.value = false
-    }
-  }
-}
 
 const handleEdit = (id: string, tab: string = '') => {
   // 현재 페이지 정보를 포함한 쿼리 생성
@@ -280,6 +293,7 @@ const openRentListModal = () => {
 const showInvoiceModal = ref(false)
 const selectedMonth = ref(new Date().getMonth() + 1) // 현재 월
 const selectedCompany = ref('')
+const invoiceNote = ref('')
 const monthOptions = Array.from({ length: 12 }, (_, i) => ({
   title: `${i + 1}月`,
   value: i + 1,
@@ -298,8 +312,7 @@ const handleCreateInvoices = async () => {
   try {
     loading.value = true
     error.value = null
-    
-    const response = await invoiceService.getCompanyInvoicePdf(selectedCompany.value, new Date().getFullYear(), selectedMonth.value)    
+    const response = await invoiceService.getCompanyInvoicePdfV2(selectedCompany.value, new Date().getFullYear(), selectedMonth.value, invoiceNote.value, filters.value.student_type)
     // PDF 다운로드
     const url = window.URL.createObjectURL(new Blob([response.data]))
     const link = document.createElement('a')
@@ -311,9 +324,61 @@ const handleCreateInvoices = async () => {
 
     // 성공 처리
     showInvoiceModal.value = false
+    invoiceNote.value = '' // 비고 초기화
     alert('請求書が正常に発行されました。')
   } catch (err: any) {
     error.value = err.response?.data?.message || '請求書の発行に失敗しました。'
+  } finally {
+    loading.value = false
+  }
+}
+
+const handleDownloadExcel = async () => {
+  try {
+    loading.value = true
+    error.value = null
+    const response = await invoiceService.getCompanyInvoiceExcel(new Date().getFullYear(), selectedMonth.value, selectedCompany.value, filters.value.student_type)
+    
+    const url = window.URL.createObjectURL(new Blob([response.data]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `請求書_${new Date().getFullYear()}_${selectedMonth.value}.xlsx`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  } catch (err: any) {
+    console.log(err.response?.data)
+    
+    // blob 데이터인 경우 텍스트로 변환해서 에러 메시지 추출
+    if (err.response?.data instanceof Blob) {
+      const reader = new FileReader()
+      reader.onload = () => {
+        try {
+          const errorText = reader.result as string
+          // JSON 파싱 시도
+          const errorData = JSON.parse(errorText)
+          if (errorData.detail) {
+            error.value = errorData.detail
+          } else if (errorData.message) {
+            error.value = errorData.message
+          } else {
+            error.value = errorText
+          }
+        } catch (parseError) {
+          // JSON 파싱 실패 시 텍스트 그대로 사용
+          error.value = errorText
+        }
+      }
+      reader.readAsText(err.response.data)
+    } else if (err.response?.data?.detail) {
+      error.value = err.response.data.detail
+    } else if (err.response?.data?.message) {
+      error.value = err.response.data.message
+    } else if (err.message) {
+      error.value = err.message
+    } else {
+      error.value = 'EXCELのダウンロードに失敗しました。'
+    }
   } finally {
     loading.value = false
   }
@@ -366,9 +431,16 @@ const handleDownloadRentList = async () => {
 const handlePageChange = (newPage: number) => {
   page.value = newPage
   
-  // URL 업데이트 (검색 필터 유지)
+  // URL 업데이트 (검색 필터와 정렬 상태 유지)
   const query = { ...route.query }
   query.page = newPage.toString()
+  
+  // 정렬 상태도 URL에 포함
+  if (sortBy.value) {
+    query.sortBy = sortBy.value
+    query.sortDesc = sortDesc.value.toString()
+  }
+  
   router.replace({ query })
   
   fetchStudents()
@@ -378,20 +450,48 @@ const handlePageChange = (newPage: number) => {
 const handleItemsPerPageChange = (newItemsPerPage: number) => {
   itemsPerPage.value = newItemsPerPage
   
-  // URL 업데이트
+  // URL 업데이트 (검색 필터와 정렬 상태 유지)
   const query = { ...route.query }
   query.size = newItemsPerPage.toString()
   query.page = '1' // 페이지 크기 변경 시 첫 페이지로 리셋
+  
+  // 정렬 상태도 URL에 포함
+  if (sortBy.value) {
+    query.sortBy = sortBy.value
+    query.sortDesc = sortDesc.value.toString()
+  }
+  
   router.replace({ query })
   
+  fetchStudents()
+}
+
+// 정렬 변경 이벤트 핸들러
+const handleSortChange = (sortByData: any) => {
+  let sortByValue = ''
+  let sortDescValue = false
+  
+  if (Array.isArray(sortByData) && sortByData.length > 0) {
+    sortByValue = sortByData[0].key
+    sortDescValue = sortByData[0].order === 'desc'
+  }
+  
+  // 정렬 상태 직접 업데이트
+  sortBy.value = sortByValue
+  sortDesc.value = sortDescValue
+  
+  // 페이지 리셋
+  page.value = 1
+  
+  // 직접 API 호출
   fetchStudents()
 }
 // 페이지 제목 계산
 const pageTitle = computed(() => {
   const type = urlParams.value.type
-  if (type === 'specified') {
+  if (type === 'SPECIFIED') {
     return '特定技能実習生リスト'
-  } else if (type === 'general') {
+  } else if (type === 'GENERAL') {
     return '技能実習生リスト'
   }
   return '全員リスト'
@@ -409,18 +509,17 @@ const pageTitle = computed(() => {
               <VBtn
                 color="primary"
                 prepend-icon="ri-add-line"
-                @click="openInvoiceModal()"
-                disabled
+                @click="openInvoiceModal"
               >
                 受入請求書発行
               </VBtn>
-              <VBtn
+              <!-- <VBtn
                 color="primary"
                 prepend-icon="ri-add-line"
                 @click="openRentListModal"
               >
                 家賃リストダウンロード
-              </VBtn>
+              </VBtn> -->
               <VBtn
                 color="primary"
                 prepend-icon="ri-add-line"
@@ -525,6 +624,8 @@ const pageTitle = computed(() => {
                 block
                 @click="() => {
                   filters = { name: '', name_katakana: '', company: '', status: '', nationality: '', building_name: '', student_type: filters.student_type, grade: '' }
+                  sortBy = ''
+                  sortDesc = false
                   updateUrlWithFilters(filters, true)
                 }"
               >
@@ -544,7 +645,7 @@ const pageTitle = computed(() => {
 
 
           <!-- 학생 목록 테이블 -->
-          <VDataTable
+          <VDataTableServer
             v-model:page="page"
             v-model:items-per-page="itemsPerPage"
             :headers="tableHeaders"
@@ -564,6 +665,7 @@ const pageTitle = computed(() => {
             :show-filter="true"
             @update:page="handlePageChange"
             @update:items-per-page="handleItemsPerPageChange"
+            @update:sort-by="handleSortChange"
             class="elevation-1"
           >
             <!-- 국적 컬럼 템플릿 -->
@@ -621,7 +723,7 @@ const pageTitle = computed(() => {
                 <VIcon>ri-bank-card-line</VIcon>
               </VBtn>
             </template>
-          </VDataTable>
+          </VDataTableServer>
         </VCardText>
       </VCard>
     </VCol>
@@ -661,6 +763,15 @@ const pageTitle = computed(() => {
               class="mb-4"
             />
           </VCol>
+          <VCol cols="12">
+            <VTextarea
+              v-model="invoiceNote"
+              label="備考"
+              rows="3"
+              placeholder="請求書に関する備考を入力してください"
+              hide-details
+            />
+          </VCol>
         </VRow>
       </VCardText>
 
@@ -677,8 +788,17 @@ const pageTitle = computed(() => {
           color="primary"
           :loading="loading"
           @click="handleCreateInvoices"
+          :disabled="!selectedCompany"
         >
           発行
+        </VBtn>
+        <VBtn
+          color="primary"
+          :loading="loading"
+          @click="handleDownloadExcel"
+          :disabled="!selectedCompany"
+        >
+          EXCELダウンロード
         </VBtn>
       </VCardActions>
     </VCard>

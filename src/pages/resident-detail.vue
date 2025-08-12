@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { buildingService, type Building } from '@/services/building'
-import { residentService, type Resident } from '@/services/resident'
-import { roomService, type Room } from '@/services/room'
+import { type Building, buildingService } from '@/services/building'
+import { type Resident, residentService } from '@/services/resident'
+import { type Room, roomService } from '@/services/room'
 import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -27,19 +27,22 @@ const fetchResident = async () => {
   try {
     loading.value = true
     error.value = null
-    
+
     const residentId = route.params.id as string
     const data = await residentService.getResident(residentId)
+
     resident.value = data
-    
+
     // 방 정보 로드
     if (data.room_id) {
       const roomData = await roomService.getRoom(data.room_id)
+
       room.value = roomData
-      
+
       // 빌딩 정보 로드
       if (roomData.building_id) {
         const buildingData = await buildingService.getBuilding(roomData.building_id)
+
         building.value = buildingData
       }
     }
@@ -55,10 +58,21 @@ const fetchResidentHistory = async () => {
   try {
     historyLoading.value = true
     historyError.value = null
-    
+
     const residentId = route.params.id as string
-    const history = await residentService.getResidentHistoryByStudent(residentId)
-    residentHistory.value = history
+    const residentType = route.query.resident_type as string
+
+    let history
+    if (residentType === 'student') {
+      history = await residentService.getResidentHistoryByStudent(residentId)
+    } else if (residentType === 'elderly') {
+      history = await residentService.getResidentHistoryByElderly(residentId)
+    } else {
+      // 기본값으로 학생 API 사용
+      history = await residentService.getResidentHistoryByStudent(residentId)
+    }
+
+    residentHistory.value = history.items || history
   } catch (err: any) {
     historyError.value = err.response?.data?.message || '入居記録の取得に失敗しました。'
   } finally {
@@ -75,8 +89,8 @@ const goToBilling = () => {
 
 // 학생 상세로 이동
 const goToStudentDetail = () => {
-  if (resident.value?.student_id) {
-    router.push(`/student-detail/${resident.value.resident_id}`)
+  if (resident.value?.student?.id) {
+    router.push(`/student-detail/${resident.value.student.id}`)
   }
 }
 
@@ -353,7 +367,7 @@ onMounted(async () => {
                   <tbody>
                     <tr v-for="record in residentHistory" :key="record.id">
                       <td>{{ record.room?.room_number || '-' }}</td>
-                      <td>{{ record.room?.building?.name || '-' }}</td>
+                      <td>{{ record.building?.name || '-' }}</td>
                       <td>{{ formatDate(record.check_in_date) }}</td>
                       <td>{{ record.check_out_date ? formatDate(record.check_out_date) : '-' }}</td>
                       <td>

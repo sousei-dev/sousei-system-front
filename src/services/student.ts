@@ -136,7 +136,7 @@ export const studentService = {
       params: {
         ...filters,
         page: filters?.page || 1,
-        page_size: filters?.size || 10
+        page_size: filters?.size || 10,
       }
     })
     return response.data

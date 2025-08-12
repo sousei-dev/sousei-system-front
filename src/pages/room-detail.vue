@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { residentService, type Resident } from '@/services/resident'
+import { residentService, type Resident, isStudentResident, isElderlyResident } from '@/services/resident'
 import { roomService, type Room, type RoomUpdateRequest, type RoomUtility, type RoomUtilityCreateRequest } from '@/services/room'
 import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -43,6 +43,7 @@ const formatDate = (dateString: string) => {
 // 현재 월을 기본값으로 설정
 const getCurrentMonth = () => {
   const now = new Date()
+
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 }
 
@@ -60,21 +61,21 @@ const utilityForm = ref({
       period_start: '',
       period_end: '',
       total_amount: 0,
-      memo: ''
+      memo: '',
     },
     water: {
       period_start: '',
       period_end: '',
       total_amount: 0,
-      memo: ''
+      memo: '',
     },
     gas: {
       period_start: '',
       period_end: '',
       total_amount: 0,
-      memo: ''
-    }
-  }
+      memo: '',
+    },
+  },
 })
 
 // 메시지 표시 함수들
@@ -134,29 +135,29 @@ const loadUtilitiesForMonth = async (month: string) => {
     const roomId = route.params.id as string
     const response = await roomService.getUtilitiesByMonth(roomId, month)
     utilities.value = response.items || []
-    
+
     // utilityForm에 기존 데이터 설정
     utilityForm.value.utilities = {
       electricity: {
         period_start: '',
         period_end: '',
         total_amount: 0,
-        memo: ''
+        memo: '',
       },
       water: {
         period_start: '',
         period_end: '',
         total_amount: 0,
-        memo: ''
+        memo: '',
       },
       gas: {
         period_start: '',
         period_end: '',
         total_amount: 0,
-        memo: ''
-      }
+        memo: '',
+      },
     }
-    
+
     // 기존 데이터를 폼에 설정
     utilities.value.forEach((utility: RoomUtility) => {
       if (utility.utility_type in utilityForm.value.utilities) {
@@ -164,12 +165,12 @@ const loadUtilitiesForMonth = async (month: string) => {
           period_start: utility.period_start,
           period_end: utility.period_end,
           total_amount: utility.total_amount || 0,
-          memo: utility.memo || ''
+          memo: utility.memo || '',
         }
       }
     })
-  } catch (error) {
-    console.error('유틸리티 비용 로드 실패:', error)
+  } catch (err: any) {
+    console.error('유틸리티 비용 로드 실패:', err)
     utilities.value = []
   }
 }
@@ -180,7 +181,7 @@ const onMonthChange = async () => {
 
 const openAddUtilityModal = () => {
   editingUtility.value = null
-  
+
   // 추가 모드: 빈 폼으로 초기화
   utilityForm.value = {
     room_id: route.params.id as string,
@@ -190,81 +191,81 @@ const openAddUtilityModal = () => {
         period_start: '',
         period_end: '',
         total_amount: 0,
-        memo: ''
+        memo: '',
       },
       water: {
         period_start: '',
         period_end: '',
         total_amount: 0,
-        memo: ''
+        memo: '',
       },
       gas: {
         period_start: '',
         period_end: '',
         total_amount: 0,
-        memo: ''
-      }
-    }
+        memo: '',
+      },
+    },
   }
-  
+
   isUtilityModalOpen.value = true
 }
 
 const openUtilityModal = async (utility?: RoomUtility) => {
   editingUtility.value = utility || null
-  
+
   if (utility) {
     // 개별 편집 모드: 특정 유틸리티만 편집
     utilityForm.value.charge_month = utility.charge_month
-    
+
     // 해당 유틸리티 타입의 데이터만 설정
     if (utility.utility_type in utilityForm.value.utilities) {
       utilityForm.value.utilities[utility.utility_type] = {
         period_start: utility.period_start,
         period_end: utility.period_end,
         total_amount: utility.total_amount || 0,
-        memo: utility.memo || ''
+        memo: utility.memo || '',
       }
     }
   } else {
     // 전체 편집 모드: 현재 월의 모든 유틸리티 데이터를 폼에 설정
     utilityForm.value.charge_month = selectedMonth.value
-    
+
     // 현재 월의 유틸리티 데이터를 다시 설정
     utilityForm.value.utilities = {
       electricity: {
         period_start: '',
         period_end: '',
         total_amount: 0,
-        memo: ''
+        memo: '',
       },
       water: {
         period_start: '',
         period_end: '',
         total_amount: 0,
-        memo: ''
+        memo: '',
       },
       gas: {
         period_start: '',
         period_end: '',
         total_amount: 0,
-        memo: ''
-      }
+        memo: '',
+      },
     }
-    
+
     // 기존 데이터를 폼에 설정
-    utilities.value.forEach((utility: RoomUtility) => {
-      if (utility.utility_type in utilityForm.value.utilities) {
-        utilityForm.value.utilities[utility.utility_type] = {
-          period_start: utility.period_start,
-          period_end: utility.period_end,
-          total_amount: utility.total_amount || 0,
-          memo: utility.memo || ''
+    utilities.value.forEach((utilityItem: RoomUtility) => {
+      if (utilityItem.utility_type in utilityForm.value.utilities) {
+        utilityForm.value.utilities[utilityItem.utility_type] = {
+          period_start: utilityItem.period_start,
+          period_end: utilityItem.period_end,
+          total_amount: utilityItem.total_amount || 0,
+          memo: utilityItem.memo || '',
         }
       }
     })
   }
-  
+
   isUtilityModalOpen.value = true
 }
 
@@ -280,21 +281,21 @@ const closeUtilityModal = () => {
         period_start: '',
         period_end: '',
         total_amount: 0,
-        memo: ''
+        memo: '',
       },
       water: {
         period_start: '',
         period_end: '',
         total_amount: 0,
-        memo: ''
+        memo: '',
       },
       gas: {
         period_start: '',
         period_end: '',
         total_amount: 0,
-        memo: ''
-      }
-    }
+        memo: '',
+      },
+    },
   }
 }
 
@@ -302,10 +303,10 @@ const saveUtility = async () => {
   try {
     const roomId = route.params.id as string
     const promises = []
-    
+
     // charge_month를 YYYY-MM-01 형태로 변환
     const chargeMonthWithDay = `${utilityForm.value.charge_month}-01`
-    
+
     // 각 유틸리티 타입별로 입력된 데이터만 저장
     for (const [type, data] of Object.entries(utilityForm.value.utilities)) {
       // 필수 필드가 모두 입력된 경우에만 저장
@@ -317,9 +318,9 @@ const saveUtility = async () => {
           period_end: data.period_end,
           total_amount: data.total_amount,
           charge_month: chargeMonthWithDay,
-          memo: data.memo || ''
+          memo: data.memo || '',
         }
-        
+
         if (editingUtility.value && editingUtility.value.utility_type === type) {
           // 편집 모드
           promises.push(roomService.updateUtility(roomId, editingUtility.value.id, utilityData))
@@ -329,7 +330,7 @@ const saveUtility = async () => {
         }
       }
     }
-    
+
     if (promises.length > 0) {
       await Promise.all(promises)
       await loadUtilitiesForMonth(selectedMonth.value)
@@ -338,22 +339,22 @@ const saveUtility = async () => {
     } else {
       showErrorMessage('保存するデータがありません。必須項目を入力してください。')
     }
-  } catch (error) {
-    console.error('유틸리티 비용 저장 실패:', error)
+  } catch (err: any) {
+    console.error('유틸리티 비용 저장 실패:', err)
     showErrorMessage('光熱費の保存に失敗しました。')
   }
 }
 
 const deleteUtility = async (utilityId: string) => {
   if (!confirm('この光熱費を削除しますか？')) return
-  
+
   try {
     const roomId = route.params.id as string
     await roomService.deleteUtility(roomId, utilityId)
     await loadUtilitiesForMonth(selectedMonth.value)
     showSuccessMessage('光熱費が削除されました。')
-  } catch (error) {
-    console.error('유틸리티 비용 삭제 실패:', error)
+  } catch (err: any) {
+    console.error('유틸리티 비용 삭제 실패:', err)
     showErrorMessage('光熱費の削除に失敗しました。')
   }
 }
@@ -397,15 +398,16 @@ const fetchResidents = async () => {
   try {
     residentLoading.value = true
     residentError.value = null
-    
+
     const roomId = route.params.id as string
-    
+
     // 활성 입주자 조회
-    const resident = await residentService.getResidentsByRoom(roomId)
+    const params = residentType.value ? { residentType: residentType.value as 'student' | 'elderly' } : undefined
+    const resident = await residentService.getResidentsByRoom(roomId, params)
     activeResidents.value = resident.items
-    
+
     // 입주 기록 조회
-    const history = await residentService.getResidentHistory(roomId)
+    const history = await residentService.getResidentHistory(roomId, residentType.value as 'student' | 'elderly')
     residentHistory.value = history.items
   } catch (err: any) {
     residentError.value = err.response?.data?.message || '入居者の取得に失敗しました。'
@@ -419,7 +421,7 @@ const handleUpdate = async () => {
   try {
     loading.value = true
     error.value = null
-    
+
     const roomId = route.params.id as string
     await roomService.updateRoom(roomId, {
       room_number: form.value.room_number,
@@ -431,7 +433,7 @@ const handleUpdate = async () => {
       maintenance: form.value.maintenance,
       service: form.value.service,
     })
-    
+
     // 성공 시 편집 모드 해제
     isEditing.value = false
     await fetchRoom() // 데이터 다시 로드
@@ -443,15 +445,15 @@ const handleUpdate = async () => {
 }
 
 // 방 삭제
-const handleDelete = async () => {
+const _handleDelete = async () => {
   if (confirm('本当にこの部屋を削除しますか？')) {
     try {
       loading.value = true
       error.value = null
-      
+
       const roomId = route.params.id as string
       await roomService.deleteRoom(roomId)
-      
+
       // 성공 시 빌딩 상세 페이지로 이동
       if (room.value) {
         router.push(`/building-detail/${room.value.building_id}`)
@@ -482,7 +484,7 @@ const handleCancel = () => {
       floor: room.value.floor,
       capacity: room.value.capacity,
       is_available: room.value.is_available,
-      note: room.value.note || ''
+      note: room.value.note || '',
     }
   }
 }
@@ -497,8 +499,8 @@ const goToBuildingDetail = () => {
 }
 
 // 입주자 상세로 이동
-const goToResidentDetail = (studentId: string) => {
-  router.push(`/student-detail/${studentId}`)
+const goToResidentDetail = (residentId: string, residentType: string) => {
+  router.push(`/resident-detail/${residentId}?resident_type=${residentType}`)
 }
 
 // 학생 상세로 이동
@@ -507,9 +509,48 @@ const goToStudentDetail = (studentId: string) => {
 }
 
 // 입주자 추가로 이동
-const goToResidentCreate = () => {
+const _goToResidentCreate = () => {
   const roomId = route.params.id as string
   router.push(`/resident-create?room_id=${roomId}`)
+}
+
+// 입주자 이름 가져오기
+const getResidentName = (resident: Resident) => {
+  console.log(resident.resident_type)
+  if (isStudentResident(resident)) {
+    return resident.student.name
+  }
+  
+  if (isElderlyResident(resident)) {
+    return resident.elderly.name
+  }
+  
+  return '不明な入居者'
+}
+
+// 입주자 전화번호 가져오기
+const getResidentPhone = (resident: Resident) => {
+  if (isStudentResident(resident)) {
+    return resident.student.phone
+  }
+  
+  return '電話番号なし'
+}
+
+// 입주자 아바타 가져오기
+const getResidentAvatar = (resident: Resident) => {
+  if (isStudentResident(resident)) {
+    return resident.student.avatar
+  }
+  
+  return null
+}
+
+// 입주자 이니셜 가져오기
+const getResidentInitial = (resident: Resident) => {
+  const name = getResidentName(resident)
+  
+  return name.charAt(0) || '?'
 }
 
 onMounted(async () => {
@@ -571,7 +612,7 @@ onMounted(async () => {
                   prepend-inner-icon="ri-home-line"
                 />
               </VCol>
-              
+
               <VCol cols="12" md="6">
                 <VTextField
                   v-model="form.floor"
@@ -583,7 +624,7 @@ onMounted(async () => {
                   prepend-inner-icon="ri-building-line"
                 />
               </VCol>
-              
+
               <VCol cols="12" md="6">
                 <VTextField
                   v-model="form.rent"
@@ -595,7 +636,7 @@ onMounted(async () => {
                   prepend-inner-icon="ri-money-dollar-circle-line"
                 />
               </VCol>
-              
+
               <VCol cols="12" md="6">
                 <VTextField
                   v-model="form.capacity"
@@ -607,7 +648,7 @@ onMounted(async () => {
                   prepend-inner-icon="ri-user-line"
                 />
               </VCol>
-              
+
               <!-- 관리비용 (노인 거주자만) -->
               <VCol v-if="residentType === 'elderly'" cols="12" md="6">
                 <VTextField
@@ -620,7 +661,7 @@ onMounted(async () => {
                   prepend-inner-icon="ri-money-dollar-circle-line"
                 />
               </VCol>
-              
+
               <!-- 서비스비용 (노인 거주자만) -->
               <VCol v-if="residentType === 'elderly'" cols="12" md="6">
                 <VTextField
@@ -633,7 +674,7 @@ onMounted(async () => {
                   prepend-inner-icon="ri-service-line"
                 />
               </VCol>
-              
+
               <VCol cols="12" md="6">
                 <VSelect
                   v-model="form.is_available"
@@ -647,7 +688,7 @@ onMounted(async () => {
                   prepend-inner-icon="ri-checkbox-circle-line"
                 />
               </VCol>
-              
+
               <VCol cols="12">
                 <VTextarea
                   v-model="form.note"
@@ -677,7 +718,7 @@ onMounted(async () => {
                       光熱費追加
                     </VBtn>
                   </VCardTitle>
-                  
+
                   <!-- 월 선택 -->
                   <VRow class="mb-4">
                     <VCol cols="12" md="4">
@@ -718,18 +759,18 @@ onMounted(async () => {
                             size="24"
                           />
                         </template>
-                        
+
                         <VListItemTitle>
                           {{ getUtilityTypeLabel(utility.utility_type) }}
                         </VListItemTitle>
-                        
+
                         <VListItemSubtitle>
                           {{ formatDate(utility.period_start) }} - {{ formatDate(utility.period_end) }}
                           <span v-if="utility.total_amount" class="ml-2">
                             ¥{{ utility.total_amount.toLocaleString() }}
                           </span>
                         </VListItemSubtitle>
-                        
+
                         <template #append>
                           <VBtn
                             size="small"
@@ -743,7 +784,7 @@ onMounted(async () => {
                       </VListItem>
                     </VList>
                   </div>
-                  
+
                   <!-- 유틸리티 비용이 없을 때 -->
                   <div v-else class="text-center pa-8">
                     <VIcon size="48" color="grey" class="mb-4">ri-inbox-line</VIcon>
@@ -819,36 +860,36 @@ onMounted(async () => {
               >
                 <template #prepend>
                   <VAvatar
-                    v-if="resident.student?.avatar"
-                    :image="resident.student.avatar"
+                    v-if="getResidentAvatar(resident)"
+                    :image="getResidentAvatar(resident)"
                     size="40"
                   />
                   <VAvatar
                     v-else
                     size="40"
                   >
-                    {{ resident.student?.name?.charAt(0) || '?' }}
+                    {{ getResidentInitial(resident) }}
                   </VAvatar>
                 </template>
 
                 <VListItemTitle>
-                  {{ resident.student?.name || '不明な学生' }}
+                  {{ getResidentName(resident) }}
                 </VListItemTitle>
-                
+
                 <VListItemSubtitle>
-                  {{ resident.student?.phone || '電話番号なし' }}
+                  {{ getResidentPhone(resident) }}
                 </VListItemSubtitle>
 
                 <template #append>
                   <div class="d-flex align-center gap-2">
                     <VChip color="success" size="small">入居中</VChip>
-                    
+
                     <VBtn
                       icon="ri-eye-line"
                       variant="text"
                       size="small"
                       color="primary"
-                      @click="goToResidentDetail(resident.student?.id || '')"
+                      @click="goToStudentDetail(resident.student.id)"
                       title="入居記録詳細"
                     />
                   </div>
@@ -856,7 +897,7 @@ onMounted(async () => {
               </VListItem>
             </VList>
           </div>
-          
+
           <!-- 현재 입주자가 없을 때 -->
           <div v-else class="text-center pa-8">
             <VIcon size="64" color="grey" class="mb-4">ri-user-line</VIcon>
@@ -914,8 +955,8 @@ onMounted(async () => {
                   <td>
                     <div class="d-flex align-center">
                       <VAvatar
-                        v-if="resident.student?.avatar"
-                        :image="resident.student.avatar"
+                        v-if="getResidentAvatar(resident)"
+                        :image="getResidentAvatar(resident)"
                         size="32"
                         class="me-2"
                       />
@@ -924,12 +965,17 @@ onMounted(async () => {
                         size="32"
                         class="me-2"
                       >
-                        {{ resident.student?.name?.charAt(0) || '?' }}
+                        {{ getResidentInitial(resident) }}
                       </VAvatar>
-                      <span>{{ resident.student?.name || '不明な学生' }}</span>
+                      <span>{{ getResidentName(resident) }}</span>
                     </div>
                   </td>
-                  <td>{{ resident.student?.name_katakana || '-' }}</td>
+                  <td>
+                    <span v-if="isStudentResident(resident)">
+                      {{ resident.student.name_katakana }}
+                    </span>
+                    <span v-else>-</span>
+                  </td>
                   <td>{{ formatDate(resident.check_in_date) }}</td>
                   <td>{{ resident.check_out_date ? formatDate(resident.check_out_date) : '-' }}</td>
                   <td>
@@ -947,7 +993,7 @@ onMounted(async () => {
                         variant="text"
                         size="small"
                         color="primary"
-                        @click="goToResidentDetail(resident.id)"
+                        @click="goToResidentDetail(resident.id, resident.resident_type)"
                         title="入居記録詳細"
                       />
                     </div>
@@ -971,7 +1017,7 @@ onMounted(async () => {
       <VCardTitle class="text-h6 pa-4">
         {{ editingUtility ? '光熱費編集' : '光熱費追加' }}
       </VCardTitle>
-      
+
       <VCardText class="pa-4">
         <VForm @submit.prevent="saveUtility()">
           <VRow>
@@ -1126,7 +1172,7 @@ onMounted(async () => {
           </VCard>
         </VForm>
       </VCardText>
-      
+
       <VCardActions class="pa-4">
         <VSpacer />
         <VBtn

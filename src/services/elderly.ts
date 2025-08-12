@@ -12,6 +12,8 @@ export interface Elderly {
   gender: '男' | '女'
   care_level: string
   admission_date: string
+  latest_hospitalization?: any // 입원/퇴원 기록
+  hospitalization_status?: string // 입원 상태
   created_at: string
   updated_at: string
 }
@@ -38,6 +40,20 @@ export interface ElderlyCreateRequest {
   maintenance?: number
   service?: number
   status_id?: number
+}
+
+export interface ElderlyCreateRequestV2 {
+  name: string
+  name_katakana: string
+  email?: string
+  phone?: string
+  gender: string
+  birth_date: string
+  care_level: string
+  categories_id?: number | null
+  current_room_id?: string | null
+  note?: string
+  status?: 'ACTIVE' | 'PENDING_RESIGNATION' | 'RESIGNED'
 }
 
 export interface ElderlyUpdateRequest {
@@ -78,7 +94,7 @@ export const elderlyService = {
   },
 
   // 고령자 생성
-  async createElderly(data: ElderlyCreateRequest): Promise<Elderly> {
+  async createElderly(data: ElderlyCreateRequest | ElderlyCreateRequestV2): Promise<Elderly> {
     const response = await api.post('/elderly', data)
 
     return response.data

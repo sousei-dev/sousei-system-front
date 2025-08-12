@@ -4,6 +4,7 @@ export interface Resident {
   id: string
   room_id: string
   resident_id: string
+  resident_type: 'student' | 'elderly'
   check_in_date: string
   check_out_date?: string
   is_active: boolean
@@ -47,6 +48,16 @@ export interface Resident {
     japanese_level: string
     local_address: string
   }
+  elderly?: {
+    id: string
+    name: string
+    age: number
+    gender: '男' | '女'
+    care_level: string
+    admission_date: string
+    created_at: string
+    updated_at: string
+  }
 }
 
 export interface ResidentCreateRequest {
@@ -73,14 +84,28 @@ export interface ResidentListResponse {
   current_page: number
 }
 
+// 타입 가드 함수들
+export const isStudentResident = (resident: Resident): resident is Resident & { student: NonNullable<Resident['student']> } => {
+  return resident.resident_type === 'student' && !!resident.student
+}
+
+export const isElderlyResident = (resident: Resident): resident is Resident & { elderly: NonNullable<Resident['elderly']> } => {
+  return resident.resident_type === 'elderly' && !!resident.elderly
+}
+
 export const residentService = {
   // 방별 입주자 목록 조회
   async getResidentsByRoom(roomId: string, params?: {
     page?: number
     size?: number
     is_active?: boolean
+    residentType?: 'student' | 'elderly'
   }): Promise<ResidentListResponse> {
-    const response = await api.get(`/rooms/${roomId}/residents`, { params })
+    const apiParams = {
+      ...params,
+      ...(params?.residentType && { resident_type: params.residentType }),
+    }
+    const response = await api.get(`/rooms/${roomId}/residents`, { params: apiParams })
     return response.data
   },
 
@@ -114,8 +139,9 @@ export const residentService = {
   },
 
   // 입주 기록 조회 (방별)
-  async getResidentHistory(roomId: string): Promise<ResidentListResponse> {
-    const response = await api.get(`/rooms/${roomId}/residence-history`)
+  async getResidentHistory(roomId: string, residentType?: 'student' | 'elderly'): Promise<ResidentListResponse> {
+    const params = residentType ? { resident_type: residentType } : {}
+    const response = await api.get(`/rooms/${roomId}/residence-history`, { params })
     return response.data
   },
 
@@ -132,6 +158,21 @@ export const residentService = {
     current_page: number
   }> {
     const response = await api.get(`/students/${studentId}/residence-history`)
+    return response.data
+  },
+
+  async getResidentHistoryByElderly(elderlyId: string): Promise<{
+    student: {
+      id: string
+      name: string
+      current_room_id: string
+    }
+    items: Resident[]
+    total: number
+    total_pages: number
+    current_page: number
+  }> {
+    const response = await api.get(`/elderly/${elderlyId}/residence-history`)
     return response.data
   },
 

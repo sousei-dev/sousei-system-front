@@ -74,7 +74,7 @@ export const routes = [
       },
       {
         path: 'elderly-create',
-        component: () => import('@/pages/elderly-list.vue'),
+        component: () => import('@/pages/elderly-create.vue'),
       },
       {
         path: 'elderly-building-list',

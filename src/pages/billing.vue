@@ -3,6 +3,7 @@ import { buildingService } from '@/services/building'
 import { companyService, type Company } from '@/services/company'
 import { invoiceService, type Invoice } from '@/services/invoice'
 import { computed, onMounted, ref } from 'vue'
+import * as XLSX from 'xlsx'
 
 // 상태 관리
 const loading = ref(false)
@@ -127,10 +128,14 @@ const fetchCompanyInvoices = async (companyId: string) => {
             name: utility.utility_type === 'electricity' ? '電気代' : 
                   utility.utility_type === 'water' ? '水道代' : 
                   utility.utility_type === 'gas' ? 'ガス代' : '光熱費',
-            unit_price: utility.student_amount,
+            unit_price: utility.utility_type === 'electricity' ? student.electricity_amount :
+                        utility.utility_type === 'water' ? student.water_amount :
+                        utility.utility_type === 'gas' ? student.gas_amount : 0,
             quantity: 1,
             sort_order: 2 + index,
-            amount: utility.student_amount,
+            amount: utility.utility_type === 'electricity' ? student.electricity_amount :
+                    utility.utility_type === 'water' ? student.water_amount :
+                    utility.utility_type === 'gas' ? student.gas_amount : 0,
             memo: `${response.month}月分`,
             type: utility.utility_type,
           }))
@@ -299,6 +304,172 @@ const goToCreateInvoice = (buildingId: string) => {
   console.log('청구서 작성 페이지로 이동:', buildingId)
 }
 
+// EXCEL 다운로드
+const downloadExcel = async (companyId: string) => {
+  try {
+    if (!companyInvoices.value || companyInvoices.value.length === 0) {
+      error.value = '다운로드할 데이터가 없습니다.'
+      return
+    }
+
+    // 엑셀 데이터 준비
+    const excelData = companyInvoices.value.map((invoice: any) => {
+      // 요약 행은 건너뛰기
+      if (invoice.id === 'summary') return null
+      
+      return {
+        '名前': invoice.student_name || '',
+        '部屋番号': invoice.room_number || '',
+        '在留資格': invoice.student_type === 'SPECIFIED' ? '特定技能' : 
+                   invoice.student_type === 'GENERAL' ? '技能実習' : 
+                   invoice.student_type || '',
+        '等級': invoice.grade_name || '',
+        '建物名': invoice.building_name || '',
+        '家賃': invoice.items.find((item: any) => item.type === 'rent')?.amount || 0,
+        'WiFi代': invoice.items.find((item: any) => item.type === 'wifi')?.amount || 0,
+        '家賃合計': (invoice.items.find((item: any) => item.type === 'rent')?.amount || 0) + 
+                   (invoice.items.find((item: any) => item.type === 'wifi')?.amount || 0),
+        '電気代': invoice.items.find((item: any) => item.type === 'electricity')?.amount || 0,
+        '水道代': invoice.items.find((item: any) => item.type === 'water')?.amount || 0,
+        'ガス代': invoice.items.find((item: any) => item.type === 'gas')?.amount || 0,
+        '光熱費合計': (invoice.items.find((item: any) => item.type === 'electricity')?.amount || 0) + 
+                     (invoice.items.find((item: any) => item.type === 'water')?.amount || 0) + 
+                     (invoice.items.find((item: any) => item.type === 'gas')?.amount || 0),
+        '合計金額': invoice.total_amount || 0
+      }
+    }).filter(Boolean) // null 값 제거
+
+    // 워크북 생성
+    const workbook = XLSX.utils.book_new()
+    
+    // 워크시트 생성
+    const worksheet = XLSX.utils.json_to_sheet(excelData)
+    
+    // 컬럼 너비 자동 조정
+    const columnWidths = [
+      { wch: 15 }, // 이름
+      { wch: 10 }, // 방번호
+      { wch: 12 }, // 재류자격
+      { wch: 10 }, // 등급
+      { wch: 15 }, // 빌딩명
+      { wch: 12 }, // 월세
+      { wch: 12 }, // WiFi료
+      { wch: 12 }, // 월세+WiFi
+      { wch: 12 }, // 전기료
+      { wch: 12 }, // 수도료
+      { wch: 12 }, // 가스료
+      { wch: 12 }, // 광열비 합계
+      { wch: 15 }  // 총 금액
+    ]
+    worksheet['!cols'] = columnWidths
+
+    // 헤더 행 추가 (광열비 병합 + 세부 분리)
+    const headerRow = [
+      '名前', '部屋番号', '在留資格', '等級', '建物名', '家賃', 'WiFi代', '家賃合計',
+      '光熱費', '光熱費', '光熱費', '光熱費合計', '合計金額'
+    ]
+    
+    const subHeaderRow = [
+      '名前', '部屋番号', '在留資格', '等級', '建物名', '家賃', 'WiFi代', '家賃合計',
+      '電気代', '水道代', 'ガス代', '', ''
+    ]
+
+    // 헤더 행들을 워크시트에 추가
+    XLSX.utils.sheet_add_aoa(worksheet, [headerRow, subHeaderRow], { origin: 'A1' })
+    
+    // 데이터를 헤더 아래로 이동 (2차원 배열로 변환)
+    const dataRows = excelData.map((row: any) => [
+      row['名前'],
+      row['部屋番号'],
+      row['在留資格'],
+      row['等級'],
+      row['建物名'],
+      row['家賃'],
+      row['WiFi代'],
+      row['家賃合計'],
+      row['電気代'],
+      row['水道代'],
+      row['ガス代'],
+      row['光熱費合計'],
+      row['合計金額']
+    ])
+    
+    // 합계 행 추가
+    const totalRow = [
+      '合計',
+      '',
+      '',
+      '',
+      '',
+      excelData.reduce((sum, row) => sum + (row?.['家賃'] || 0), 0),
+      excelData.reduce((sum, row) => sum + (row?.['WiFi代'] || 0), 0),
+      excelData.reduce((sum, row) => sum + (row?.['家賃合計'] || 0), 0),
+      excelData.reduce((sum, row) => sum + (row?.['電気代'] || 0), 0),
+      excelData.reduce((sum, row) => sum + (row?.['水道代'] || 0), 0),
+      excelData.reduce((sum, row) => sum + (row?.['ガス代'] || 0), 0),
+      excelData.reduce((sum, row) => sum + (row?.['光熱費合計'] || 0), 0),
+      excelData.reduce((sum, row) => sum + (row?.['合計金額'] || 0), 0)
+    ]
+    
+    // 데이터 행과 합계 행을 헤더 아래로 추가
+    XLSX.utils.sheet_add_aoa(worksheet, [...dataRows, totalRow], { origin: 'A3' })
+
+    // 셀 병합 설정
+    if (!worksheet['!merges']) worksheet['!merges'] = []
+    
+    // 광열비를 제외한 다른 컬럼들을 1행과 2행 병합
+    // 이름 (A1:A2)
+    worksheet['!merges'].push({ s: { r: 0, c: 0 }, e: { r: 1, c: 0 } })
+    // 방번호 (B1:B2)
+    worksheet['!merges'].push({ s: { r: 0, c: 1 }, e: { r: 1, c: 1 } })
+    // 재류자격 (C1:C2)
+    worksheet['!merges'].push({ s: { r: 0, c: 2 }, e: { r: 1, c: 2 } })
+    // 등급 (D1:D2)
+    worksheet['!merges'].push({ s: { r: 0, c: 3 }, e: { r: 1, c: 3 } })
+    // 빌딩명 (E1:E2)
+    worksheet['!merges'].push({ s: { r: 0, c: 4 }, e: { r: 1, c: 4 } })
+    // 월세 (F1:F2)
+    worksheet['!merges'].push({ s: { r: 0, c: 5 }, e: { r: 1, c: 5 } })
+    // WiFi료 (G1:G2)
+    worksheet['!merges'].push({ s: { r: 0, c: 6 }, e: { r: 1, c: 6 } })
+    // 월세+WiFi (H1:H2)
+    worksheet['!merges'].push({ s: { r: 0, c: 7 }, e: { r: 1, c: 7 } })
+    
+    // 광열비 컬럼들을 1행에서 병합 (I1:K1)
+    worksheet['!merges'].push({ s: { r: 0, c: 8 }, e: { r: 0, c: 10 } })
+    
+    // 광열비 합계 컬럼을 1행과 2행 병합 (L1:L2)
+    worksheet['!merges'].push({ s: { r: 0, c: 11 }, e: { r: 1, c: 11 } })
+    
+    // 총 금액 컬럼을 1행과 2행 병합 (M1:M2)
+    worksheet['!merges'].push({ s: { r: 0, c: 12 }, e: { r: 1, c: 12 } })
+
+    // 워크시트를 워크북에 추가
+    XLSX.utils.book_append_sheet(workbook, worksheet, `${selectedYear.value}年${selectedMonth.value}月請求書`)
+
+    // 파일명 생성
+    const fileName = `${selectedYear.value}年${selectedMonth.value}月_${selectedCompany.value?.name || '請求書'}.xlsx`
+
+    // 엑셀 파일 다운로드
+    XLSX.writeFile(workbook, fileName)
+
+    console.log('엑셀 다운로드 완료:', fileName)
+  } catch (err: any) {
+    console.error('엑셀 다운로드 오류:', err)
+    
+    // API 에러 메시지 처리
+    if (err.response?.data?.detail) {
+      error.value = err.response.data.detail
+    } else if (err.response?.data?.message) {
+      error.value = err.response.data.message
+    } else if (err.message) {
+      error.value = err.message
+    } else {
+      error.value = '엑셀 다운로드 중 오류가 발생했습니다.'
+    }
+  }
+}
+
 onMounted(() => {
   fetchCompanies()
 })
@@ -374,14 +545,24 @@ onMounted(() => {
           <VIcon class="me-2">ri-file-text-line</VIcon>
             {{ selectedYear }}年{{ selectedMonth }}月 請求書一覧
         </div>
-        <VBtn
-          color="primary"
-          prepend-icon="ri-add-line"
-          @click="goToCreateInvoice(selectedCompany.id || '')"
-          disabled
-        >
-          請求書作成
-        </VBtn>
+        <div class="d-flex align-center">
+          <VBtn
+            color="success"
+            prepend-icon="ri-file-excel-line"
+            class="me-2"
+            @click="downloadExcel(selectedCompany.id || '')"
+          >
+            EXCELダウンロード
+          </VBtn>
+          <VBtn
+            color="primary"
+            prepend-icon="ri-add-line"
+            @click="goToCreateInvoice(selectedCompany.id || '')"
+            disabled
+          >
+            請求書作成
+          </VBtn>
+        </div>
       </VCardTitle>
       
       <VCardText>

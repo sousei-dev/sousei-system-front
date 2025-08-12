@@ -414,6 +414,7 @@ const getGrandTotal = () => {
     position: sticky;
     background-color: rgb(var(--v-theme-surface));
     border-right:2px solid rgb(var(--v-border-color));
+    z-index: 1;
   }
   .name-col {
     left: 0;

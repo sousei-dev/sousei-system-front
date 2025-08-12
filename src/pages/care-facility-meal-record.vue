@@ -3,8 +3,11 @@ import { ref, computed, onMounted, nextTick } from 'vue'
 import MealBillingForm from '@/views/pages/care-facility-settings/MealBillingForm.vue'
 import DiaperBillingForm from '@/views/pages/care-facility-settings/DiaperBillingForm.vue'
 import ElectricityBillingForm from '@/views/pages/care-facility-settings/ElectricityBillingForm.vue'
+import { useRouter, useRoute } from 'vue-router'
 
-// 거주자 데이터 타입
+const router = useRouter()
+const route = useRoute()
+// 거주자 데이터 타입 (DiaperBillingForm에서 사용)
 interface Resident {
   id: string
   name: string
@@ -13,22 +16,16 @@ interface Resident {
   gender: 'male' | 'female'
 }
 
-// 식사 기록 타입
-interface MealRecord {
-  resident_id: string
-  date: string
-  breakfast: boolean
-  lunch: boolean
-  dinner: boolean
-}
+// URL 파라미터에서 건물 ID 가져오기
+const buildingId = computed(() => route.query.building_id as string)
 
 // 거주자 목록 (임시 데이터)
 const residents = ref<Resident[]>([
   { id: '1', name: '田中 花子', room_number: '101', age: 85, gender: 'female' },
-  // { id: '2', name: '佐藤 太郎', room_number: '102', age: 78, gender: 'male' },
-  // { id: '3', name: '鈴木 美咲', room_number: '103', age: 82, gender: 'female' },
-  // { id: '4', name: '高橋 健一', room_number: '201', age: 79, gender: 'male' },
-  // { id: '5', name: '渡辺 和子', room_number: '202', age: 88, gender: 'female' },
+  { id: '2', name: '佐藤 太郎', room_number: '102', age: 78, gender: 'male' },
+  { id: '3', name: '鈴木 美咲', room_number: '103', age: 82, gender: 'female' },
+  { id: '4', name: '高橋 健一', room_number: '201', age: 79, gender: 'male' },
+  { id: '5', name: '渡辺 和子', room_number: '202', age: 88, gender: 'female' },
 ])
 
 // 선택된 월
@@ -133,58 +130,12 @@ const daysInMonth = computed(() => {
   }
 })
 
-// 식사 기록 데이터 (임시)
-const mealRecords = ref<MealRecord[]>([])
 
-// 식사 기록 초기화
-const initializeMealRecords = () => {
-  const records: MealRecord[] = []
-  
-  residents.value.forEach(resident => {
-    daysInMonth.value.forEach(day => {
-      records.push({
-        resident_id: resident.id,
-        date: day.date,
-        breakfast: false, // 기본적으로 체크 해제 (식사함)
-        lunch: false,
-        dinner: false,
-      })
-    })
-  })
-  
-  mealRecords.value = records
-}
 
-// 특정 거주자의 특정 날짜 식사 기록 가져오기
-const getMealRecord = (residentId: string, date: string, mealType: 'breakfast' | 'lunch' | 'dinner') => {
-  const record = mealRecords.value.find(
-    r => r.resident_id === residentId && r.date === date
-  )
-  return record ? record[mealType] : false
-}
-
-// 식사 기록 업데이트
-const updateMealRecord = (residentId: string, date: string, mealType: 'breakfast' | 'lunch' | 'dinner', value: boolean) => {
-  const recordIndex = mealRecords.value.findIndex(
-    r => r.resident_id === residentId && r.date === date
-  )
-  
-  if (recordIndex >= 0) {
-    mealRecords.value[recordIndex][mealType] = value
-  } else {
-    mealRecords.value.push({
-      resident_id: residentId,
-      date,
-      breakfast: mealType === 'breakfast' ? value : false,
-      lunch: mealType === 'lunch' ? value : false,
-      dinner: mealType === 'dinner' ? value : false,
-    })
-  }
-}
-
-// 월/년도 변경 시 기록 초기화
+// 월/년도 변경 시 처리
 const handleMonthYearChange = () => {
-  initializeMealRecords()
+  // 월/년도 변경 시 필요한 로직
+  console.log('Month/Year changed:', selectedYear.value, selectedMonth.value)
 }
 
 // 청구 종류 변경 시 처리
@@ -195,7 +146,6 @@ const handleBillingTypeChange = () => {
 
 // 컴포넌트 마운트 시 초기화
 onMounted(() => {
-  initializeMealRecords()
   // 오늘 날짜로 스크롤
   nextTick(() => {
     scrollToToday()
@@ -340,7 +290,7 @@ const dateRangeText = computed(() => {
                 clearable
                 @update:model-value="handleBillingTypeChange"
               />
-              <div class="d-flex align-center gap-2">
+              <div v-if="selectedBillingType !== 'electricity'" class="d-flex align-center gap-2">
                 <VSelect
                   v-model="selectedYear"
                   :items="yearOptions"
@@ -365,7 +315,7 @@ const dateRangeText = computed(() => {
                 />
               </div>
               <!-- 날짜 범위 표시 -->
-              <div v-if="dateRangeText" class="d-flex align-center">
+              <div v-if="dateRangeText && selectedBillingType !== 'electricity'" class="d-flex align-center">
                 <VChip
                   color="primary"
                   variant="tonal"
@@ -378,9 +328,9 @@ const dateRangeText = computed(() => {
             </div>
             <VBtn
               color="primary"
-              prepend-icon="ri-save-line"
+              prepend-icon="ri-file-text-line"
             >
-              保存
+              請求書作成
             </VBtn>
           </div>
 
@@ -405,10 +355,9 @@ const dateRangeText = computed(() => {
           <!-- billingTypes별로 입력폼 분기 -->
           <MealBillingForm
             v-if="selectedBillingType === 'meal'"
-            :residents="residents"
-            :daysInMonth="daysInMonth"
-            :getMealRecord="getMealRecord"
-            :updateMealRecord="updateMealRecord"
+            :selected-year="selectedYear"
+            :selected-month="selectedMonth"
+            :building-id="buildingId"
           />
           <DiaperBillingForm
             v-if="selectedBillingType === 'diaper'"

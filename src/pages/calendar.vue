@@ -140,7 +140,7 @@ const saveEvent = async () => {
     }
   }
   catch (err: any) {
-    error.value = err.response?.data?.message || '이벤트 저장에 실패했습니다.'
+    error.value = err.response?.data?.message || 'イベントの保存に失敗しました。'
   }
   finally {
     loading.value = false
@@ -174,14 +174,14 @@ onMounted(() => {
         <VCol cols="12">
           <div class="d-flex justify-space-between align-center mb-4">
             <h2 class="text-h4">
-              공유 캘린더
+              共有カレンダー
             </h2>
             <VBtn
               color="primary"
               prepend-icon="ri-add-line"
               @click="addEvent"
             >
-              일정 추가
+              予定追加
             </VBtn>
           </div>
         </VCol>
@@ -229,7 +229,7 @@ onMounted(() => {
   >
     <VCard>
       <VCardTitle class="text-h5 pa-4">
-        일정 추가
+        予定追加
       </VCardTitle>
 
       <VCardText>
@@ -239,7 +239,7 @@ onMounted(() => {
               <VTextField
                 v-model="newEvent.title"
                 label="제목"
-                placeholder="일정 제목을 입력하세요"
+                placeholder="予定のタイトルを入力してください"
                 :disabled="loading"
                 required
               />
@@ -248,7 +248,7 @@ onMounted(() => {
             <VCol cols="12" md="6">
               <VTextField
                 v-model="newEvent.start"
-                label="시작일"
+                label="開始日"
                 type="datetime-local"
                 :disabled="loading"
                 required
@@ -258,7 +258,7 @@ onMounted(() => {
             <VCol cols="12" md="6">
               <VTextField
                 v-model="newEvent.end"
-                label="종료일"
+                label="終了日"
                 type="datetime-local"
                 :disabled="loading"
                 required
@@ -268,8 +268,8 @@ onMounted(() => {
             <VCol cols="12">
               <VTextarea
                 v-model="newEvent.description"
-                label="설명"
-                placeholder="일정에 대한 설명을 입력하세요"
+                label="説明"
+                placeholder="予定の説明を入力してください"
                 :disabled="loading"
                 rows="3"
               />
@@ -278,7 +278,7 @@ onMounted(() => {
             <VCol cols="12">
               <VColorPicker
                 v-model="newEvent.color"
-                label="색상"
+                label="色"
                 :disabled="loading"
                 hide-inputs
                 mode="hex"
@@ -295,14 +295,14 @@ onMounted(() => {
           variant="tonal"
           @click="showEventDialog = false"
         >
-          취소
+          キャンセル
         </VBtn>
         <VBtn
           color="primary"
           :loading="loading"
           @click="saveEvent"
         >
-          저장
+          保存
         </VBtn>
       </VCardActions>
     </VCard>
