@@ -3,7 +3,12 @@ import { buildingService } from '@/services/building'
 import { companyService, type Company } from '@/services/company'
 import { invoiceService, type Invoice } from '@/services/invoice'
 import { computed, onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import * as XLSX from 'xlsx'
+import { getCurrentUserPermission } from '@/utils/permissions'
+
+const router = useRouter()
+const route = useRoute()
 
 // 상태 관리
 const loading = ref(false)
@@ -13,6 +18,8 @@ const selectedYear = ref(new Date().getFullYear())
 const selectedMonth = ref(new Date().getMonth() + 1)
 const selectedCompany = ref<Company | null>(null)
 const companyInvoices = ref<Invoice[]>([])
+
+// 권한 체크는 전역 가드에서 처리됨
 
 // 년도 옵션 (현재 년도 기준 전후 2년)
 const yearOptions = computed(() => {
@@ -448,7 +455,7 @@ const downloadExcel = async (companyId: string) => {
     XLSX.utils.book_append_sheet(workbook, worksheet, `${selectedYear.value}年${selectedMonth.value}月請求書`)
 
     // 파일명 생성
-    const fileName = `${selectedYear.value}年${selectedMonth.value}月_${selectedCompany.value?.name || '請求書'}.xlsx`
+    const fileName = `${selectedYear.value}年${selectedMonth.value}月_${selectedCompany.value?.name || '家賃請求書'}.xlsx`
 
     // 엑셀 파일 다운로드
     XLSX.writeFile(workbook, fileName)

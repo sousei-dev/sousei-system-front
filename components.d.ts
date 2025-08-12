@@ -14,6 +14,7 @@ declare module 'vue' {
     ErrorHeader: typeof import('./src/components/ErrorHeader.vue')['default']
     InvoiceDetailDialog: typeof import('./src/components/InvoiceDetailDialog.vue')['default']
     MoreBtn: typeof import('./src/@core/components/MoreBtn.vue')['default']
+    PermissionGuard: typeof import('./src/components/PermissionGuard.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     ThemeSwitcher: typeof import('./src/@core/components/ThemeSwitcher.vue')['default']

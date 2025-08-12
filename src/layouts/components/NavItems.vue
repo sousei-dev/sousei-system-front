@@ -4,17 +4,23 @@ import VerticalNavSectionTitle from '@layouts/components/VerticalNavSectionTitle
 import VerticalNavGroup from '@layouts/components/VerticalNavGroup.vue';
 import { authService } from '@/services/auth';
 import { computed } from 'vue';
+import { getCurrentUserPermission } from '@/utils/permissions';
 
-// 사용자 역할 가져오기
-const userRole = computed(() => authService.getUserRole());
+// 사용자 권한 가져오기
+const currentPermission = computed(() => getCurrentUserPermission());
 
 // 관리자 권한 확인
-const isAdmin = computed(() => userRole.value === 'admin' || userRole.value === 'Admin');
+const isAdmin = computed(() => currentPermission.value === 'admin');
+
+// 特定技能 관리자 권한 확인
+const isManagerSpecified = computed(() => currentPermission.value === 'manager_specified');
+
+// 技能実習 관리자 권한 확인
+const isManagerGeneral = computed(() => currentPermission.value === 'manager_general');
 
 // 스킬생 관리 권한 확인 (관리자 또는 스킬생 관리자)
 const canManageStudents = computed(() => {
-  console.log(userRole.value)
-  return isAdmin.value || userRole.value === 'manager' || userRole.value === 'manager';
+  return isAdmin.value || isManagerSpecified.value || isManagerGeneral.value;
 });
 </script>
 
@@ -125,34 +131,60 @@ const canManageStudents = computed(() => {
     />
   </VerticalNavGroup> -->
 
-  <!-- 스킬생 관리 섹션 - 권한이 있는 사용자만 표시 -->
+  <!-- 스킬생 관리 섹션 - 권한에 따라 제한 -->
   <template v-if="canManageStudents">
     <VerticalNavSectionTitle
       :item="{
         heading: '技能生管理',
       }"
     />
-    <VerticalNavLink
-      :item="{
-        title: '全て',
-        icon: 'ri-group-3-line',
-        to: '/all-student-list?type=ALL',
-      }"
-    />
-    <VerticalNavLink
-      :item="{
-        title: '機能',
-        icon: 'ri-user-line',
-        to: '/student-list?type=GENERAL',
-      }"
-    />
-    <VerticalNavLink
-      :item="{
-        title: '特定',
-        icon: 'ri-user-star-line',
-        to: '/special-student-list?type=SPECIFIED',
-      }"
-    />
+    
+    <!-- 관리자는 모든 메뉴 표시 -->
+    <template v-if="isAdmin">
+      <VerticalNavLink
+        :item="{
+          title: '全て',
+          icon: 'ri-group-3-line',
+          to: '/all-student-list?type=ALL',
+        }"
+      />
+      <VerticalNavLink
+        :item="{
+          title: '機能',
+          icon: 'ri-user-line',
+          to: '/student-list?type=GENERAL',
+        }"
+      />
+      <VerticalNavLink
+        :item="{
+          title: '特定',
+          icon: 'ri-user-star-line',
+          to: '/special-student-list?type=SPECIFIED',
+        }"
+      />
+    </template>
+    
+    <!-- 特定技能 관리자는 特定 메뉴만 표시 -->
+    <template v-else-if="isManagerSpecified">
+      <VerticalNavLink
+        :item="{
+          title: '特定',
+          icon: 'ri-user-star-line',
+          to: '/special-student-list?type=SPECIFIED',
+        }"
+      />
+    </template>
+    
+    <!-- 技能実習 관리자는 機能 메뉴만 표시 -->
+    <template v-else-if="isManagerGeneral">
+      <VerticalNavLink
+        :item="{
+          title: '機能',
+          icon: 'ri-user-line',
+          to: '/student-list?type=GENERAL',
+        }"
+      />
+    </template>
   </template>
   <template v-if="isAdmin">
     <VerticalNavSectionTitle

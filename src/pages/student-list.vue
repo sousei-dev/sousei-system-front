@@ -5,6 +5,8 @@ import { buildingService } from '@/services/building'
 import { studentService, type Student } from '@/services/student'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { canAccessStudentType, getCurrentUserPermission } from '@/utils/permissions'
+import PermissionGuard from '@/components/PermissionGuard.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -64,8 +66,18 @@ const totalPages = ref(0)
 
 // URL에서 파라미터 추출
 const urlParams = computed(() => {
+  const currentPermission = getCurrentUserPermission()
+  
+  // 권한에 따라 기본 타입 설정
+  let defaultType = ''
+  if (currentPermission === 'manager_specified') {
+    defaultType = 'SPECIFIED'
+  } else if (currentPermission === 'manager_general') {
+    defaultType = 'GENERAL'
+  }
+  
   return {
-    type: route.query.type as string || '',
+    type: route.query.type as string || defaultType,
     page: route.query.page ? Number(route.query.page) : undefined,
     size: route.query.size ? Number(route.query.size) : undefined,
     allQueries: route.query
@@ -74,6 +86,8 @@ const urlParams = computed(() => {
 
 // URL 파라미터를 상태에 적용하는 함수
 const applyUrlParams = () => {
+  const currentPermission = getCurrentUserPermission()
+  
   // 검색 필터 파라미터 적용 (URL에 값이 없으면 빈 문자열로 설정)
   filters.value.nationality = (urlParams.value.allQueries.nationality as string) || ''
   filters.value.name = (urlParams.value.allQueries.name as string) || ''
@@ -83,8 +97,17 @@ const applyUrlParams = () => {
   filters.value.building_name = (urlParams.value.allQueries.building_name as string) || ''
   filters.value.grade = (urlParams.value.allQueries.grade as string) || ''
 
-  // type 파라미터 적용
-  filters.value.student_type = urlParams.value.type || ''
+  // type 파라미터 적용 (권한에 따라 제한)
+  let studentType = urlParams.value.type || ''
+  
+  // 권한에 따라 학생 타입 제한
+  if (currentPermission === 'manager_specified') {
+    studentType = 'SPECIFIED'
+  } else if (currentPermission === 'manager_general') {
+    studentType = 'GENERAL'
+  }
+  
+  filters.value.student_type = studentType
   
   // 정렬 파라미터 적용
   sortBy.value = (urlParams.value.allQueries.sortBy as string) || ''
@@ -145,7 +168,7 @@ const fetchStudents = async () => {
 }
 
 // 컴포넌트 마운트 시 데이터 로드
-onMounted(() => {
+onMounted(() => {  
   applyUrlParams() // URL 파라미터 적용
   debouncedFilters.value = { ...filters.value } // debouncedFilters도 동기화
   fetchCompanies()
@@ -281,6 +304,35 @@ const handleEdit = (id: string, tab: string = '') => {
   })
 }
 
+// 학생 생성 페이지로 이동 (권한에 따라 타입 제한)
+const handleCreateStudent = () => {
+  const currentPermission = getCurrentUserPermission()
+  const query: any = {}
+  
+  // 권한에 따라 학생 타입 제한
+  if (currentPermission === 'manager_specified') {
+    query.type = 'SPECIFIED'
+  } else if (currentPermission === 'manager_general') {
+    query.type = 'GENERAL'
+  }
+  
+  // 현재 검색 필터 정보 전달
+  if (filters.value.nationality) query.nationality = filters.value.nationality
+  if (filters.value.name) query.name = filters.value.name
+  if (filters.value.name_katakana) query.name_katakana = filters.value.name_katakana
+  if (filters.value.company) query.company = filters.value.company
+  if (filters.value.status) query.status = filters.value.status
+  if (filters.value.building_name) query.building_name = filters.value.building_name
+  if (filters.value.grade) query.grade = filters.value.grade
+  if (page.value > 1) query.page = page.value.toString()
+  if (itemsPerPage.value !== 10) query.size = itemsPerPage.value.toString()
+  
+  router.push({
+    path: '/student-create',
+    query: Object.keys(query).length > 0 ? query : undefined,
+  })
+}
+
 const openInvoiceModal = () => {
   showInvoiceModal.value = true
 }
@@ -342,7 +394,7 @@ const handleDownloadExcel = async () => {
     const url = window.URL.createObjectURL(new Blob([response.data]))
     const link = document.createElement('a')
     link.href = url
-    link.setAttribute('download', `請求書_${new Date().getFullYear()}_${selectedMonth.value}.xlsx`)
+    link.setAttribute('download', `管理費用請求書_${new Date().getFullYear()}_${selectedMonth.value}.xlsx`)
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
@@ -489,13 +541,56 @@ const handleSortChange = (sortByData: any) => {
 // 페이지 제목 계산
 const pageTitle = computed(() => {
   const type = urlParams.value.type
-  if (type === 'SPECIFIED') {
+  const currentPermission = getCurrentUserPermission()
+  
+  // 권한에 따라 제목 결정
+  if (currentPermission === 'manager_specified') {
+    return '特定技能実習生リスト'
+  } else if (currentPermission === 'manager_general') {
+    return '技能実習生リスト'
+  } else if (type === 'SPECIFIED') {
     return '特定技能実習生リスト'
   } else if (type === 'GENERAL') {
     return '技能実習生リスト'
   }
   return '全員リスト'
 })
+
+// 권한에 따라 접근 가능한 학생 타입 제한
+const allowedStudentTypes = computed(() => {
+  const currentPermission = getCurrentUserPermission()
+  
+  if (currentPermission === 'manager_specified') {
+    return ['SPECIFIED']
+  } else if (currentPermission === 'manager_general') {
+    return ['GENERAL']
+  }
+  
+  return ['SPECIFIED', 'GENERAL']
+})
+
+// 권한에 따라 학생 타입 필터 강제 적용
+const enforceStudentTypeFilter = () => {
+  const currentPermission = getCurrentUserPermission()
+  
+  if (currentPermission === 'manager_specified') {
+    // 特定技能 관리자는 SPECIFIED만 접근 가능
+    if (filters.value.student_type !== 'SPECIFIED') {
+      filters.value.student_type = 'SPECIFIED'
+      // URL도 업데이트
+      const query = { ...route.query, type: 'SPECIFIED' }
+      router.replace({ query })
+    }
+  } else if (currentPermission === 'manager_general') {
+    // 技能実習 관리자는 GENERAL만 접근 가능
+    if (filters.value.student_type !== 'GENERAL') {
+      filters.value.student_type = 'GENERAL'
+      // URL도 업데이트
+      const query = { ...route.query, type: 'GENERAL' }
+      router.replace({ query })
+    }
+  }
+}
 </script>
 
 <template>
@@ -506,27 +601,25 @@ const pageTitle = computed(() => {
           <div class="d-flex justify-space-between align-center mb-6">
             <h3 class="text-h3">{{ pageTitle }}</h3>
             <div class="d-flex gap-2">
-              <VBtn
-                color="primary"
-                prepend-icon="ri-add-line"
-                @click="openInvoiceModal"
-              >
-                受入請求書発行
-              </VBtn>
-              <!-- <VBtn
-                color="primary"
-                prepend-icon="ri-add-line"
-                @click="openRentListModal"
-              >
-                家賃リストダウンロード
-              </VBtn> -->
-              <VBtn
-                color="primary"
-                prepend-icon="ri-add-line"
-                @click="router.push('/student-create')"
-              >
-                学生追加
-              </VBtn>
+              <PermissionGuard feature="billing_management">
+                <VBtn
+                  color="primary"
+                  prepend-icon="ri-add-line"
+                  @click="openInvoiceModal"
+                >
+                  受入請求書発行
+                </VBtn>
+              </PermissionGuard>
+              
+              <PermissionGuard feature="student_management">
+                <VBtn
+                  color="primary"
+                  prepend-icon="ri-add-line"
+                  @click="handleCreateStudent"
+                >
+                  学生追加
+                </VBtn>
+              </PermissionGuard>
             </div>
           </div>
 
@@ -623,7 +716,17 @@ const pageTitle = computed(() => {
                 variant="tonal"
                 block
                 @click="() => {
-                  filters = { name: '', name_katakana: '', company: '', status: '', nationality: '', building_name: '', student_type: filters.student_type, grade: '' }
+                  const currentPermission = getCurrentUserPermission()
+                  let studentType = filters.student_type
+                  
+                  // 권한에 따라 학생 타입 제한
+                  if (currentPermission === 'manager_specified') {
+                    studentType = 'SPECIFIED'
+                  } else if (currentPermission === 'manager_general') {
+                    studentType = 'GENERAL'
+                  }
+                  
+                  filters = { name: '', name_katakana: '', company: '', status: '', nationality: '', building_name: '', student_type: studentType, grade: '' }
                   sortBy = ''
                   sortDesc = false
                   updateUrlWithFilters(filters, true)
@@ -642,6 +745,7 @@ const pageTitle = computed(() => {
           >
             {{ error }}
           </VAlert>
+
 
 
           <!-- 학생 목록 테이블 -->
