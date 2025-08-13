@@ -36,15 +36,6 @@ export const PERMISSION_CONFIG: PermissionConfig = {
       '/special-student-list?type=SPECIFIED',
       '/student-create',
       '/student-detail',
-      '/billing',
-      '/building-list',
-      '/building-create',
-      '/building-detail',
-      '/elderly-list',
-      '/elderly-create',
-      '/elderly-detail',
-      '/room-create',
-      '/room-detail'
     ],
     features: [
       'student_management',

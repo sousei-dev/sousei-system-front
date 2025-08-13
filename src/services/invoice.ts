@@ -62,6 +62,15 @@ export interface BillingMonthlyItem {
   sort_order: number
 }
 
+export interface MonthlyItemSortOrderUpdate {
+  student_id: string
+  year: number
+  items: {
+    item_name: string
+    sort_order: number
+  }[]
+}
+
 export interface GetStudentMonthlyItemsResponse {
   student_id: string
   student_name: string
@@ -97,6 +106,9 @@ export const invoiceService = {
   },
   getCompanyInvoicePdf: async (companyId: string, year: number, month: number) => {
     return api.get(`/company-invoice-pdf/${companyId}/${year}/${month}`, { responseType: 'blob' })
+  },
+  updateMonthlyItemsSortOrder: async (payload: MonthlyItemSortOrderUpdate) => {
+    return api.put('/monthly-items/sort-order', payload)
   },
   getCompanyInvoicePdfV2: async (companyId: string, year: number, month: number, memo: string, studentType: string) => {
     const params = new URLSearchParams()

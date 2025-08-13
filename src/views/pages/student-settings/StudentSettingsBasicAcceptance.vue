@@ -1,8 +1,9 @@
 // @ts-nocheck
 <script lang="ts" setup>
-import { invoiceService, type Invoice, type InvoiceItem } from '@/services/invoice'
+import { computed, nextTick, onMounted, ref } from 'vue'
+import draggable from 'vuedraggable'
+import { invoiceService, type InvoiceItem, type MonthlyItemSortOrderUpdate } from '@/services/invoice'
 import type { Student } from '@/services/student'
-import { computed, onMounted, ref } from 'vue'
 
 const props = defineProps<{
   student: Student
@@ -14,11 +15,21 @@ const error = ref<string | null>(null)
 const selectedYear = ref(new Date().getFullYear())
 const billingItems = ref<BillingItem[]>([])
 
+// 에러 메시지 표시 함수
+const showError = (message: string) => {
+  error.value = message
+}
+
+// vuedraggable 사용을 위한 상태
+const isDragging = ref(false)
+
 // 청구서 항목 타입
 interface BillingItem {
   id: string
   name: string
   amount: number
+  sort_order: number
+  description?: string
 }
 
 // 월별 데이터 타입
@@ -56,7 +67,7 @@ const initializeMonthlyData = () => {
         unit_price: item.amount,
         quantity: 1,
         amount: item.amount,
-        memo: item.description
+        memo: item.description || ''
       }
     })
   })
@@ -92,6 +103,7 @@ const confirmAddItem = async () => {
   }
 
   try {
+    loading.value = true
     // 새로운 API로 항목 생성
     await invoiceService.createStudentMonthlyItems(
       props.student.id,
@@ -109,11 +121,37 @@ const confirmAddItem = async () => {
     // 입력 모드 종료 및 입력값 초기화
     isAddingItem.value = false
     newItemName.value = ''
-  } catch (error) {
-    console.error('항목 추가 중 오류:', error)
+  } catch (error: any) {
+    console.error('項目追加中にエラー:', error)
+    
+    // エラーメッセージ処理
+    let errorMessage = '請求書項目の追加中にエラーが発生しました。'
+    
+    if (error.response?.data?.detail) {
+      errorMessage = error.response.data.detail
+    } else if (error.response?.data?.message) {
+      errorMessage = error.response.data.message
+    } else if (error.message) {
+      errorMessage = error.message
+    } else if (error.response?.status === 400) {
+      errorMessage = '不正なリクエストです。入力値を確認してください。'
+    } else if (error.response?.status === 401) {
+      errorMessage = '認証が必要です。再度ログインしてください。'
+    } else if (error.response?.status === 403) {
+      errorMessage = '権限がありません。'
+    } else if (error.response?.status === 404) {
+      errorMessage = '要求されたリソースが見つかりません。'
+    } else if (error.response?.status === 500) {
+      errorMessage = 'サーバーエラーが発生しました。しばらくしてから再試行してください。'
+    }
+    
+    showError(errorMessage)
+    
     // 에러 발생 시에도 입력 모드 종료
     isAddingItem.value = false
     newItemName.value = ''
+  } finally {
+    loading.value = false
   }
 }
 
@@ -129,17 +167,33 @@ const updateIndividualItem = async (itemId: string, itemData: any) => {
       amount: itemData.amount,
       memo: itemData.memo
     })
-  } catch (error) {
-    console.error(`항목 ${itemId} 업데이트 중 오류:`, error)
+  } catch (error: any) {
+    console.error(`項目${itemId}更新中にエラー:`, error)
+    
+    let errorMessage = `項目の更新中にエラーが発生しました。`
+    
+    if (error.response?.data?.detail) {
+      errorMessage = error.response.data.detail
+    } else if (error.response?.data?.message) {
+      errorMessage = error.response.data.message
+    } else if (error.message) {
+      errorMessage = error.message
+    }
+    
+    showError(errorMessage)
   }
 }
 
 // 개별 월 저장 함수
 const saveIndividualMonth = async (month: number) => {
   try {
+    loading.value = true
     // 해당 월의 모든 항목에 대해 개별 업데이트
     const monthData = monthlyData.value[month]
     if (!monthData) return
+
+    let successCount = 0
+    let errorCount = 0
 
     for (const [itemId, data] of Object.entries(monthData)) {
       try {
@@ -150,24 +204,76 @@ const saveIndividualMonth = async (month: number) => {
             amount: data.amount,
             memo: data.memo
           })
+          successCount++
         }
-      } catch (error) {
-        console.error(`항목 ${itemId} 업데이트 중 오류:`, error)
+      } catch (error: any) {
+        console.error(`項目${itemId}更新中にエラー:`, error)
+        errorCount++
       }
     }
-  } catch (error) {
-    console.error(`${month}월 저장 중 오류:`, error)
+
+    if (successCount > 0) {
+      showError(`${month}月のデータ保存中に${errorCount}個の項目でエラーが発生しました。`)
+    } else {
+      showError(`${month}月のデータ保存に失敗しました。`)
+    }
+  } catch (error: any) {
+    console.error(`${month}月保存中にエラー:`, error)
+    
+    let errorMessage = `${month}月の保存中にエラーが発生しました。`
+    
+    if (error.response?.data?.detail) {
+      errorMessage = error.response.data.detail
+    } else if (error.response?.data?.message) {
+      errorMessage = error.response.data.message
+    } else if (error.message) {
+      errorMessage = error.message
+    }
+    
+    showError(errorMessage)
+  } finally {
+    loading.value = false
   }
 }
 
 // 1~12월 전체 저장 함수
 const saveAllMonths = async () => {
   try {
+    loading.value = true
+    let successCount = 0
+    let errorCount = 0
+
     for (const month of monthOptions) {
-      await saveIndividualMonth(month)
+      try {
+        await saveIndividualMonth(month)
+        successCount++
+      } catch (error) {
+        console.error(`${month}月保存中にエラー:`, error)
+        errorCount++
+      }
     }
-  } catch (error) {
-    console.error('전체 저장 중 오류:', error)
+
+    if (successCount > 0) {
+      showError(`全体保存中に${errorCount}個の月でエラーが発生しました。`)
+    } else {
+      showError('全体保存に失敗しました。')
+    }
+  } catch (error: any) {
+    console.error('全体保存中にエラー:', error)
+    
+    let errorMessage = '全体保存中にエラーが発生しました。'
+    
+    if (error.response?.data?.detail) {
+      errorMessage = error.response.data.detail
+    } else if (error.response?.data?.message) {
+      errorMessage = error.response.data.message
+    } else if (error.message) {
+      errorMessage = error.message
+    }
+    
+    showError(errorMessage)
+  } finally {
+    loading.value = false
   }
 }
 
@@ -178,17 +284,40 @@ const removeBillingItem = async (itemId: string) => {
     const confirmed = confirm('この項目を削除しますか？この操作は元に戻せません。')
     if (!confirmed) return
 
+    loading.value = true
+    
     // API 호출하여 항목 삭제
     await invoiceService.deleteMonthlyItem(props.student.id, itemId)
     
     // 삭제 후 데이터를 다시 불러와서 매칭
     await fetchMonthlyInvoices()
+
+  } catch (error: any) {
+    console.error('項目削除中にエラー:', error)
     
-    // 성공 메시지
-    alert('項目が正常に削除されました。')
-  } catch (error) {
-    console.error('항목 삭제 중 오류:', error)
-    alert('項目の削除に失敗しました。')
+    let errorMessage = '請求書項目の削除中にエラーが発生しました。'
+    
+    if (error.response?.data?.detail) {
+      errorMessage = error.response.data.detail
+    } else if (error.response?.data?.message) {
+      errorMessage = error.response.data.message
+    } else if (error.message) {
+      errorMessage = error.message
+    } else if (error.response?.status === 400) {
+      errorMessage = '不正なリクエストです。入力値を確認してください。'
+    } else if (error.response?.status === 401) {
+      errorMessage = '認証が必要です。再度ログインしてください。'
+    } else if (error.response?.status === 403) {
+      errorMessage = '権限がありません。'
+    } else if (error.response?.status === 404) {
+      errorMessage = '要求されたリソースが見つかりません。'
+    } else if (error.response?.status === 500) {
+      errorMessage = 'サーバーエラーが発生しました。しばらくしてから再試行してください。'
+    }
+    
+    showError(errorMessage)
+  } finally {
+    loading.value = false
   }
 }
 
@@ -216,7 +345,8 @@ const fetchMonthlyInvoices = async () => {
         const newBillingItem: BillingItem = {
           id: item.item_name, // 항목명을 ID로 사용 (고유성 보장)
           name: item.item_name,
-          amount: 0
+          amount: 0,
+          sort_order: item.sort_order
         }
         billingItems.value.push(newBillingItem)
         
@@ -254,8 +384,29 @@ const fetchMonthlyInvoices = async () => {
       addBillingItem()
     }
   } catch (err: any) {
-    error.value = err.response?.data?.message || '請求書データの取得に失敗しました。'
-    console.error('월별 관리비 항목 조회 중 오류:', err)
+    console.error('月別管理費項目取得中にエラー:', err)
+    
+    let errorMessage = '月別管理費項目の取得中にエラーが発生しました。'
+    
+    if (err.response?.data?.detail) {
+      errorMessage = err.response.data.detail
+    } else if (err.response?.data?.message) {
+      errorMessage = err.response.data.message
+    } else if (err.message) {
+      errorMessage = err.message
+    } else if (err.response?.status === 400) {
+      errorMessage = '不正なリクエストです。入力値を確認してください。'
+    } else if (err.response?.status === 401) {
+      errorMessage = '認証が必要です。再度ログインしてください。'
+    } else if (err.response?.status === 403) {
+      errorMessage = '権限がありません。'
+    } else if (err.response?.status === 404) {
+      errorMessage = '要求されたリソースが見つかりません。'
+    } else if (err.response?.status === 500) {
+      errorMessage = 'サーバーエラーが発生しました。しばらくしてから再試行してください。'
+    }
+    
+    showError(errorMessage)
   } finally {
     loading.value = false
   }
@@ -294,7 +445,6 @@ const saveInvoice = async (month: number) => {
 
     // 유효한 항목들만 필터링
     const validItems: InvoiceItem[] = []
-    let sortOrder = 1
 
     Object.entries(monthlyData.value[month]).forEach(([itemId, itemData]) => {
       if (itemData.amount > 0) {
@@ -304,10 +454,9 @@ const saveInvoice = async (month: number) => {
             name: billingItem.name,
             unit_price: itemData.unit_price,
             quantity: itemData.quantity,
-            sort_order: sortOrder++,
+            sort_order: billingItem.sort_order,
             amount: itemData.amount,
             memo: itemData.memo,
-            type: billingItem.type
           })
         }
       }
@@ -325,11 +474,14 @@ const saveInvoice = async (month: number) => {
       month: month,
       items: validItems
     })
-
-    // 성공 메시지
-    alert(`${month}月の請求書が正常に保存されました。`)
   } catch (err: any) {
-    error.value = err.response?.data?.message || '請求書の保存に失敗しました。'
+    console.error('請求書保存中にエラー:', err)
+    let errorMessage = '請求書の保存中にエラーが発生しました。'
+
+    if (err.response?.data?.detail) {
+      errorMessage = err.response.data.detail
+    }
+    showError(errorMessage)
   } finally {
     loading.value = false
   }
@@ -361,6 +513,76 @@ const getStatusText = (status: string) => {
     default:
       return status
   }
+}
+
+// vuedraggableイベントハンドラー
+const onDragStart = () => {
+  isDragging.value = true
+  console.log('ドラッグ開始')
+}
+
+const onDragEnd = () => {
+  isDragging.value = false
+  console.log('ドラッグ終了')
+}
+
+const onDragUpdate = (evt: any) => {
+  console.log('드래그 업데이트:', evt)
+}
+
+// vuedraggable change 이벤트 핸들러
+const onDragChange = (evt: any) => {
+  console.log('ドラッグ変更:', evt)
+  
+  // evt.addedまたはevt.movedイベント処理
+  if (evt.added) {
+    console.log('アイテム追加:', evt.added.element.name, '位置:', evt.added.newIndex)
+    saveItemOrder()
+  } else if (evt.moved) {
+    console.log('アイテム移動:', evt.moved.element.name, '位置:', evt.moved.newIndex)
+    saveItemOrder()
+  }
+}
+
+// 아이템 순서를 서버에 저장하는 함수
+const saveItemOrder = async () => {
+  try {
+    // 각 아이템의 새로운 순서를 서버에 전송
+    const orderData: MonthlyItemSortOrderUpdate['items'] = billingItems.value.map((item, index) => ({
+      item_name: item.id,
+      sort_order: index + 1,
+    }))
+    
+    // API 호출하여 순서 저장
+    await invoiceService.updateMonthlyItemsSortOrder({
+      student_id: props.student.id,
+      year: selectedYear.value,
+      items: orderData
+    })
+    
+    console.log('アイテム順序保存完了:', orderData)
+  } catch (error: any) {
+    console.error('アイテム順序保存中にエラー:', error)
+    
+    let errorMessage = '項目順序の保存中にエラーが発生しました。'
+    
+    if (error.response?.data?.detail) {
+      errorMessage = error.response.data.detail
+    } else if (error.response?.data?.message) {
+      errorMessage = error.response.data.message
+    } else if (error.message) {
+      errorMessage = error.message
+    }
+    
+    showError(errorMessage)
+  }
+}
+
+// 드래그 앤 드롭 테스트 함수
+const testDragAndDrop = () => {
+  console.log('=== ドラッグ&ドロップテスト ===')
+  console.log('billingItems:', billingItems.value)
+  console.log('isDragging:', isDragging.value)
 }
 
 onMounted(() => {
@@ -427,7 +649,7 @@ onMounted(() => {
 
         <!-- 테이블 -->
         <div v-else class="table-container">
-          <VTable class="billing-table">
+          <VTable>
             <thead>
               <tr>
                 <th class="fixed-column">項目名</th>
@@ -437,60 +659,89 @@ onMounted(() => {
                 <th class="total-column">合計</th>
               </tr>
             </thead>
-            <tbody>
-              <tr v-for="item in billingItems" :key="item.id">
-                <td class="fixed-column item-name">
-                  <div class="d-flex align-center justify-space-between">
-                    <span class="font-weight-bold">{{ item.name }}</span>
-                    <VBtn
-                      icon
-                      variant="text"
-                      color="error"
-                      size="small"
-                      @click="removeBillingItem(item.id)"
-                      class="ml-2"
-                    >
-                      <VIcon>ri-delete-bin-line</VIcon>
-                    </VBtn>
-                  </div>
-                </td>
-                <td 
-                  v-for="month in monthOptions" 
-                  :key="month"
-                  class="month-cell"
+            <draggable
+              v-model="billingItems"
+              :group="{ name: 'billing-items' }"
+              item-key="id"
+              @start="onDragStart"
+              @end="onDragEnd"
+              @change="onDragChange"
+              @update="onDragUpdate"
+              class="billing-items-list"
+              tag="tbody"
+            >
+              <template #item="{ element: item }">
+                <tr 
+                  :key="item.id"
+                  :data-item-id="item.id"
+                  :class="{ 'dragging': isDragging }"
                 >
-                  <div class="d-flex flex-column">
-                    <VTextField
-                      :model-value="monthlyData[month]?.[item.id]?.amount || 0"
-                      type="number"
-                      min="0"
-                      density="compact"
-                      hide-details
-                      class="mb-1"
-                      placeholder="単価"
-                      @update:model-value="(value) => {
-                        if (!monthlyData[month]) monthlyData[month] = {}
-                        if (!monthlyData[month][item.id]) monthlyData[month][item.id] = { id: item.id, unit_price: 0, quantity: 1, amount: 0, memo: '' }
-                        monthlyData[month][item.id].amount = Number(value) || 0
-                        calculateItemAmount(month, monthlyData[month][item.id].id)
-                      }"
-                      @blur="() => {
-                        if (monthlyData[month]?.[item.id]) {
-                          updateIndividualItem(monthlyData[month][item.id].id, monthlyData[month][item.id])
-                        }
-                      }"
-                    />
-                  </div>
-                </td>
-                <td class="total-column">
-                  <span class="font-weight-bold">
-                    ¥{{ formatAmount(monthOptions.reduce((monthSum, month) => {
-                      const amount = Number(monthlyData[month]?.[item.id]?.amount) || 0
-                      return monthSum + amount
-                    }, 0)) }}
-                  </span>
-                </td>
-              </tr>
+                  <td class="fixed-column item-name">
+                    <div class="d-flex align-center justify-space-between">
+                      <div class="d-flex align-center">
+                        <div class="drag-handle me-2">
+                          <VIcon 
+                            color="grey"
+                            size="small"
+                            class="drag-icon"
+                          >
+                            ri-draggable
+                          </VIcon>
+                        </div>
+                        <span class="font-weight-bold">{{ item.name }}</span>
+                      </div>
+                      <VBtn
+                        icon
+                        variant="text"
+                        color="error"
+                        size="small"
+                        @click="removeBillingItem(item.id)"
+                        class="ms-2"
+                      >
+                        <VIcon>ri-delete-bin-line</VIcon>
+                      </VBtn>
+                    </div>
+                  </td>
+                  <td 
+                    v-for="month in monthOptions" 
+                    :key="month"
+                    class="month-cell"
+                  >
+                    <div class="d-flex flex-column">
+                      <VTextField
+                        :model-value="monthlyData[month]?.[item.id]?.amount || 0"
+                        type="number"
+                        min="0"
+                        density="compact"
+                        hide-details
+                        class="mb-1"
+                        placeholder="単価"
+                        @update:model-value="(value) => {
+                          if (!monthlyData[month]) monthlyData[month] = {}
+                          if (!monthlyData[month][item.id]) monthlyData[month][item.id] = { id: item.id, unit_price: 0, quantity: 1, amount: 0, memo: '' }
+                          monthlyData[month][item.id].amount = Number(value) || 0
+                          calculateItemAmount(month, monthlyData[month][item.id].id)
+                        }"
+                        @blur="() => {
+                          if (monthlyData[month]?.[item.id]) {
+                            updateIndividualItem(monthlyData[month][item.id].id, monthlyData[month][item.id])
+                          }
+                        }"
+                      />
+                    </div>
+                  </td>
+                  <td class="total-column">
+                    <span class="font-weight-bold">
+                      ¥{{ formatAmount(monthOptions.reduce((monthSum, month) => {
+                        const amount = Number(monthlyData[month]?.[item.id]?.amount) || 0
+                        return monthSum + amount
+                      }, 0)) }}
+                    </span>
+                  </td>
+                </tr>
+              </template>
+            </draggable>
+            <tbody>
               <!-- 추가 버튼 행 -->
               <tr class="add-item-row" v-if="isAddingItem">
                 <td class="fixed-column">
@@ -591,8 +842,6 @@ onMounted(() => {
       </VCardText>
     </VCard>
   </div>
-
-
 </template>
 
 <style scoped>
@@ -681,5 +930,125 @@ onMounted(() => {
   background: white;
   border-radius: 4px;
 }
+
+/* vuedraggable 관련 스타일 */
+.billing-items-list {
+  display: table-row-group;
+}
+
+.billing-items-list tr {
+  display: table-row;
+}
+
+.billing-items-list td {
+  display: table-cell;
+}
+
+.dragging {
+  opacity: 0.3;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  position: relative;
+}
+
+.drag-handle {
+  cursor: grab;
+  transition: all 0.2s ease;
+  padding: 8px;
+  border-radius: 8px;
+  user-select: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  min-height: 32px;
+  position: relative;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.02);
+  border: 1px solid transparent;
+  /* 드래그 안정성을 위한 추가 속성 */
+  touch-action: none;
+  -webkit-user-drag: element;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  /* 강제 드래그 활성화 */
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  /* 드래그 영역 강화 */
+  outline: none;
+  box-sizing: border-box;
+}
+
+.drag-handle:hover {
+  background: rgba(var(--v-theme-primary), 0.1);
+  transform: scale(1.05);
+  border: 1px solid rgba(var(--v-theme-primary), 0.3);
+}
+
+.drag-handle:hover .v-icon {
+  color: var(--v-theme-primary) !important;
+}
+
+/* 드래그 핸들 영역 시각화 (개발용) */
+.drag-handle::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border: 1px dashed rgba(128, 128, 128, 0.3);
+  border-radius: 8px;
+  pointer-events: none;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+  transform: scale(0.98);
+  background: rgba(var(--v-theme-primary), 0.15);
+}
+
+/* 드래그 아이콘 스타일 */
+.drag-icon {
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+tr:hover .drag-handle {
+  color: var(--v-theme-primary) !important;
+}
+
+/* 드래그 중인 행 스타일 */
+tr.dragging {
+  background: rgba(var(--v-theme-primary), 0.1) !important;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  z-index: 10;
+}
+
+/* 드롭 영역 표시 */
+tbody tr:hover {
+  background: rgba(var(--v-theme-primary), 0.05);
+  transition: background-color 0.2s ease;
+}
+
+/* 드래그 오버 상태 */
+tbody tr.drag-over {
+  background: rgba(var(--v-theme-primary), 0.15) !important;
+  border: 2px dashed var(--v-theme-primary);
+  transform: scale(1.02);
+  transition: all 0.2s ease;
+}
+
+/* 드래그 중인 행이 다른 행 위에 있을 때 */
+tbody tr.drag-over .drag-handle {
+  color: var(--v-theme-primary) !important;
+  transform: scale(1.1);
+}
 </style>
+
 

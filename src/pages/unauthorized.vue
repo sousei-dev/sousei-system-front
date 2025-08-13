@@ -1,3 +1,44 @@
+<script setup lang="ts">
+import { computed, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { getCurrentUserPermission, getPermissionDisplayName } from '@/utils/permissions'
+import type { Permission } from '@/types/permissions'
+
+const route = useRoute()
+const router = useRouter()
+
+// 현재 사용자 권한
+const currentPermission = computed(() => getCurrentUserPermission())
+
+// 필요한 권한 (URL 쿼리에서 가져옴)
+const requiredPermission = computed(() => {
+  const permission = route.query.requiredPermission as string
+  if (permission && ['manager_specified', 'manager_general', 'admin', 'user'].includes(permission)) {
+    return permission as Permission
+  }
+  return null
+})
+
+// 이전 페이지로 돌아가기
+const goBack = () => {
+  if (window.history.length > 1) {
+    router.back()
+  } else {
+    router.push('/dashboard')
+  }
+}
+
+// 대시보드로 이동
+const goToDashboard = () => {
+  router.push('/dashboard')
+}
+
+// 페이지 제목 설정
+onMounted(() => {
+  document.title = 'アクセス権限がありません - システム'
+})
+</script>
+
 <template>
   <div class="d-flex align-center justify-center" style="min-height: 80vh;">
     <VCard class="text-center pa-8" max-width="500">
@@ -47,44 +88,3 @@
     </VCard>
   </div>
 </template>
-
-<script setup lang="ts">
-import { computed, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { getCurrentUserPermission, getPermissionDisplayName } from '@/utils/permissions'
-import type { Permission } from '@/types/permissions'
-
-const route = useRoute()
-const router = useRouter()
-
-// 현재 사용자 권한
-const currentPermission = computed(() => getCurrentUserPermission())
-
-// 필요한 권한 (URL 쿼리에서 가져옴)
-const requiredPermission = computed(() => {
-  const permission = route.query.requiredPermission as string
-  if (permission && ['manager_specified', 'manager_general', 'admin', 'user'].includes(permission)) {
-    return permission as Permission
-  }
-  return null
-})
-
-// 이전 페이지로 돌아가기
-const goBack = () => {
-  if (window.history.length > 1) {
-    router.back()
-  } else {
-    router.push('/dashboard')
-  }
-}
-
-// 대시보드로 이동
-const goToDashboard = () => {
-  router.push('/dashboard')
-}
-
-// 페이지 제목 설정
-onMounted(() => {
-  document.title = 'アクセス権限がありません - システム'
-})
-</script> 
