@@ -816,7 +816,7 @@ watch(() => invoiceForm.value.room_invoices, () => {
           </template>
           <div class="text-h6 mb-2">入居情報がありません</div>
           <div class="text-body-2">
-            現在、この学生は入居していません。新しい入居情報を登録するか、過去の入居履歴を確認してください。
+            現在、この技能生は入居していません。新しい入居情報を登録するか、過去の入居履歴を確認してください。
           </div>
         </VAlert>
       </div>

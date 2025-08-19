@@ -30,19 +30,19 @@ export interface ElderlyHospitalizationResponse {
 export const elderlyHospitalizationService = {
   // 입원/퇴원 기록 생성
   async createElderlyHospitalization(data: ElderlyHospitalizationCreate): Promise<ElderlyHospitalizationResponse> {
-    const response = await api.post('/elderly-hospitalizations', data)
+    const response = await api.post('/elderly/hospitalizations', data)
     return response.data
   },
 
   // 특정 거주자의 입원/퇴원 기록 조회
   async getElderlyHospitalizations(residentId: string): Promise<ElderlyHospitalizationResponse[]> {
-    const response = await api.get(`/elderly-hospitalizations/resident/${residentId}`)
+    const response = await api.get(`/elderly/hospitalizations/resident/${residentId}`)
     return response.data
   },
 
   // 월별 입원/퇴원 기록 조회
   async getElderlyHospitalizationsByMonth(year: number, month: number, page: number = 1, pageSize: number = 100): Promise<ElderlyHospitalizationResponse[]> {
-    const response = await api.get(`/elderly-hospitalizations/${year}/${month}`, {
+    const response = await api.get(`/elderly/hospitalizations/${year}/${month}`, {
       params: {
         page,
         page_size: pageSize,
@@ -53,6 +53,6 @@ export const elderlyHospitalizationService = {
 
   // 입원/퇴원 기록 삭제
   async deleteElderlyHospitalization(recordId: string): Promise<void> {
-    await api.delete(`/elderly-hospitalizations/${recordId}`)
+    await api.delete(`/elderly/hospitalizations/${recordId}`)
   },
 } 

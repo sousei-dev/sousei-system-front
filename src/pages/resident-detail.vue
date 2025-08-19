@@ -126,7 +126,7 @@ onMounted(async () => {
       <div>
         <h1 class="text-h4">入居者詳細</h1>
         <p class="text-body-1 text-medium-emphasis">
-          {{ resident?.student?.name || '不明な学生' }} の入居情報
+          {{ resident?.student?.name || '不明な技能生' }} の入居情報
         </p>
       </div>
       
@@ -182,7 +182,7 @@ onMounted(async () => {
                   {{ resident.student?.name?.charAt(0) || '?' }}
                 </VAvatar>
                 <div>
-                  <div class="text-h5">{{ resident.student?.name || '不明な学生' }}</div>
+                  <div class="text-h5">{{ resident.student?.name || '不明な技能生' }}</div>
                   <div class="text-body-1 text-medium-emphasis">{{ resident.student?.name_katakana || '' }}</div>
                   <VChip 
                     :color="resident.is_active ? 'success' : 'default'" 
@@ -237,7 +237,7 @@ onMounted(async () => {
                   variant="outlined"
                   @click="goToStudentDetail"
                 >
-                  学生詳細
+                  技能生詳細
                 </VBtn>
               </div>
             </VCardText>

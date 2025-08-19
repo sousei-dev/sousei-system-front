@@ -18,7 +18,7 @@ export interface ElderlyMealRecordResponse {
 export const elderlyMealRecordService = {
   // 노인 식사 기록 생성
   async createElderlyMealRecord(data: ElderlyMealRecordCreate): Promise<ElderlyMealRecordResponse> {
-    const response = await api.post('/elderly-meal-records', data)
+    const response = await api.post('/elderly/meal-records', data)
     return response.data
   },
 
@@ -30,18 +30,18 @@ export const elderlyMealRecordService = {
 
   // 노인 식사 기록 조회 (월별)
   async getElderlyMealRecordsByMonth(year: number, month: number, buildingId: string): Promise<any> {
-    const response = await api.get(`/elderly-meal-records/monthly-building/${buildingId}/${year}/${month}`)
+    const response = await api.get(`/elderly/meal-records/monthly-building/${buildingId}/${year}/${month}`)
     return response.data
   },
 
   // 특정 거주자의 식사 기록 조회
   async getElderlyMealRecordsByResident(residentId: string, year: number, month: number): Promise<ElderlyMealRecordResponse[]> {
-    const response = await api.get(`/elderly-meal-records/resident/${residentId}?year=${year}&month=${month}`)
+    const response = await api.get(`/elderly/meal-records/resident/${residentId}?year=${year}&month=${month}`)
     return response.data
   },
 
   // 노인 식사 기록 삭제
   async deleteElderlyMealRecord(recordId: string): Promise<void> {
-    await api.delete(`/elderly-meal-records/${recordId}`)
+    await api.delete(`/elderly/meal-records/${recordId}`)
   },
 } 

@@ -9,21 +9,21 @@ const props = defineProps<{
   student: Student
 }>()
 
-// 상태 관리
+// 状態管理
 const loading = ref(false)
 const error = ref<string | null>(null)
 const selectedYear = ref(new Date().getFullYear())
 const billingItems = ref<BillingItem[]>([])
 
-// 에러 메시지 표시 함수
+// エラーメッセージ表示関数
 const showError = (message: string) => {
   error.value = message
 }
 
-// vuedraggable 사용을 위한 상태
+// vuedraggable使用のための状態
 const isDragging = ref(false)
 
-// 청구서 항목 타입
+// 請求書項目タイプ
 interface BillingItem {
   id: string
   name: string
@@ -32,7 +32,7 @@ interface BillingItem {
   description?: string
 }
 
-// 월별 데이터 타입
+// 月別データタイプ
 interface MonthlyData {
   [month: number]: {
     [item_name: string]: {
@@ -47,16 +47,16 @@ interface MonthlyData {
 
 const monthlyData = ref<MonthlyData>({})
 
-// 년도 옵션 (현재 년도 기준 전후 2년)
+// 年度オプション（現在年度基準前後2年）
 const yearOptions = computed(() => {
   const currentYear = new Date().getFullYear()
   return Array.from({ length: 6 }, (_, i) => currentYear - 3 + i)
 })
 
-// 월 옵션
+// 月オプション
 const monthOptions = Array.from({ length: 12 }, (_, i) => i + 1)
 
-// 월별 데이터 초기화
+// 月別データ初期化
 const initializeMonthlyData = () => {
   monthlyData.value = {}
   monthOptions.forEach(month => {
@@ -73,13 +73,13 @@ const initializeMonthlyData = () => {
   })
 }
 
-// 년도 변경 시 데이터 초기화
+// 年度変更時データ初期化
 const handleYearChange = () => {
   initializeMonthlyData()
   fetchMonthlyInvoices()
 }
 
-// 새로운 청구서 항목 추가
+// 新しい請求書項目追加
 const newItemName = ref('')
 const isAddingItem = ref(false)
 const newItemInput = ref<HTMLElement>()
@@ -87,7 +87,7 @@ const newItemInput = ref<HTMLElement>()
 const addBillingItem = () => {
   isAddingItem.value = true
   newItemName.value = ''
-  // 다음 tick에서 인풋에 포커스
+  // 次のtickで入力にフォーカス
   nextTick(() => {
     if (newItemInput.value) {
       newItemInput.value.focus()
@@ -104,7 +104,7 @@ const confirmAddItem = async () => {
 
   try {
     loading.value = true
-    // 새로운 API로 항목 생성
+    // 新しいAPIで項目作成
     await invoiceService.createStudentMonthlyItems(
       props.student.id,
       {
@@ -115,10 +115,10 @@ const confirmAddItem = async () => {
       selectedYear.value
     )
 
-    // 항목 생성 후 데이터를 다시 불러와서 매칭
+    // 項目作成後データを再取得してマッチング
     await fetchMonthlyInvoices()
 
-    // 입력 모드 종료 및 입력값 초기화
+    // 入力モード終了及び入力値初期化
     isAddingItem.value = false
     newItemName.value = ''
   } catch (error: any) {
@@ -147,7 +147,7 @@ const confirmAddItem = async () => {
     
     showError(errorMessage)
     
-    // 에러 발생 시에도 입력 모드 종료
+    // エラー発生時にも入力モード終了
     isAddingItem.value = false
     newItemName.value = ''
   } finally {
@@ -160,8 +160,9 @@ const cancelAddItem = () => {
   newItemName.value = ''
 }
 
-// 개별 항목 업데이트 함수
+// 個別項目更新関数
 const updateIndividualItem = async (itemId: string, itemData: any) => {
+  console.log(itemId, itemData)
   try {
     await invoiceService.updateMonthlyItem(itemId, {
       amount: itemData.amount,
@@ -184,11 +185,11 @@ const updateIndividualItem = async (itemId: string, itemData: any) => {
   }
 }
 
-// 개별 월 저장 함수
+// 個別月保存関数
 const saveIndividualMonth = async (month: number) => {
   try {
     loading.value = true
-    // 해당 월의 모든 항목에 대해 개별 업데이트
+    // 該当月の全項目について個別更新
     const monthData = monthlyData.value[month]
     if (!monthData) return
 
@@ -197,7 +198,7 @@ const saveIndividualMonth = async (month: number) => {
 
     for (const [itemId, data] of Object.entries(monthData)) {
       try {
-        // API에서 받은 item_id를 사용하여 업데이트
+        // APIから受け取ったitem_idを使用して更新
         const item = billingItems.value.find(bi => bi.id === itemId)
         if (item) {
           await invoiceService.updateMonthlyItem(itemId, {
@@ -236,7 +237,7 @@ const saveIndividualMonth = async (month: number) => {
   }
 }
 
-// 1~12월 전체 저장 함수
+// 1～12月全体保存関数
 const saveAllMonths = async () => {
   try {
     loading.value = true
@@ -277,19 +278,19 @@ const saveAllMonths = async () => {
   }
 }
 
-// 청구서 항목 삭제
+// 請求書項目削除
 const removeBillingItem = async (itemId: string) => {
   try {
-    // 삭제 확인 다이얼로그
+    // 削除確認ダイアログ
     const confirmed = confirm('この項目を削除しますか？この操作は元に戻せません。')
     if (!confirmed) return
 
     loading.value = true
     
-    // API 호출하여 항목 삭제
-    await invoiceService.deleteMonthlyItem(props.student.id, itemId)
+    // API呼び出しで項目削除
+    await invoiceService.deleteMonthlyItem(props.student.id, selectedYear.value, itemId)
     
-    // 삭제 후 데이터를 다시 불러와서 매칭
+    // 削除後データを再取得してマッチング
     await fetchMonthlyInvoices()
 
   } catch (error: any) {
@@ -321,36 +322,36 @@ const removeBillingItem = async (itemId: string) => {
   }
 }
 
-// 월별 청구서 조회
+// 月別請求書照会
 const fetchMonthlyInvoices = async () => {
   try {
     loading.value = true
     error.value = null
 
-    // 새로운 API로 월별 관리비 항목 조회
+    // 新しいAPIで月別管理費項目照会
     const response = await invoiceService.getStudentMonthlyItems(
       props.student.id,
       selectedYear.value
     )
     
-    // 응답 데이터 처리
+    // 応答データ処理
     if (response && response.items) {
-      // 기존 항목 초기화
+      // 既存項目初期化
       billingItems.value = []
       monthlyData.value = {}
 
-      // 각 항목별로 처리
+      // 各項目別に処理
       response.items.forEach((item: any) => {
-        // 새로운 항목 추가
+        // 新しい項目追加
         const newBillingItem: BillingItem = {
-          id: item.item_name, // 항목명을 ID로 사용 (고유성 보장)
+          id: item.item_name, // 項目名をIDとして使用（一意性保証）
           name: item.item_name,
           amount: 0,
           sort_order: item.sort_order
         }
         billingItems.value.push(newBillingItem)
         
-        // 모든 월에 해당 항목 초기화
+        // 全月に該当項目初期化
         monthOptions.forEach(month => {
           if (!monthlyData.value[month]) {
             monthlyData.value[month] = {}
@@ -364,13 +365,13 @@ const fetchMonthlyInvoices = async () => {
           }
         })
         
-        // 각 월별 데이터 설정
+        // 各月別データ設定
         item.months.forEach((monthData: any) => {
           if (!monthlyData.value[monthData.month]) {
             monthlyData.value[monthData.month] = {}
           }
           monthlyData.value[monthData.month][newBillingItem.id] = {
-            id: monthData.item_id,
+            id: monthData.id,
             unit_price: 0,
             quantity: 1,
             amount: monthData.amount || 0,
@@ -379,7 +380,7 @@ const fetchMonthlyInvoices = async () => {
         })
       })
     }
-    // 데이터가 없을 때만 자동으로 추가 버튼 활성화
+    // データがない時のみ自動追加ボタン有効化
     if (billingItems.value.length === 0) {
       addBillingItem()
     }
@@ -412,7 +413,7 @@ const fetchMonthlyInvoices = async () => {
   }
 }
 
-// 항목 금액 계산
+// 項目金額計算
 const calculateItemAmount = (month: number, itemId: string) => {
   if (monthlyData.value[month] && monthlyData.value[month][itemId]) {
     const item = monthlyData.value[month][itemId]
@@ -420,7 +421,7 @@ const calculateItemAmount = (month: number, itemId: string) => {
   }
 }
 
-// 월별 총 금액 계산
+// 月別総金額計算
 const getMonthlyTotal = (month: number) => {
   if (!monthlyData.value[month]) return 0
 
@@ -430,12 +431,12 @@ const getMonthlyTotal = (month: number) => {
   }, 0)
 }
 
-// 금액 포맷팅
+// 金額フォーマット
 const formatAmount = (amount: number) => {
   return new Intl.NumberFormat('ja-JP').format(amount)
 }
 
-// 청구서 저장
+// 請求書保存
 const saveInvoice = async (month: number) => {
   if (!monthlyData.value[month]) return
 
@@ -443,7 +444,7 @@ const saveInvoice = async (month: number) => {
     loading.value = true
     error.value = null
 
-    // 유효한 항목들만 필터링
+    // 有効な項目のみフィルタリング
     const validItems: InvoiceItem[] = []
 
     Object.entries(monthlyData.value[month]).forEach(([itemId, itemData]) => {
@@ -467,7 +468,7 @@ const saveInvoice = async (month: number) => {
       return
     }
 
-    // 청구서 생성
+    // 請求書作成
     await invoiceService.createInvoice({
       student_id: props.student.id,
       year: selectedYear.value,
@@ -487,7 +488,7 @@ const saveInvoice = async (month: number) => {
   }
 }
 
-// 상태에 따른 색상 반환
+// 状態による色返却
 const getStatusColor = (status: string) => {
   switch (status) {
     case 'ACTIVE':
@@ -501,7 +502,7 @@ const getStatusColor = (status: string) => {
   }
 }
 
-// 상태에 따른 텍스트 반환
+// 状態によるテキスト返却
 const getStatusText = (status: string) => {
   switch (status) {
     case 'ACTIVE':
@@ -527,10 +528,10 @@ const onDragEnd = () => {
 }
 
 const onDragUpdate = (evt: any) => {
-  console.log('드래그 업데이트:', evt)
+  console.log('ドラッグ更新:', evt)
 }
 
-// vuedraggable change 이벤트 핸들러
+// vuedraggable changeイベントハンドラー
 const onDragChange = (evt: any) => {
   console.log('ドラッグ変更:', evt)
   
@@ -544,16 +545,16 @@ const onDragChange = (evt: any) => {
   }
 }
 
-// 아이템 순서를 서버에 저장하는 함수
+// アイテム順序をサーバーに保存する関数
 const saveItemOrder = async () => {
   try {
-    // 각 아이템의 새로운 순서를 서버에 전송
+    // 各アイテムの新しい順序をサーバーに送信
     const orderData: MonthlyItemSortOrderUpdate['items'] = billingItems.value.map((item, index) => ({
       item_name: item.id,
       sort_order: index + 1,
     }))
     
-    // API 호출하여 순서 저장
+    // API呼び出しで順序保存
     await invoiceService.updateMonthlyItemsSortOrder({
       student_id: props.student.id,
       year: selectedYear.value,
@@ -578,7 +579,7 @@ const saveItemOrder = async () => {
   }
 }
 
-// 드래그 앤 드롭 테스트 함수
+// ドラッグ＆ドロップテスト関数
 const testDragAndDrop = () => {
   console.log('=== ドラッグ&ドロップテスト ===')
   console.log('billingItems:', billingItems.value)
@@ -592,7 +593,7 @@ onMounted(() => {
 
 <template>
   <div>
-    <!-- 에러 메시지 -->
+    <!-- エラーメッセージ -->
     <VAlert
       v-if="error"
       type="error"
@@ -602,7 +603,7 @@ onMounted(() => {
       {{ error }}
     </VAlert>
 
-    <!-- 헤더 -->
+    <!-- ヘッダー -->
     <VCard class="mb-6">
       <VCardTitle class="text-h5">
         <VIcon class="me-2">ri-file-list-line</VIcon>
@@ -611,7 +612,7 @@ onMounted(() => {
       
       <VCardText>
         <VRow>
-          <!-- 년도 선택 -->
+          <!-- 年度選択 -->
           <VCol cols="12" md="3">
             <VSelect
               v-model="selectedYear"
@@ -629,7 +630,7 @@ onMounted(() => {
 
 
 
-    <!-- 월별 청구서 테이블 -->
+    <!-- 月別請求書テーブル -->
     <VCard>
       <VCardTitle class="text-h6">
         <VIcon class="me-2">ri-calendar-line</VIcon>
@@ -637,7 +638,7 @@ onMounted(() => {
       </VCardTitle>
       
       <VCardText>
-        <!-- 로딩 상태 -->
+        <!-- ローディング状態 -->
         <div v-if="loading" class="d-flex justify-center align-center py-8">
           <VProgressCircular
             indeterminate
@@ -647,7 +648,7 @@ onMounted(() => {
           <span class="ml-4 text-body-1">データを読み込み中...</span>
         </div>
 
-        <!-- 테이블 -->
+        <!-- テーブル -->
         <div v-else class="table-container">
           <VTable>
             <thead>
@@ -742,7 +743,7 @@ onMounted(() => {
               </template>
             </draggable>
             <tbody>
-              <!-- 추가 버튼 행 -->
+              <!-- 追加ボタン行 -->
               <tr class="add-item-row" v-if="isAddingItem">
                 <td class="fixed-column">
                   <div class="d-flex align-center gap-2">
@@ -782,10 +783,10 @@ onMounted(() => {
                   :key="month"
                   class="add-cell"
                 >
-                  <!-- 빈 셀 -->
+                  <!-- 空セル -->
                 </td>
                 <td class="total-column">
-                  <!-- 빈 셀 -->
+                  <!-- 空セル -->
                 </td>
               </tr>
               <tr class="add-item-row" v-else>
@@ -805,13 +806,13 @@ onMounted(() => {
                   :key="month"
                   class="add-cell"
                 >
-                  <!-- 빈 셀 -->
+                  <!-- 空セル -->
                 </td>
                 <td class="total-column">
-                  <!-- 빈 셀 -->
+                  <!-- 空セル -->
                 </td>
               </tr>
-              <!-- 월별 합계 행 -->
+              <!-- 月別合計行 -->
               <tr class="monthly-total-row">
                 <td class="fixed-column">
                   <span class="font-weight-bold">月別合計</span>
@@ -931,7 +932,7 @@ onMounted(() => {
   border-radius: 4px;
 }
 
-/* vuedraggable 관련 스타일 */
+/* vuedraggable関連スタイル */
 .billing-items-list {
   display: table-row-group;
 }
@@ -967,16 +968,16 @@ onMounted(() => {
   z-index: 100;
   background: rgba(0, 0, 0, 0.02);
   border: 1px solid transparent;
-  /* 드래그 안정성을 위한 추가 속성 */
+  /* ドラッグ安定性のための追加属性 */
   touch-action: none;
   -webkit-user-drag: element;
   -webkit-user-select: none;
   -moz-user-select: none;
   -ms-user-select: none;
-  /* 강제 드래그 활성화 */
+  /* 強制ドラッグ有効化 */
   -webkit-touch-callout: none;
   -webkit-tap-highlight-color: transparent;
-  /* 드래그 영역 강화 */
+  /* ドラッグ領域強化 */
   outline: none;
   box-sizing: border-box;
 }
@@ -991,7 +992,7 @@ onMounted(() => {
   color: var(--v-theme-primary) !important;
 }
 
-/* 드래그 핸들 영역 시각화 (개발용) */
+/* ドラッグハンドル領域可視化（開発用） */
 .drag-handle::before {
   content: '';
   position: absolute;
@@ -1010,7 +1011,7 @@ onMounted(() => {
   background: rgba(var(--v-theme-primary), 0.15);
 }
 
-/* 드래그 아이콘 스타일 */
+/* ドラッグアイコンスタイル */
 .drag-icon {
   pointer-events: none;
   user-select: none;

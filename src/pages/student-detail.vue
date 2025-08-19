@@ -20,7 +20,7 @@ const fetchStudent = async () => {
     student.value = await studentService.getStudent(studentId.value)
   }
   catch (err: any) {
-    error.value = err.response?.data?.message || '学生情報の取得に失敗しました。'
+    error.value = err.response?.data?.message || '技能生情報の取得に失敗しました。'
   }
   finally {
     loading.value = false
@@ -36,7 +36,7 @@ onMounted(() => {
 
 // tabs
 const tabs = [
-  { title: '学生情報', icon: 'ri-user-line', tab: 'account' },
+  { title: '技能生情報', icon: 'ri-user-line', tab: 'account' },
   { title: '家賃請求情報', icon: 'ri-home-4-line', tab: 'rent' },
   { title: '受入請求情報', icon: 'ri-shake-hands-line', tab: 'acceptance' }
 ]

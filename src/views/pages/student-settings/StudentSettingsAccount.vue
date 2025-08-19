@@ -67,7 +67,7 @@ const residenceCardForm = ref({
   residence_card_start: '',
   residence_card_expiry: '',
   visa_application_date: '',
-  year: '',
+  visa_year: '',
   note: '',
 })
 const residenceCardError = ref<string | null>(null)
@@ -80,7 +80,7 @@ const isResidenceCardFormValid = computed(() => {
     residenceCardForm.value.residence_card_start &&
     residenceCardForm.value.residence_card_expiry &&
     residenceCardForm.value.visa_application_date &&
-    residenceCardForm.value.year
+    residenceCardForm.value.visa_year
   )
 })
 
@@ -162,8 +162,8 @@ const addResidenceCard = async () => {
   if (!residenceCardForm.value.visa_application_date) {
     residenceCardErrors.value.visa_application_date = true
   }
-  if (!residenceCardForm.value.year) {
-    residenceCardErrors.value.year = true
+  if (!residenceCardForm.value.visa_year) {
+    residenceCardErrors.value.visa_year = true
   }
 
   if (errors.length > 0) {
@@ -183,7 +183,7 @@ const addResidenceCard = async () => {
     form.value.residence_card_start = residenceCardForm.value.residence_card_start
     form.value.residence_card_expiry = residenceCardForm.value.residence_card_expiry
     form.value.visa_application_date = residenceCardForm.value.visa_application_date
-    form.value.visa_year = residenceCardForm.value.year
+    form.value.visa_year = residenceCardForm.value.visa_year
 
     // 폼 초기화
     residenceCardForm.value = {
@@ -191,7 +191,7 @@ const addResidenceCard = async () => {
       residence_card_start: '',
       residence_card_expiry: '',
       visa_application_date: '',
-      year: '',
+      visa_year: '',
       note: '',
     }
 
@@ -465,11 +465,11 @@ const updateStudent = async () => {
       grade_id: form.value.grade || undefined,
     })
 
-    success.value = '学生情報が正常に修正されました。'
+    success.value = '技能生情報が正常に修正されました。'
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
   catch (err: any) {
-    error.value = err.response?.data?.message || '学生情報の修正に失敗しました。'
+    error.value = err.response?.data?.message || '技能生情報の修正に失敗しました。'
   }
   finally {
     loading.value = false
@@ -592,8 +592,8 @@ const updateStudent = async () => {
                   ]"
                   item-title="title"
                   item-value="value"
-                  label="学生タイプ"
-                  placeholder="学生タイプを選択してください"
+                  label="技能生タイプ"
+                  placeholder="技能生タイプを選択してください"
                   :disabled="loading"
                 />
               </VCol>
@@ -1117,7 +1117,7 @@ const updateStudent = async () => {
 
           <VCol cols="12" md="6">
             <VSelect
-              v-model="residenceCardForm.year"
+              v-model="residenceCardForm.visa_year"
               :items="[
                 { title: '1年目', value: '1' },
                 { title: '2年目', value: '2' },
@@ -1130,8 +1130,8 @@ const updateStudent = async () => {
               label="年次 *"
               placeholder="年次を選択してください"
               :disabled="loading"
-              :error="residenceCardErrors.year"
-              :error-messages="residenceCardErrors.year ? '年次を選択してください' : ''"
+              :error="residenceCardErrors.visa_year"
+              :error-messages="residenceCardErrors.visa_year ? '年次を選択してください' : ''"
               required
             />
           </VCol>

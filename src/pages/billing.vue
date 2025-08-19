@@ -19,7 +19,26 @@ const selectedMonth = ref(new Date().getMonth() + 1)
 const selectedCompany = ref<Company | null>(null)
 const companyInvoices = ref<Invoice[]>([])
 
-// 권한 체크는 전역 가드에서 처리됨
+// 권한 체크
+const checkPermission = () => {
+  const currentPermission = getCurrentUserPermission()
+  
+  if (currentPermission === 'manager_specified') {
+    // 特定技能 관리자는 /special-student-list만 접근 가능
+    router.replace({
+      path: '/unauthorized',
+      query: { 
+        requiredPermission: 'manager_specified',
+        currentPermission: currentPermission,
+        from: route.path,
+        message: '特定技能管理者は/special-student-listページのみアクセス可能です。'
+      }
+    })
+    return false
+  }
+  
+  return true
+}
 
 // 년도 옵션 (현재 년도 기준 전후 2년)
 const yearOptions = computed(() => {
@@ -478,6 +497,11 @@ const downloadExcel = async (companyId: string) => {
 }
 
 onMounted(() => {
+  // 권한 체크
+  if (!checkPermission()) {
+    return
+  }
+  
   fetchCompanies()
 })
 </script>

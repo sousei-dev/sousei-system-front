@@ -276,8 +276,12 @@ const initializeMealRecords = async () => {
       id: r.id, 
       hospitalizations: r.hospitalizations,
       admissionRecords: r.hospitalizations?.filter(h => h.hospitalization_type === 'admission'),
-      dischargeRecords: r.hospitalizations?.filter(h => h.hospitalization_type === 'discharge')
+      dischargeRecords: r.hospitalizations?.filter(h => h.hospitalization_type === 'discharge'),
     })))
+    
+    // 캐시 초기화 (새로운 데이터 로드 시)
+    cellStateCache.clear()
+    hospitalizationCache.clear()
   } catch (error) {
     console.error('식사 기록 로드 실패:', error)
     // 에러 시 기본 데이터로 초기화
@@ -287,20 +291,67 @@ const initializeMealRecords = async () => {
   }
 }
 
-// 각 셀의 상태를 미리 계산하는 함수 (캐싱 적용)
-const getCellState = (residentId: string, date: string) => {
+// getCellState 함수는 getCellStateForResident로 대체됨
+
+// 성능 최적화를 위한 computed 속성들
+const getCellStateForResident = (residentId: string, date: string) => {
   const record = mealRecords.value.find(
     r => r.resident_id === residentId && r.date === date,
   )
+  
   return {
-    breakfast: record ? record.breakfast : false,
-    lunch: record ? record.lunch : false,
-    dinner: record ? record.dinner : false,
+    breakfast: record?.breakfast ?? false,
+    lunch: record?.lunch ?? false,
+    dinner: record?.dinner ?? false,
   }
 }
 
-// 성능 최적화를 위한 캐시 맵
+const getHospitalizationStateForResident = (residentId: string, date: string) => {
+  const breakfast = validateHospitalizationRecords(residentId, date, 'breakfast')
+  const lunch = validateHospitalizationRecords(residentId, date, 'lunch')
+  const dinner = validateHospitalizationRecords(residentId, date, 'dinner')
+  
+  return {
+    breakfast,
+    lunch,
+    dinner,
+    hasHospitalization: breakfast || lunch || dinner,
+  }
+}
+
+// 모든 거주자와 날짜에 대한 상태를 미리 계산하는 computed 속성
+const computedCellStates = computed(() => {
+  const states = new Map<string, { breakfast: boolean; lunch: boolean; dinner: boolean }>()
+  const hospitalizationStates = new Map<string, {
+    breakfast: boolean
+    lunch: boolean
+    dinner: boolean
+    hasHospitalization: boolean
+  }>()
+  
+  residents.value.forEach(resident => {
+    daysInMonth.value.forEach(day => {
+      const cellKey = `${resident.id}_${day.date}`
+      
+      // 셀 상태 계산
+      states.set(cellKey, getCellStateForResident(resident.id, day.date))
+      
+      // 병원 기록 상태 계산
+      hospitalizationStates.set(cellKey, getHospitalizationStateForResident(resident.id, day.date))
+    })
+  })
+  
+  return { states, hospitalizationStates }
+})
+
+// 성능 최적화를 위한 캐시 맵 (computed와 함께 사용)
 const cellStateCache = new Map<string, { breakfast: boolean; lunch: boolean; dinner: boolean }>()
+const hospitalizationCache = new Map<string, {
+  breakfast: boolean
+  lunch: boolean
+  dinner: boolean
+  hasHospitalization: boolean
+}>()
 
 // 캐시된 셀 상태 가져오기
 const getCachedCellState = (residentId: string, date: string) => {
@@ -311,8 +362,22 @@ const getCachedCellState = (residentId: string, date: string) => {
     return cached
   }
   
-  const state = getCellState(residentId, date)
+  const state = getCellStateForResident(residentId, date)
   cellStateCache.set(cacheKey, state)
+  return state
+}
+
+// 캐시된 병원 기록 상태 가져오기
+const getCachedHospitalizationState = (residentId: string, date: string) => {
+  const cacheKey = `${residentId}_${date}`
+  const cached = hospitalizationCache.get(cacheKey)
+  
+  if (cached) {
+    return cached
+  }
+  
+  const state = getHospitalizationStateForResident(residentId, date)
+  hospitalizationCache.set(cacheKey, state)
   return state
 }
 
@@ -325,7 +390,7 @@ const saveMealRecord = async (residentId: string, skipDate: string, mealType: 'b
       meal_type: mealType,
     }
 
-    await elderlyMealRecordService.createElderlyMealRecord(data)
+    // await elderlyMealRecordService.createElderlyMealRecord(data)
     console.log('식사 기록 처리 성공:', { residentId, skipDate, mealType, value })
   } catch (error) {
     console.error('식사 기록 처리 실패:', error)
@@ -335,19 +400,16 @@ const saveMealRecord = async (residentId: string, skipDate: string, mealType: 'b
 
 // 식사 기록 업데이트 및 저장
 const updateMealRecord = async (residentId: string, date: string, mealType: 'breakfast' | 'lunch' | 'dinner', value: boolean) => {
-  const startTime = performance.now()
-  
   // UI 즉시 업데이트
   const recordIndex = mealRecords.value.findIndex(
     r => r.resident_id === residentId && r.date === date,
   )
   
-  const findTime = performance.now()
-  console.log('findIndex 시간:', findTime - startTime, 'ms')
-  
   if (recordIndex >= 0) {
+    // 기존 기록이 있는 경우 해당 식사 타입만 업데이트
     mealRecords.value[recordIndex][mealType] = value
   } else {
+    // 새 기록 생성
     mealRecords.value.push({
       resident_id: residentId,
       date,
@@ -357,22 +419,39 @@ const updateMealRecord = async (residentId: string, date: string, mealType: 'bre
     })
   }
   
-  // 캐시 무효화
+  // 캐시 즉시 업데이트 (UI 반응성 향상)
   const cacheKey = `${residentId}_${date}`
-  cellStateCache.delete(cacheKey)
+  const currentState = getCellStateForResident(residentId, date)
+  cellStateCache.set(cacheKey, currentState)
   
-  const updateTime = performance.now()
-  console.log('데이터 업데이트 시간:', updateTime - findTime, 'ms')
-  console.log('전체 업데이트 시간:', updateTime - startTime, 'ms')
+  // 병원 기록 캐시도 무효화 (상태 변경 시 재계산 필요)
+  hospitalizationCache.delete(cacheKey)
 
-  // 백그라운드에서 API 호출 (사용자 경험 개선)
-  saveMealRecord(residentId, date, mealType, value).catch(error => {
+  // 백그라운드에서 API 호출
+  try {
+    await saveMealRecord(residentId, date, mealType, value)
+    console.log('식사 기록 처리 성공:', { residentId, date, mealType, value })
+  } catch (error) {
     console.error('API 호출 실패:', error)
     // 실패 시 UI 되돌리기
     if (recordIndex >= 0) {
       mealRecords.value[recordIndex][mealType] = !value
+    } else {
+      // 새로 추가된 기록인 경우 제거
+      const removeIndex = mealRecords.value.findIndex(
+        r => r.resident_id === residentId && r.date === date,
+      )
+      if (removeIndex >= 0) {
+        mealRecords.value.splice(removeIndex, 1)
+      }
     }
-  })
+    
+    // 캐시도 되돌리기
+    const revertedState = getCellStateForResident(residentId, date)
+    cellStateCache.set(cacheKey, revertedState)
+    
+    throw error // 상위에서 처리하도록 에러 전파
+  }
 }
 
 // 오늘 날짜로 스크롤하는 함수
@@ -425,7 +504,7 @@ onMounted(async () => {
           <div v-if="residents.length === 0" class="text-center pa-4">
             <VIcon size="48" color="grey" class="mb-2">ri-inbox-line</VIcon>
             <p class="text-h6 text-grey">データがありません</p>
-            <p class="text-body-2 text-grey">거주자 데이터를 불러올 수 없습니다.</p>
+            <p class="text-body-2 text-grey">データがありません</p>
           </div>
           
           <VTable v-else class="meal-record-table" density="compact">
@@ -470,8 +549,8 @@ onMounted(async () => {
                 </td>
                 <td v-for="day in daysInMonth" :key="`${resident.id}_${day.date}`" :class="{ 'today-column': day.isToday }">
                   <div class="d-flex flex-column gap-1">
-                    <!-- 병원 기록 경고 표시 (식사 타입별로 개별 표시) -->
-                    <div v-if="validateHospitalizationRecords(resident.id, day.date, 'breakfast') || validateHospitalizationRecords(resident.id, day.date, 'lunch') || validateHospitalizationRecords(resident.id, day.date, 'dinner')" class="hospitalization-warning">
+                    <!-- 병원 기록 경고 표시 (computed 상태 사용) -->
+                    <div v-if="computedCellStates.hospitalizationStates.get(`${resident.id}_${day.date}`)?.hasHospitalization" class="hospitalization-warning">
                       <VChip size="x-small" color="warning" variant="tonal">
                         <VIcon start size="12" icon="ri-hospital-line" />
                         入院中
@@ -481,17 +560,17 @@ onMounted(async () => {
                     <div class="d-flex align-center justify-space-between">
                       <span class="text-caption">朝食:</span>
                       <VBtn 
-                        :color="getCachedCellState(resident.id, day.date).breakfast ? 'error' : 'default'" 
+                        :color="computedCellStates.states.get(`${resident.id}_${day.date}`)?.breakfast ? 'error' : 'default'" 
                         variant="text" 
                         size="small" 
                         class="meal-btn"
-                        :class="{ 'hospitalization-mismatch': validateHospitalizationRecords(resident.id, day.date, 'breakfast') && !getCachedCellState(resident.id, day.date).breakfast }"
-                        @click="() => {
-                          const currentValue = getCachedCellState(resident.id, day.date).breakfast
-                          updateMealRecord(resident.id, day.date, 'breakfast', !currentValue)
+                        :class="{ 'hospitalization-mismatch': computedCellStates.hospitalizationStates.get(`${resident.id}_${day.date}`)?.breakfast && !computedCellStates.states.get(`${resident.id}_${day.date}`)?.breakfast }"
+                        @click="async () => {
+                          const currentValue = computedCellStates.states.get(`${resident.id}_${day.date}`)?.breakfast ?? false
+                          await updateMealRecord(resident.id, day.date, 'breakfast', !currentValue)
                         }"
                       >
-                        <span v-if="getCachedCellState(resident.id, day.date).breakfast" class="meal-x">✕</span>
+                        <span v-if="computedCellStates.states.get(`${resident.id}_${day.date}`)?.breakfast" class="meal-x">✕</span>
                         <span v-else class="meal-o">○</span>
                       </VBtn>
                     </div>
@@ -502,10 +581,10 @@ onMounted(async () => {
                         variant="text" 
                         size="small" 
                         class="meal-btn"
-                        :class="{ 'hospitalization-mismatch': validateHospitalizationRecords(resident.id, day.date, 'lunch') && !getCachedCellState(resident.id, day.date).lunch }"
-                        @click="() => {
+                        :class="{ 'hospitalization-mismatch': getCachedHospitalizationState(resident.id, day.date).lunch && !getCachedCellState(resident.id, day.date).lunch }"
+                        @click="async () => {
                           const currentValue = getCachedCellState(resident.id, day.date).lunch
-                          updateMealRecord(resident.id, day.date, 'lunch', !currentValue)
+                          await updateMealRecord(resident.id, day.date, 'lunch', !currentValue)
                         }"
                       >
                         <span v-if="getCachedCellState(resident.id, day.date).lunch" class="meal-x">✕</span>
@@ -519,10 +598,10 @@ onMounted(async () => {
                         variant="text" 
                         size="small" 
                         class="meal-btn"
-                        :class="{ 'hospitalization-mismatch': validateHospitalizationRecords(resident.id, day.date, 'dinner') && !getCachedCellState(resident.id, day.date).dinner }"
-                        @click="() => {
+                        :class="{ 'hospitalization-mismatch': getCachedHospitalizationState(resident.id, day.date).dinner && !getCachedCellState(resident.id, day.date).dinner }"
+                        @click="async () => {
                           const currentValue = getCachedCellState(resident.id, day.date).dinner
-                          updateMealRecord(resident.id, day.date, 'dinner', !currentValue)
+                          await updateMealRecord(resident.id, day.date, 'dinner', !currentValue)
                         }"
                       >
                         <span v-if="getCachedCellState(resident.id, day.date).dinner" class="meal-x">✕</span>

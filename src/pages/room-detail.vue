@@ -404,7 +404,7 @@ const fetchResidents = async () => {
     // 활성 입주자 조회
     const params = residentType.value ? { residentType: residentType.value as 'student' | 'elderly' } : undefined
     const resident = await residentService.getResidentsByRoom(roomId, params)
-    activeResidents.value = resident.items
+    activeResidents.value = resident.residents
 
     // 입주 기록 조회
     const history = await residentService.getResidentHistory(roomId, residentType.value as 'student' | 'elderly')
@@ -516,13 +516,8 @@ const _goToResidentCreate = () => {
 
 // 입주자 이름 가져오기
 const getResidentName = (resident: Resident) => {
-  console.log(resident.resident_type)
-  if (isStudentResident(resident)) {
-    return resident.student.name
-  }
-  
-  if (isElderlyResident(resident)) {
-    return resident.elderly.name
+  if (resident.name) {
+    return resident.name
   }
   
   return '不明な入居者'
@@ -530,8 +525,8 @@ const getResidentName = (resident: Resident) => {
 
 // 입주자 전화번호 가져오기
 const getResidentPhone = (resident: Resident) => {
-  if (isStudentResident(resident)) {
-    return resident.student.phone
+  if (resident.phone) {
+    return resident.phone
   }
   
   return '電話番号なし'
@@ -539,8 +534,8 @@ const getResidentPhone = (resident: Resident) => {
 
 // 입주자 아바타 가져오기
 const getResidentAvatar = (resident: Resident) => {
-  if (isStudentResident(resident)) {
-    return resident.student.avatar
+  if (resident.avatar) {
+    return resident.avatar
   }
   
   return null
@@ -889,7 +884,7 @@ onMounted(async () => {
                       variant="text"
                       size="small"
                       color="primary"
-                      @click="goToStudentDetail(resident.student.id)"
+                      @click="goToStudentDetail(resident.id)"
                       title="入居記録詳細"
                     />
                   </div>
@@ -947,7 +942,7 @@ onMounted(async () => {
                   <th>入居日</th>
                   <th>退去日</th>
                   <th>状態</th>
-                  <th>操作</th>
+                  <!-- <th>操作</th> -->
                 </tr>
               </thead>
               <tbody>
@@ -955,8 +950,8 @@ onMounted(async () => {
                   <td>
                     <div class="d-flex align-center">
                       <VAvatar
-                        v-if="getResidentAvatar(resident)"
-                        :image="getResidentAvatar(resident)"
+                        v-if="getResidentAvatar(resident.student)"
+                        :image="getResidentAvatar(resident.student)"
                         size="32"
                         class="me-2"
                       />
@@ -965,9 +960,9 @@ onMounted(async () => {
                         size="32"
                         class="me-2"
                       >
-                        {{ getResidentInitial(resident) }}
+                        {{ getResidentInitial(resident.student) }}
                       </VAvatar>
-                      <span>{{ getResidentName(resident) }}</span>
+                      <span>{{ getResidentName(resident.student) }}</span>
                     </div>
                   </td>
                   <td>
@@ -986,7 +981,7 @@ onMounted(async () => {
                       {{ resident.is_active ? '入居中' : '退去済み' }}
                     </VChip>
                   </td>
-                  <td>
+                  <!-- <td>
                     <div class="d-flex gap-1">
                       <VBtn
                         icon="ri-eye-line"
@@ -997,7 +992,7 @@ onMounted(async () => {
                         title="入居記録詳細"
                       />
                     </div>
-                  </td>
+                  </td> -->
                 </tr>
               </tbody>
             </VTable>

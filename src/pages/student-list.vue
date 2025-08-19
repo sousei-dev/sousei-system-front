@@ -161,7 +161,7 @@ const fetchStudents = async () => {
       currentPage: page.value 
     })
   } catch (err: any) {
-    error.value = err.response?.data?.message || '学生リストの取得に失敗しました。'
+    error.value = err.response?.data?.message || '技能生リストの取得に失敗しました。'
   } finally {
     loading.value = false
   }
@@ -603,6 +603,7 @@ const enforceStudentTypeFilter = () => {
             <div class="d-flex gap-2">
               <PermissionGuard feature="billing_management">
                 <VBtn
+                  v-if="filters.student_type !== 'ALL'"
                   color="primary"
                   prepend-icon="ri-add-line"
                   @click="openInvoiceModal"
@@ -617,7 +618,7 @@ const enforceStudentTypeFilter = () => {
                   prepend-icon="ri-add-line"
                   @click="handleCreateStudent"
                 >
-                  学生追加
+                  技能生追加
                 </VBtn>
               </PermissionGuard>
             </div>

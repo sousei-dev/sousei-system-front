@@ -205,11 +205,11 @@ const createStudent = async () => {
       }
     }
 
-    success.value = '学生情報が正常に作成されました。'
+    success.value = '技能生情報が正常に作成されました。'
     router.push('/student-list')
   }
   catch (err: any) {
-    error.value = err.response?.data?.message || '学生情報の作成に失敗しました。'
+    error.value = err.response?.data?.message || '技能生情報の作成に失敗しました。'
   }
   finally {
     loading.value = false
@@ -334,10 +334,10 @@ const createStudent = async () => {
                   ]"
                   item-title="title"
                   item-value="value"
-                  label="学生タイプ *"
-                  placeholder="学生タイプを選択してください"
+                  label="技能生タイプ *"
+                  placeholder="技能生タイプを選択してください"
                   :disabled="loading"
-                  :rules="[v => !!v || '学生タイプは必須項目です']"
+                  :rules="[v => !!v || '技能生タイプは必須項目です']"
                   required
                 />
               </VCol>

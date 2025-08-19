@@ -88,10 +88,10 @@ export const invoiceService = {
     return api.post(`/students/${studentId}/monthly-items?${params.toString()}`, itemData)
   },
   updateMonthlyItem: async (itemId: string, itemData: BillingMonthlyItemUpdate) => {
-    return api.put(`/monthly-items/${itemId}`, itemData)
+    return api.put(`/students/monthly-items/${itemId}`, itemData)
   },
-  deleteMonthlyItem: async (studentId: string, itemId: string) => {
-    return api.delete(`/students/${studentId}/monthly-items/${itemId}`)
+  deleteMonthlyItem: async (studentId: string, year: number, itemName: string) => {
+    return api.delete(`/students/${studentId}/monthly-items/${year}/${itemName}`)
   },
   getStudentMonthlyItems: async (studentId: string, year?: number, month?: number): Promise<GetStudentMonthlyItemsResponse> => {
     const params = new URLSearchParams()
@@ -108,7 +108,7 @@ export const invoiceService = {
     return api.get(`/company-invoice-pdf/${companyId}/${year}/${month}`, { responseType: 'blob' })
   },
   updateMonthlyItemsSortOrder: async (payload: MonthlyItemSortOrderUpdate) => {
-    return api.put('/monthly-items/sort-order', payload)
+    return api.put('/students/monthly-items/sort-order/update', payload)
   },
   getCompanyInvoicePdfV2: async (companyId: string, year: number, month: number, memo: string, studentType: string) => {
     const params = new URLSearchParams()
@@ -118,7 +118,7 @@ export const invoiceService = {
     params.append('student_type', studentType)
     params.append('memo', memo)
     
-    return api.post(`/billing-invoices/generate?${params.toString()}`, {}, { responseType: 'blob' })
+    return api.post(`/billing/billing-invoices/generate?${params.toString()}`, {}, { responseType: 'blob' })
   },
   getCompanyInvoiceExcel: async (year: number, month: number, companyId: string, studentType: string) => {
     const params = new URLSearchParams()
@@ -127,7 +127,7 @@ export const invoiceService = {
     params.append('month', month.toString())
     params.append('student_type', studentType)
     
-    return api.post(`/billing-invoices/generate/excel?${params.toString()}`, {}, { responseType: 'blob' })
+    return api.post(`/billing/billing-invoices/generate/excel?${params.toString()}`, {}, { responseType: 'blob' })
   },
   getInvoices: async (student_id: string): Promise<Invoice[]> => {
     const response = await api.get<Invoice[]>(`/invoices?student_id=${student_id}`)

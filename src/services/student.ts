@@ -63,6 +63,36 @@ export interface Student {
   interview_date: string | null
 }
 
+// 비자갱신 임박 학생 인터페이스
+export interface VisaRenewalStudent {
+  id: string
+  name: string
+  email: string
+  phone: string
+  nationality: string
+  residence_card_number: string | null
+  residence_card_start: string | null
+  residence_card_expiry: string | null
+  days_until_expiry: number
+  expiry_status: string
+  company: {
+    id: string
+    name: string
+  } | null
+  grade: {
+    id: string
+    name: string
+  } | null
+  current_room: {
+    id: string
+    room_number: string
+    building: {
+      id: string
+      name: string
+    } | null
+  } | null
+}
+
 // API 요청용 인터페이스
 export interface StudentInput {
   name: string
@@ -195,4 +225,10 @@ export const studentService = {
     const response = await api.put<ResidenceCardHistory>(`/students/${id}/visa-info`, data)
     return response.data
   },
+
+  // 비자갱신 임박 학생 조회
+getVisaRenewalStudents: async (): Promise<{ data: VisaRenewalStudent[] }> => {
+  const response = await api.get<{ data: VisaRenewalStudent[] }>(`/students/expiring-soon`)
+  return response.data
+},
 } 

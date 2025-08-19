@@ -20,7 +20,7 @@ interface LoginInput {
 export const authService = {
   // 로그인
   login: async (data: LoginInput): Promise<LoginResponse> => {
-    const response = await api.post<LoginResponse>('/login', {
+    const response = await api.post<LoginResponse>('auth/login', {
       email: data.email,
       password: data.password,
       remember: data.remember,
