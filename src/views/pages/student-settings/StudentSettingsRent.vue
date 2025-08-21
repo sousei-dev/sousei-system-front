@@ -768,7 +768,7 @@ watch(() => invoiceForm.value.room_invoices, () => {
                   size="small"
                   class="ml-2"
                 >
-                  {{ currentResidence.resident.is_active ? '在住中' : '退去済み' }}
+                  {{ currentResidence.resident.is_active ? '在住中' : '退去' }}
                 </VChip>
               </div>
             </VCol>
@@ -867,7 +867,7 @@ watch(() => invoiceForm.value.room_invoices, () => {
               :color="item.is_active ? 'success' : 'error'"
               size="small"
             >
-              {{ item.is_active ? '在住中' : '退去済み' }}
+              {{ item.is_active ? '在住中' : '退去' }}
             </VChip>
           </template>
 

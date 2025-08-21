@@ -150,7 +150,7 @@ const canManageStudents = computed(() => {
       />
       <VerticalNavLink
         :item="{
-          title: '機能',
+          title: '技能',
           icon: 'ri-user-line',
           to: '/student-list?type=GENERAL',
         }"
@@ -175,11 +175,11 @@ const canManageStudents = computed(() => {
       />
     </template>
     
-    <!-- 技能実習 관리자는 機能 메뉴만 표시 -->
+    <!-- 技能実習 관리자는 技能 메뉴만 표시 -->
     <template v-else-if="isManagerGeneral">
       <VerticalNavLink
         :item="{
-          title: '機能',
+          title: '技能',
           icon: 'ri-user-line',
           to: '/student-list?type=GENERAL',
         }"

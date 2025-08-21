@@ -978,7 +978,7 @@ onMounted(async () => {
                       :color="resident.is_active ? 'success' : 'default'"
                       size="small"
                     >
-                      {{ resident.is_active ? '入居中' : '退去済み' }}
+                      {{ resident.is_active ? '入居中' : '退去' }}
                     </VChip>
                   </td>
                   <!-- <td>

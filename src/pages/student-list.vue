@@ -302,6 +302,7 @@ const nationalityFlags: Record<string, string> = {
 }
 
 const tableHeaders = [
+  { title: '在留資格', key: 'student_type', sortable: true, filterable: false },
   { title: '国籍', key: 'nationality', sortable: true, filterable: true },
   { title: '期生', key: 'grade.name', sortable: true, filterable: true },
   { title: '名前', key: 'name', sortable: false, filterable: true },
@@ -484,7 +485,7 @@ const handleDownloadRentList = async () => {
       
       // missing_rooms가 있는 경우 상세 정보 추가
       if (validationResponse.missing_rooms && validationResponse.missing_rooms.length > 0) {
-        const missingRoomNumbers = validationResponse.missing_rooms.map(room => room.room_number).join(', ')
+        const missingRoomNumbers = validationResponse.missing_rooms.map((room: any) => room.room_number).join(', ')
         errorMessage += `\n\n不足している部屋番号: ${missingRoomNumbers}`
       }
       
@@ -806,6 +807,11 @@ const enforceStudentTypeFilter = () => {
             @update:sort-by="handleSortChange"
             class="elevation-1"
           >
+            <!-- 학생 타입 컬럼 템플릿 -->
+            <template #[`item.student_type`]="{ item }">
+              {{ item.student_type === 'SPECIFIED' ? '特定' : '技能' }}
+            </template>
+
             <!-- 국적 컬럼 템플릿 -->
             <template #[`item.nationality`]="{ item }">
               {{ nationalityFlags[item.nationality] || '' }} {{ item.nationality }}

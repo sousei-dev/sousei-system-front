@@ -189,7 +189,7 @@ onMounted(async () => {
                     size="small" 
                     class="mt-1"
                   >
-                    {{ resident.is_active ? '入居中' : '退去済み' }}
+                    {{ resident.is_active ? '入居中' : '退去' }}
                   </VChip>
                 </div>
               </div>
@@ -375,7 +375,7 @@ onMounted(async () => {
                           :color="record.is_active ? 'success' : 'default'"
                           size="small"
                         >
-                          {{ record.is_active ? '入居中' : '退去済み' }}
+                          {{ record.is_active ? '入居中' : '退去' }}
                         </VChip>
                       </td>
                       <td>{{ record.note || '-' }}</td>
