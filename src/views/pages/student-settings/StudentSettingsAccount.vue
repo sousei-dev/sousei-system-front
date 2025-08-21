@@ -210,6 +210,35 @@ const addResidenceCard = async () => {
   }
 }
 
+// 재류카드 기록을 학생 정보에 적용
+const applyResidenceCard = async (historyId: string) => {
+  try {
+    loading.value = true
+    error.value = null
+    success.value = null
+
+    // 학생 정보 업데이트
+    await studentService.updateStudentResidenceCard(props.student.id, historyId)
+
+    // 히스토리 새로고침
+    await fetchResidenceCardHistory()
+
+    // 폼 데이터 업데이트
+    form.value.residence_card_number = residenceCardHistory.value.find(history => history.id === historyId)?.residence_card_number || ''
+    form.value.residence_card_start = residenceCardHistory.value.find(history => history.id === historyId)?.residence_card_start || ''
+    form.value.residence_card_expiry = residenceCardHistory.value.find(history => history.id === historyId)?.residence_card_expiry || ''
+    form.value.visa_application_date = residenceCardHistory.value.find(history => history.id === historyId)?.visa_application_date || ''
+    form.value.visa_year = residenceCardHistory.value.find(history => history.id === historyId)?.year || ''
+
+    success.value = '在留カード情報が正常に適用されました。'
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  } catch (err: any) {
+    error.value = err.response?.data?.detail || '在留カード情報の適用に失敗しました。'
+  } finally {
+    loading.value = false
+  }
+}
+
 // 방 ID로부터 건물과 방 정보 설정
 const setBuildingAndRoomFromRoomId = async (roomId: string) => {
   if (!roomId) return
@@ -723,8 +752,9 @@ const updateStudent = async () => {
                       <th>年次</th>
                       <th>発行日</th>
                       <th>有効期限</th>
-                      <th>登録日</th>
+                      <th>申請日</th>
                       <th>備考</th>
+                      <th>操作</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -732,15 +762,27 @@ const updateStudent = async () => {
                       v-for="history in residenceCardHistory"
                       :key="history.id"
                     >
-                      <td>{{ history.card_number }}</td>
+                      <td>{{ history.residence_card_number }}</td>
                       <td>{{ history.year ? `${history.year}年目` : '-' }}</td>
-                      <td>{{ formatDate(history.start_date) }}</td>
-                      <td>{{ formatDate(history.expiry_date) }}</td>
-                      <td>{{ formatDate(history.registered_at) }}</td>
+                      <td>{{ formatDate(history.residence_card_start) }}</td>
+                      <td>{{ formatDate(history.residence_card_expiry) }}</td>
+                      <td>{{ formatDate(history.visa_application_date) }}</td>
                       <td>{{ history.note || '-' }}</td>
+                      <td>
+                        <VBtn
+                          color="primary"
+                          size="small"
+                          variant="outlined"
+                          :loading="loading"
+                          @click="applyResidenceCard(history.id)"
+                        >
+                          <VIcon class="me-1" size="16">ri-check-line</VIcon>
+                          適用
+                        </VBtn>
+                      </td>
                     </tr>
                     <tr v-if="residenceCardHistory.length === 0">
-                      <td colspan="6" class="text-center text-medium-emphasis">
+                      <td colspan="7" class="text-center text-medium-emphasis">
                         変更履歴がありません
                       </td>
                     </tr>

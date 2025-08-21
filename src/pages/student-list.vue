@@ -133,15 +133,34 @@ const fetchCompanies = async () => {
   }
 }
 
+// 건물 목록 조회
+const fetchBuildings = async () => {
+  try {
+    const response = await buildingService.getBuildings({ resident_type: 'student' })
+    buildingOptions.value = response.items.map((building: any) => building.name)
+  } catch (err: any) {
+    error.value = err.response?.data?.message || '建物リストの取得に失敗しました。'
+  }
+}
+
 // 학생 목록 조회
 const fetchStudents = async () => {
   try {
     loading.value = true
     error.value = null
-    console.log('Fetching students with:', { page: page.value, size: itemsPerPage.value, filters: debouncedFilters.value })
+    
+    // building_name 필터 처리
+    const apiFilters: any = { ...debouncedFilters.value }
+    if (apiFilters.building_name === 'NONE') {
+      // "NONE"일 때는 building_name을 빈 문자열로 설정하여 건물이 없는 학생을 필터링
+      apiFilters.building_name = ''
+      apiFilters.has_no_building = true
+    }
+    
+    console.log('Fetching students with:', { page: page.value, size: itemsPerPage.value, filters: apiFilters })
     
     const response = await studentService.getStudents({
-      ...debouncedFilters.value,
+      ...apiFilters,
       page: page.value,
       size: itemsPerPage.value,
       sort_by: sortBy.value,
@@ -172,6 +191,7 @@ onMounted(() => {
   applyUrlParams() // URL 파라미터 적용
   debouncedFilters.value = { ...filters.value } // debouncedFilters도 동기화
   fetchCompanies()
+  fetchBuildings()
   // fetchStudents() 호출 제거
 })
 
@@ -259,6 +279,19 @@ watch(() => route.query, (newQuery) => {
 // 회사 옵션
 const companyOptions = computed(() => {
   return companies.value.map(company => company.name)
+})
+
+// 건물 옵션
+const buildingOptions = ref<string[]>([])
+const buildingOptionsWithNone = computed(() => {
+  const options = [
+    { title: '建物なし', value: 'NONE' },
+    ...buildingOptions.value.map(building => ({
+      title: building,
+      value: building
+    }))
+  ]
+  return options
 })
 
 const nationalityFlags: Record<string, string> = {
@@ -701,10 +734,10 @@ const enforceStudentTypeFilter = () => {
               />
             </VCol>
             <VCol cols="12" sm="6" md="3">
-              <VTextField
+              <VSelect
                 v-model="filters.building_name"
                 label="建物名"
-                placeholder="建物名で検索"
+                :items="buildingOptionsWithNone"
                 hide-details
                 density="compact"
                 clearable

@@ -9,6 +9,7 @@ export interface ResidenceCardHistory {
   residence_card_number: string
   residence_card_start: string
   residence_card_expiry: string
+  visa_application_date: string
   note: string
   year?: string
 }
@@ -195,6 +196,12 @@ export const studentService = {
     await api.delete(`/students/${id}`)
   },
 
+  // 학생 재류카드 수정
+  updateStudentResidenceCard: async (id: string, historyId: string): Promise<Student> => {
+    const response = await api.put<Student>(`/students/${id}/apply-residence-card-history/${historyId}`)
+    return response.data
+  },
+
   // 아바타 업로드
   uploadAvatar: async (id: string, file: File): Promise<{ avatar: string }> => {
     const formData = new FormData()
@@ -218,7 +225,7 @@ export const studentService = {
     residence_card_number: string
     residence_card_start: string
     residence_card_expiry: string
-    visa_application_date?: string
+    visa_application_date: string
     year?: string
     note?: string
   }): Promise<ResidenceCardHistory> => {
