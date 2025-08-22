@@ -13,7 +13,7 @@ const loadingVisaStudents = ref(false)
 const errorVisaStudents = ref<string | null>(null)
 const isVisaCardExpanded = ref(true) // 카드 확장/축소 상태
 
-// 보고서 관련 상태
+// 연락 관련 상태
 const contact = ref<ContactResponse[]>([])
 const loadingContact = ref(false)
 const errorContact = ref<string | null>(null)
@@ -50,7 +50,7 @@ const fetchVisaRenewalStudents = async () => {
   }
 }
 
-// 보고서 목록 조회
+// 연락목록 조회
 const fetchContact = async () => {
   try {
     loadingContact.value = true
@@ -59,8 +59,8 @@ const fetchContact = async () => {
     const response = await contactService.getContacts()
     contact.value = response.items || []
   } catch (error) {
-    console.error('보고서 목록 조회 실패:', error)
-    errorContact.value = '보고서 목록の取得に失敗しました。'
+    console.error('연락목록 조회 실패:', error)
+    errorContact.value = '연락목록の取得に失敗しました。'
   } finally {
     loadingContact.value = false
   }
@@ -71,7 +71,7 @@ const goToStudentDetail = (studentId: string) => {
   router.push(`/student-detail/${studentId}`)
 }
 
-// 보고서 상세 팝업 열기
+// 연락 상세 팝업 열기
 const openContactDetail = (contact: ContactResponse) => {
   selectedContact.value = contact
   showContactDetailDialog.value = true
@@ -146,7 +146,7 @@ const getVisaStatusColor = (daysUntilExpiry: number) => {
   return 'info'
 }
 
-// 보고서 타입을 일본어로 변환
+// 연락 타입을 일본어로 변환
 const getContactTypeText = (type: string) => {
   switch (type) {
     case 'defect':
@@ -160,7 +160,7 @@ const getContactTypeText = (type: string) => {
   }
 }
 
-// 보고서 상태를 일본어로 변환
+// 연락 상태를 일본어로 변환
 const getContactStatusText = (status: string) => {
   switch (status) {
     case 'completed':
@@ -178,7 +178,7 @@ const getContactStatusText = (status: string) => {
   }
 }
 
-// 보고서 상태 색상
+// 연락 상태 색상
 const getContactStatusColor = (status: string) => {
   switch (status) {
     case 'completed':
@@ -323,7 +323,7 @@ onMounted(() => {
       </VCard>
     </VCol>
 
-    <!-- 보고서 리스트 (Admin만 접근 가능) -->
+    <!-- 연락 리스트 (Admin만 접근 가능) -->
     <VCol cols="12" md="6">
       <PermissionGuard permission="admin">
         <VCard :class="isContactCardExpanded ? 'h-400' : 'h-auto'">
@@ -375,7 +375,7 @@ onMounted(() => {
               <span class="ms-3">データを読み込み中...</span>
             </div>
             
-            <!-- 보고서 리스트 -->
+            <!-- 연락 리스트 -->
             <div v-else-if="contact.length > 0" class="contact-list-container">
               <VList>
                 <VListItem
@@ -445,7 +445,7 @@ onMounted(() => {
     </VCol>
   </VRow>
 
-  <!-- 보고서 상세 팝업 (Admin만 접근 가능) -->
+  <!-- 연락 상세 팝업 (Admin만 접근 가능) -->
   <PermissionGuard permission="admin">
     <VDialog v-model="showContactDetailDialog" max-width="800px">
     <VCard>
@@ -464,7 +464,7 @@ onMounted(() => {
       </VCardTitle>
       
       <VCardText v-if="selectedContact">
-          <!-- 보고서 내용 -->
+          <!-- 연락 내용 -->
           <div class="mb-4">            
             <!-- 상세 정보 그리드 -->
             <VRow>
@@ -760,7 +760,7 @@ onMounted(() => {
   white-space: nowrap;
 }
 
-/* 보고서 내용 카드 스타일 */
+/* 연락 내용 카드 스타일 */
 .contact-content-card {
   border-radius: 12px;
   transition: all 0.3s ease;

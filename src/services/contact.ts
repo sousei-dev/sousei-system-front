@@ -134,7 +134,7 @@ export const contactService = {
     // const response = await api.patch(`/contact/${contactId}/status`, { status })
     // return response.data
     
-    // 임시로 현재 보고서 반환
+    // 임시로 현재 연락 반환
     return this.getContact(contactId)
   }
 } 

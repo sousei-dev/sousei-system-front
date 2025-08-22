@@ -204,6 +204,12 @@ export const studentService = {
     return response.data
   },
 
+  // 학생 재류카드 삭제
+  deleteStudentResidenceCard: async (id: string, historyId: string): Promise<Student> => {
+    const response = await api.delete<Student>(`/students/${id}/delete-residence-card-history/${historyId}`)
+    return response.data
+  },
+
   // 아바타 업로드
   uploadAvatar: async (id: string, file: File): Promise<{ avatar: string }> => {
     const formData = new FormData()

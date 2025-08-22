@@ -240,6 +240,24 @@ const applyResidenceCard = async (historyId: string) => {
   }
 }
 
+// 재류카드 삭제
+const deleteResidenceCard = async (historyId: string) => {
+  try {
+    await studentService.deleteStudentResidenceCard(props.student.id, historyId)
+  }
+  catch (err: any) {
+    error.value = err.response?.data?.detail || '在留カード情報の削除に失敗しました。'
+  }
+  finally {
+    loading.value = false
+  }
+
+  await fetchResidenceCardHistory()
+
+  success.value = '在留カード情報が正常に削除されました。'
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
 // 방 ID로부터 건물과 방 정보 설정
 const setBuildingAndRoomFromRoomId = async (roomId: string) => {
   if (!roomId) return
@@ -434,21 +452,6 @@ const changeAvatar = async (file: Event) => {
 // 아바타 이미지 초기화
 const resetAvatar = () => {
   form.value.avatarImg = avatar1
-}
-
-const _isResignationDate = () => {
-  if (!form.value.resignation_date) return 'ACTIVE'
-
-  const today = new Date()
-
-  today.setHours(0, 0, 0, 0)
-
-  const resignDay = new Date(form.value.resignation_date)
-
-  if (resignDay > today)
-    return 'PENDING_RESIGNATION'
-  else
-    return 'RESIGNED'
 }
 
 // 학생 정보 수정
@@ -759,7 +762,7 @@ const updateStudent = async () => {
                 size="40"
               />
             </VCardTitle>
-            
+                        
             <!-- 재류카드 히스토리 테이블 -->
             <VExpandTransition>
               <div v-show="showResidenceCardHistory">
@@ -771,7 +774,6 @@ const updateStudent = async () => {
                       <th>発行日</th>
                       <th>有効期限</th>
                       <th>申請日</th>
-                      <th>備考</th>
                       <th>操作</th>
                     </tr>
                   </thead>
@@ -785,7 +787,6 @@ const updateStudent = async () => {
                       <td>{{ formatDate(history.residence_card_start) }}</td>
                       <td>{{ formatDate(history.residence_card_expiry) }}</td>
                       <td>{{ formatDate(history.visa_application_date) }}</td>
-                      <td>{{ history.note || '-' }}</td>
                       <td>
                         <VBtn
                           color="primary"
@@ -796,6 +797,17 @@ const updateStudent = async () => {
                         >
                           <VIcon class="me-1" size="16">ri-check-line</VIcon>
                           適用
+                        </VBtn>
+                        <VBtn
+                          color="error"
+                          size="small"
+                          variant="outlined"
+                          :loading="loading"
+                          class="ml-2"
+                          @click="deleteResidenceCard(history.id)"
+                        >
+                          <VIcon class="me-1" size="16">ri-delete-bin-line</VIcon>
+                          削除
                         </VBtn>
                       </td>
                     </tr>

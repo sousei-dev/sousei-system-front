@@ -29,7 +29,7 @@ const contactTab = ref<'create' | 'list'>('create')
 const showCommentsDialog = ref(false)
 const selectedContactForComments = ref<any>(null)
 
-// 보고서 목록 데이터
+// 연락 목록 데이터
 const contactList = ref<any[]>([])
 const contactListLoading = ref(false)
 
@@ -283,7 +283,7 @@ const openCommentsDialog = (contact: any) => {
   showCommentsDialog.value = true
 }
 
-// 보고서 취소
+// 연락 취소
 const cancelContact = async (contactId: string) => {
   try {
     if (confirm('この連絡をキャンセルしますか？')) {
@@ -302,12 +302,12 @@ const cancelContact = async (contactId: string) => {
       }, 3000)
     }
   } catch (error) {
-    console.error('보고서 취소 실패:', error)
+    console.error('연락 취소 실패:', error)
     error.value = '連絡のキャンセルに失敗しました。'
   }
 }
 
-// 보고서 목록 조회
+// 연락 목록 조회
 const fetchContactList = async () => {
   try {
     contactListLoading.value = true
@@ -316,7 +316,7 @@ const fetchContactList = async () => {
     contactList.value = response.items
 
   } catch (error) {
-    console.error('보고서 목록 조회 실패:', error)
+    console.error('연락 목록 조회 실패:', error)
   } finally {
     contactListLoading.value = false
   }
@@ -335,7 +335,7 @@ const contactForm = ref({
   images: [] as File[],
 })
 
-// 보고서 저장
+// 연락 저장
 const saveContact = async () => {
   try {
     loading.value = true
@@ -509,7 +509,7 @@ const pageTitle = computed(() => {
   return '介護施設入居者リスト'
 })
 
-// 보고서 타입을 일본어로 변환
+// 연락 타입을 일본어로 변환
 const getContactTypeText = (type: string) => {
   switch (type) {
     case 'defect':
@@ -523,7 +523,7 @@ const getContactTypeText = (type: string) => {
   }
 }
 
-// 보고서 상태를 일본어로 변환
+// 연락 상태를 일본어로 변환
 const getContactStatusText = (status: string) => {
   switch (status) {
     case 'completed':
@@ -1018,7 +1018,7 @@ onMounted(() => {
               <VProgressCircular indeterminate color="primary" />
             </div>
             
-            <!-- 보고서 목록 -->
+            <!-- 연락 목록 -->
             <div 
             v-else-if="contactList.length > 0"
             class="contact-list-container"
@@ -1141,7 +1141,7 @@ onMounted(() => {
       </VCardTitle>
       
       <VCardText v-if="selectedContactForComments">
-        <!-- 보고서 기본 정보 -->
+        <!-- 연락 기본 정보 -->
         <VCard variant="outlined" class="pa-3 mb-4">
           <div class="d-flex align-center mb-2">
             <VAvatar
@@ -1345,7 +1345,7 @@ onMounted(() => {
   overflow-y: auto;
 }
 
-/* 보고서 항목 스타일 */
+/* 연락 항목 스타일 */
 .contact-item {
   margin-bottom: 12px;
   transition: all 0.3s ease;
