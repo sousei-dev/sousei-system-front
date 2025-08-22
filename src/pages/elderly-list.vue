@@ -3,7 +3,7 @@ import { onMounted, ref, watch, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { elderlyService, type Elderly } from '@/services/elderly'
 import { elderlyHospitalizationService, type ElderlyHospitalizationCreate, type ElderlyHospitalizationResponse } from '@/services/elderlyHospitalization'
-import { reportService } from '@/services/report'
+import { contactService } from '@/services/contact'
 
 const router = useRouter()
 const route = useRoute()
@@ -23,13 +23,15 @@ const showDischargeDialog = ref(false)
 const selectedElderly = ref<Elderly | null>(null)
 const selectedRecord = ref<ElderlyHospitalizationResponse | null>(null)
 
-const showReportDialog = ref(false)
+const showContactDialog = ref(false)
 const imageInput = ref<HTMLInputElement>()
-const reportTab = ref<'create' | 'list'>('create')
+const contactTab = ref<'create' | 'list'>('create')
+const showCommentsDialog = ref(false)
+const selectedContactForComments = ref<any>(null)
 
 // 보고서 목록 데이터
-const reportList = ref<any[]>([])
-const reportListLoading = ref(false)
+const contactList = ref<any[]>([])
+const contactListLoading = ref(false)
 
 // 입원 연락표 폼
 const admissionForm = ref({
@@ -221,13 +223,15 @@ const handleEdit = (id: string) => {
   router.push(`/elderly-detail/${id}`)
 }
 
-// 報告書作成
-const handleReport = async () => {
-  showReportDialog.value = true
+// 連絡作成
+const handleContact = async () => {
+  showContactDialog.value = true
   // 목록 탭으로 이동하고 데이터 로드
-  reportTab.value = 'create'
-  await fetchReportList()
+  contactTab.value = 'create'
+  await fetchContactList()
 }
+
+
 
 // 이미지 파일 선택
 const handleImageSelect = (event: Event) => {
@@ -254,18 +258,18 @@ const handleImageSelect = (event: Event) => {
     })
     
     // 기존 이미지와 합치기 (최대 10장)
-    if (reportForm.value.images.length + validFiles.length > 5) {
+    if (contactForm.value.images.length + validFiles.length > 5) {
       alert('画像は最大5枚までアップロード可能です。')
       return
     }
     
-    reportForm.value.images.push(...validFiles)
+    contactForm.value.images.push(...validFiles)
   }
 }
 
 // 이미지 제거
 const removeImage = (index: number) => {
-  reportForm.value.images.splice(index, 1)
+  contactForm.value.images.splice(index, 1)
 }
 
 // 이미지 미리보기 URL 생성
@@ -273,36 +277,66 @@ const getImagePreviewUrl = (file: File) => {
   return URL.createObjectURL(file)
 }
 
-// 보고서 목록 조회
-const fetchReportList = async () => {
+// 코멘트 다이얼로그 열기
+const openCommentsDialog = (contact: any) => {
+  selectedContactForComments.value = contact
+  showCommentsDialog.value = true
+}
+
+// 보고서 취소
+const cancelContact = async (contactId: string) => {
   try {
-    reportListLoading.value = true
+    if (confirm('この連絡をキャンセルしますか？')) {
+      // TODO: 실제 API 호출로 변경
+      await contactService.cancelContact(contactId)
+      
+      // 성공 메시지 표시
+      success.value = '連絡が正常にキャンセルされました。'
+      
+      // 목록 새로고침
+      await fetchContactList()
+      
+      // 3초 후 성공 메시지 숨기기
+      setTimeout(() => {
+        success.value = null
+      }, 3000)
+    }
+  } catch (error) {
+    console.error('보고서 취소 실패:', error)
+    error.value = '連絡のキャンセルに失敗しました。'
+  }
+}
+
+// 보고서 목록 조회
+const fetchContactList = async () => {
+  try {
+    contactListLoading.value = true
     // TODO: 실제 API 호출로 변경
-    const response = await reportService.getReports()
-    reportList.value = response.items
+    const response = await contactService.getContacts()
+    contactList.value = response.items
 
   } catch (error) {
     console.error('보고서 목록 조회 실패:', error)
   } finally {
-    reportListLoading.value = false
+    contactListLoading.value = false
   }
 }
 
-const reportOptions = [
+const contactOptions = [
   { title: '故障', value: 'defect' },
   { title: 'クレーム', value: 'claim' },
   { title: 'その他', value: 'other' },
 ]
 
-const reportForm = ref({
-  report_type: '' as 'defect' | 'claim' | 'other' | '',
+const contactForm = ref({
+  contact_type: '' as 'defect' | 'claim' | 'other' | '',
   content: '',
   incident_date: new Date().toISOString().split('T')[0],
   images: [] as File[],
 })
 
 // 보고서 저장
-const saveReport = async () => {
+const saveContact = async () => {
   try {
     loading.value = true
     error.value = null
@@ -310,41 +344,41 @@ const saveReport = async () => {
 
     // FormData 생성
     const formData = new FormData()
-    formData.append('report_type', reportForm.value.report_type)
-    formData.append('content', reportForm.value.content)
-    formData.append('incident_date', reportForm.value.incident_date)
-    reportForm.value.images.forEach((image, index) => {
+    formData.append('contact_type', contactForm.value.contact_type)
+    formData.append('content', contactForm.value.content)
+    formData.append('incident_date', contactForm.value.incident_date)
+    contactForm.value.images.forEach((image, index) => {
       formData.append(`images[${index}]`, image)
     })
     
-    // reportService.createReport 호출 (올바른 타입으로 변환)
-    if (reportForm.value.report_type && ['defect', 'claim', 'other'].includes(reportForm.value.report_type)) {
-      await reportService.createReport({
-        occurrence_date: reportForm.value.incident_date,
-        report_type: reportForm.value.report_type as 'defect' | 'claim' | 'other',
-        report_content: reportForm.value.content,
-        photos: reportForm.value.images
+    // contactService.createContact 호출 (올바른 타입으로 변환)
+    if (contactForm.value.contact_type && ['defect', 'claim', 'other'].includes(contactForm.value.contact_type)) {
+      await contactService.createContact({
+        occurrence_date: contactForm.value.incident_date,
+        contact_type: contactForm.value.contact_type as 'defect' | 'claim' | 'other',
+        contact_content: contactForm.value.content,
+        photos: contactForm.value.images
       })
     } else {
       throw new Error('리포트 타입을 선택해주세요.')
     }
 
     // 성공 메시지 표시
-    success.value = '報告書が正常に送信されました。'
+    success.value = '連絡が正常に送信されました。'
     
     // 폼 초기화
-    reportForm.value = {
-      report_type: '',
+    contactForm.value = {
+      contact_type: '',
       content: '',
       incident_date: new Date().toISOString().split('T')[0],
       images: []
     }
     
     // 목록 새로고침
-    await fetchReportList()
+    await fetchContactList()
     
     // 작성 탭으로 이동
-    reportTab.value = 'list'
+    contactTab.value = 'list'
     
     // 3초 후 성공 메시지 숨기기
     setTimeout(() => {
@@ -352,7 +386,7 @@ const saveReport = async () => {
     }, 3000)
     
   } catch (err: any) {
-    error.value = err.response?.data?.detail || '報告書の送信に失敗しました。'
+    error.value = err.response?.data?.detail || '連絡の送信に失敗しました。'
   } finally {
     loading.value = false
   }
@@ -476,7 +510,7 @@ const pageTitle = computed(() => {
 })
 
 // 보고서 타입을 일본어로 변환
-const getReportTypeText = (type: string) => {
+const getContactTypeText = (type: string) => {
   switch (type) {
     case 'defect':
       return '故障'
@@ -490,7 +524,7 @@ const getReportTypeText = (type: string) => {
 }
 
 // 보고서 상태를 일본어로 변환
-const getReportStatusText = (status: string) => {
+const getContactStatusText = (status: string) => {
   switch (status) {
     case 'completed':
       return '完了'
@@ -520,15 +554,13 @@ onMounted(() => {
           <div class="d-flex justify-space-between align-center mb-6">
             <h3 class="text-h3">{{ pageTitle }}</h3>
             <div class="d-flex gap-2">
-              <PermissionGuard permission="admin">
-                <VBtn
-                  color="error"
-                  prepend-icon="ri-file-text-line"
-                  @click="handleReport"
-                >
-                  報告書作成
-                </VBtn>
-              </PermissionGuard>
+              <VBtn
+                color="error"
+                prepend-icon="ri-file-text-line"
+                @click="handleContact"
+              >
+                連絡作成
+              </VBtn>
               <VBtn
                 color="primary"
                 prepend-icon="ri-add-line"
@@ -799,26 +831,24 @@ onMounted(() => {
     </VCard>
   </VDialog>
 
-  <!-- 보고서 다이얼로그 (Admin만 접근 가능) -->
-  <PermissionGuard permission="admin">
-    <VDialog v-model="showReportDialog" max-width="800px">
+  <VDialog v-model="showContactDialog" max-width="800px">
     <VCard>
       <VCardTitle class="d-flex align-center justify-space-between">
         <div class="d-flex align-center gap-2">
           <VIcon>ri-file-text-line</VIcon>
-          <span>報告書管理</span>
+          <span>連絡管理</span>
         </div>
         <VBtn
           icon
           variant="text"
-          @click="showReportDialog = false"
+          @click="showContactDialog = false"
         >
           <VIcon>ri-close-line</VIcon>
         </VBtn>
       </VCardTitle>
       
       <!-- 탭 헤더 -->
-      <VTabs v-model="reportTab" class="px-4">
+      <VTabs v-model="contactTab" class="px-4">
         <VTab value="create">
           <VIcon class="me-2">ri-edit-line</VIcon>
           作成
@@ -852,15 +882,15 @@ onMounted(() => {
       </VAlert>
       
       <!-- 탭 내용 -->
-      <VWindow v-model="reportTab">
+      <VWindow v-model="contactTab">
         <!-- 작성 탭 -->
         <VWindowItem value="create">
           <VCardText>
-            <VForm @submit.prevent="saveReport">
+            <VForm @submit.prevent="saveContact">
               <VRow>
                 <VCol cols="12">
                   <VTextField
-                    v-model="reportForm.incident_date"
+                    v-model="contactForm.incident_date"
                     label="発生日"
                     type="date"
                     hide-details
@@ -868,18 +898,18 @@ onMounted(() => {
                 </VCol>
                 <VCol cols="12">
                   <VSelect
-                    v-model="reportForm.report_type"
-                    :items="reportOptions"
+                    v-model="contactForm.contact_type"
+                    :items="contactOptions"
                     item-title="title"
                     item-value="value"
-                    label="報告書種類"
-                    placeholder="報告書種類を選択してください"
+                    label="連絡種類"
+                    placeholder="連絡種類を選択してください"
                     :disabled="loading"
                   />
                 </VCol>
                 <VCol cols="12">
                   <VTextarea
-                    v-model="reportForm.content"
+                    v-model="contactForm.content"
                     label="内容"
                     placeholder="内容を入力してください"
                     :disabled="loading"
@@ -892,7 +922,7 @@ onMounted(() => {
                   <div class="d-flex align-center justify-space-between mb-3">
                     <h6 class="text-h6 mb-0">画像添付</h6>
                     <span class="text-caption text-medium-emphasis">
-                      {{ reportForm.images.length }}/5
+                      {{ contactForm.images.length }}/5
                     </span>
                   </div>
                   
@@ -903,7 +933,7 @@ onMounted(() => {
                       variant="outlined"
                       size="small"
                       @click="$refs.imageInput?.click()"
-                      :disabled="reportForm.images.length >= 5"
+                      :disabled="contactForm.images.length >= 5"
                     >
                       <VIcon class="me-2" size="16">ri-image-add-line</VIcon>
                       画像を選択
@@ -924,9 +954,9 @@ onMounted(() => {
                   />
                   
                   <!-- 이미지 미리보기 -->
-                  <div v-if="reportForm.images.length > 0" class="d-flex flex-wrap gap-2">
+                  <div v-if="contactForm.images.length > 0" class="d-flex flex-wrap gap-2">
                     <div
-                      v-for="(image, index) in reportForm.images"
+                      v-for="(image, index) in contactForm.images"
                       :key="index"
                       class="image-preview-container"
                     >
@@ -958,8 +988,8 @@ onMounted(() => {
               variant="flat"
               color="primary"
               :loading="loading"
-              :disabled="reportForm.report_type === '' || reportForm.content === ''"
-              @click="saveReport"
+              :disabled="contactForm.contact_type === '' || contactForm.content === ''"
+              @click="saveContact"
             >
               送信
             </VBtn>
@@ -970,13 +1000,13 @@ onMounted(() => {
         <VWindowItem value="list">
           <VCardText>
             <div class="d-flex justify-space-between align-center mb-4">
-              <h6 class="text-h6 mb-0">送信済み報告書一覧</h6>
+              <h6 class="text-h6 mb-0">送信済み連絡一覧</h6>
               <VBtn
                 color="primary"
                 variant="outlined"
                 size="small"
-                @click="fetchReportList"
-                :loading="reportListLoading"
+                @click="fetchContactList"
+                :loading="contactListLoading"
               >
                 <VIcon class="me-2" size="16">ri-refresh-line</VIcon>
                 更新
@@ -984,24 +1014,24 @@ onMounted(() => {
             </div>
             
             <!-- 로딩 상태 -->
-            <div v-if="reportListLoading" class="d-flex justify-center py-8">
+            <div v-if="contactListLoading" class="d-flex justify-center py-8">
               <VProgressCircular indeterminate color="primary" />
             </div>
             
             <!-- 보고서 목록 -->
             <div 
-            v-else-if="reportList.length > 0"
-            class="report-list-container"
+            v-else-if="contactList.length > 0"
+            class="contact-list-container"
             >
               <VList>
                 <VListItem
-                  v-for="report in reportList"
-                  :key="report.id"
-                  class="mb-2"
+                  v-for="contact in contactList.filter(r => r.status !== 'cancel')"
+                  :key="contact.id"
+                  class="mb-2 contact-item"
                 >
                   <template #prepend>
                     <VAvatar
-                      :color="report.report_type === '故障' ? 'error' : report.report_type === 'クレーム' ? 'warning' : 'info'"
+                      :color="contact.contact_type === '故障' ? 'error' : contact.contact_type === 'クレーム' ? 'warning' : 'info'"
                       size="40"
                     >
                       <VIcon>ri-file-text-line</VIcon>
@@ -1009,31 +1039,75 @@ onMounted(() => {
                   </template>
                   
                   <VListItemTitle class="font-weight-bold">
-                    {{ getReportTypeText(report.report_type) }}
+                    {{ getContactTypeText(contact.contact_type) }}
                   </VListItemTitle>
                   
                   <VListItemSubtitle>
                     <div class="d-flex align-center gap-4">
                       <span class="text-caption">
+                        <VIcon size="small" class="me-1">ri-user-line</VIcon>
+                        {{ contact.creator?.name || 'システム' }}
+                      </span>
+                      <span class="text-caption">
                         <VIcon size="small" class="me-1">ri-calendar-line</VIcon>
-                        {{ formatDate(report.occurrence_date) }}
+                        {{ formatDate(contact.occurrence_date) }}
                       </span>
                       <span class="text-caption">
                         <VIcon size="small" class="me-1">ri-time-line</VIcon>
-                        {{ formatDate(report.created_at) }}
+                        {{ formatDate(contact.created_at) }}
                       </span>
                       <VChip
-                        :color="report.status === 'completed' ? 'success' : report.status === 'rejected' ? 'error' : 'warning'"
+                        :color="contact.status === 'completed' ? 'success' : contact.status === 'rejected' ? 'error' : 'warning'"
                         size="x-small"
                         variant="tonal"
                       >
-                        {{ getReportStatusText(report.status) }}
+                        {{ getContactStatusText(contact.status) }}
+                      </VChip>
+                      <!-- 코멘트 이력 표시 -->
+                      <VChip
+                        v-if="contact.comments && contact.comments.length > 0"
+                        color="info"
+                        size="x-small"
+                        variant="tonal"
+                        class="comment-indicator"
+                      >
+                        <VIcon size="12" class="me-1">ri-message-2-line</VIcon>
+                        {{ contact.comments.length }}件
                       </VChip>
                     </div>
                     <div class="mt-2 text-body-2">
-                      {{ report.report_content }}
+                      {{ contact.contact_content }}
                     </div>
                   </VListItemSubtitle>
+                  
+                  <!-- 액션 버튼들 -->
+                  <template #append>
+                    <div class="d-flex align-center gap-2">
+                      <!-- 코멘트보기 버튼 -->
+                      <VBtn
+                        v-if="contact.comments && contact.comments.length > 0"
+                        variant="text"
+                        size="small"
+                        color="primary"
+                        @click.stop="openCommentsDialog(contact)"
+                        class="action-btn comment-btn"
+                      >
+                        コメントを見る
+                      </VBtn>
+                      
+                      <!-- 삭제 버튼 (pending 상태일 때만) -->
+                      <VBtn
+                        v-if="contact.status === 'pending'"
+                        variant="text"
+                        size="small"
+                        color="error"
+                        @click.stop="cancelContact(contact.id)"
+                        class="action-btn delete-btn"
+                      >
+                        削除
+                      </VBtn>
+                    </div>
+                  </template>
                 </VListItem>
               </VList>
             </div>
@@ -1041,21 +1115,112 @@ onMounted(() => {
             <!-- 빈 목록 -->
             <div v-else class="text-center py-8">
               <VIcon size="64" color="grey-lighten-1">ri-inbox-line</VIcon>
-              <p class="text-grey mt-2">送信済みの報告書がありません</p>
+              <p class="text-grey mt-2">送信済みの連絡がありません</p>
             </div>
           </VCardText>
         </VWindowItem>
       </VWindow>
     </VCard>
   </VDialog>
-  </PermissionGuard>
+
+  <!-- 코멘트 다이얼로그 -->
+  <VDialog v-model="showCommentsDialog" max-width="600px">
+    <VCard>
+      <VCardTitle class="d-flex align-center justify-space-between">
+        <div class="d-flex align-center gap-2">
+          <VIcon>ri-message-2-line</VIcon>
+          <span>コメント履歴</span>
+        </div>
+        <VBtn
+          icon
+          variant="text"
+          @click="showCommentsDialog = false"
+        >
+          <VIcon>ri-close-line</VIcon>
+        </VBtn>
+      </VCardTitle>
+      
+      <VCardText v-if="selectedContactForComments">
+        <!-- 보고서 기본 정보 -->
+        <VCard variant="outlined" class="pa-3 mb-4">
+          <div class="d-flex align-center mb-2">
+            <VAvatar
+              :color="selectedContactForComments.contact_type === 'defect' ? 'error' : selectedContactForComments.contact_type === 'claim' ? 'warning' : 'info'"
+              size="32"
+              class="me-3"
+            >
+              <VIcon size="20">ri-file-text-line</VIcon>
+            </VAvatar>
+            <div>
+              <h6 class="text-h6 mb-1">{{ getContactTypeText(selectedContactForComments.contact_type) }}</h6>
+              <p class="text-caption text-medium-emphasis mb-0">
+                {{ formatDate(selectedContactForComments.occurrence_date) }}
+              </p>
+              <p class="text-caption text-medium-emphasis mb-0">
+                <VIcon size="small" class="me-1">ri-user-line</VIcon>
+                作成者: {{ selectedContactForComments.creator?.name || 'システム' }}
+              </p>
+            </div>
+          </div>
+          <VDivider class="my-2" />
+          <div class="text-body-2">
+            {{ selectedContactForComments.contact_content }}
+          </div>
+        </VCard>
+        
+        <!-- 코멘트 목록 -->
+        <div v-if="selectedContactForComments.comments && selectedContactForComments.comments.length > 0">
+          <h6 class="text-h6 mb-3">
+            <VIcon class="me-2">ri-message-2-line</VIcon>
+            コメント履歴 ({{ selectedContactForComments.comments.length }}件)
+          </h6>
+          <div class="comments-list">
+            <div
+              v-for="comment in selectedContactForComments.comments"
+              :key="comment.id"
+              class="comment-item"
+            >
+              <div class="comment-header">
+                <span class="comment-author text-subtitle-2 font-weight-medium">
+                  {{ comment.operator?.name || comment.created_by || 'システム' }}
+                </span>
+                <span class="comment-date text-caption text-medium-emphasis">
+                  {{ formatDate(comment.created_at) }}
+                </span>
+              </div>
+              <div class="comment-content text-body-1 mt-2">
+                {{ comment.comment }}
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 코멘트 없음 -->
+        <div v-else class="text-center py-8">
+          <VIcon size="64" color="grey-lighten-1">ri-message-2-line</VIcon>
+          <p class="text-grey mt-2">コメント履歴がありません</p>
+        </div>
+      </VCardText>
+      
+      <VCardActions>
+        <VSpacer />
+        <VBtn
+          color="primary"
+          variant="outlined"
+          @click="showCommentsDialog = false"
+        >
+          戻る
+        </VBtn>
+      </VCardActions>
+    </VCard>
+  </VDialog>
 
   <!-- 입원 연락표 다이얼로그 -->
   <VDialog v-model="showAdmissionDialog" max-width="600px">
     <VCard>
       <VCardTitle class="d-flex align-center gap-2">
         <VIcon>ri-file-text-line</VIcon>
-        <span>報告書作成</span>
+        <span>連絡作成</span>
       </VCardTitle>
       <VCardText>
         <VForm @submit.prevent="saveAdmissionRecord">
@@ -1175,8 +1340,160 @@ onMounted(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.report-list-container {
+.contact-list-container {
   height: 400px;
   overflow-y: auto;
+}
+
+/* 보고서 항목 스타일 */
+.contact-item {
+  margin-bottom: 12px;
+  transition: all 0.3s ease;
+}
+
+/* 확장/축소 아이콘 애니메이션 */
+.rotate {
+  transform: rotate(180deg);
+  transition: transform 0.3s ease;
+}
+
+/* 코멘트 섹션 스타일 */
+.comments-section {
+  padding: 16px;
+  background-color: #f8f9fa;
+  border-radius: 0 0 8px 8px;
+  margin-top: 8px;
+}
+
+.comments-list {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.comment-item {
+  padding: 12px;
+  background: white;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  border-left: 3px solid #1976d2;
+}
+
+.comment-item:last-child {
+  margin-bottom: 0;
+}
+
+.comment-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.comment-author {
+  color: #1976d2;
+}
+
+.comment-date {
+  color: #666;
+}
+
+.comment-content {
+  line-height: 1.5;
+  color: #333;
+}
+
+/* 코멘트 없음 섹션 */
+.no-comments-section {
+  padding: 24px;
+  background-color: #f8f9fa;
+  border-radius: 0 0 8px 8px;
+  margin-top: 8px;
+  text-align: center;
+}
+
+/* 커서 포인터 */
+.contact-item {
+  cursor: pointer;
+}
+
+.contact-item:hover .v-list-item-title,
+.contact-item:hover .v-list-item-subtitle {
+  color: #1976d2;
+}
+
+/* 액션 버튼 공통 스타일 */
+.action-btn {
+  transition: all 0.3s ease;
+  font-weight: 500;
+  text-transform: none;
+  min-width: auto;
+  padding: 4px 12px;
+}
+
+.action-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* 코멘트보기 버튼 */
+.comment-btn {
+  color: #1976d2;
+}
+
+.comment-btn:hover {
+  background-color: rgba(25, 118, 210, 0.1);
+  color: #1565c0;
+}
+
+/* 삭제 버튼 */
+.delete-btn {
+  color: #f44336;
+}
+
+.delete-btn:hover {
+  background-color: rgba(244, 67, 54, 0.1);
+  color: #d32f2f;
+}
+
+/* 코멘트 다이얼로그 스타일 */
+.comments-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.comment-item {
+  padding: 16px;
+  background: white;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  border-left: 4px solid #1976d2;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.comment-item:last-child {
+  margin-bottom: 0;
+}
+
+.comment-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.comment-author {
+  color: #1976d2;
+  font-weight: 600;
+}
+
+.comment-date {
+  color: #666;
+  font-size: 0.875rem;
+}
+
+.comment-content {
+  line-height: 1.6;
+  color: #333;
+  font-size: 0.9375rem;
 }
 </style> 

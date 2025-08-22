@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { studentService, type VisaRenewalStudent } from '@/services/student'
-import { reportService, type ReportResponse } from '@/services/report'
+import { contactService, type ContactResponse } from '@/services/contact'
 import { getCurrentUserPermission } from '@/utils/permissions';
 
 const router = useRouter()
@@ -14,16 +14,16 @@ const errorVisaStudents = ref<string | null>(null)
 const isVisaCardExpanded = ref(true) // 카드 확장/축소 상태
 
 // 보고서 관련 상태
-const reports = ref<ReportResponse[]>([])
-const loadingReports = ref(false)
-const errorReports = ref<string | null>(null)
-const isReportCardExpanded = ref(true)
-const showReportDetailDialog = ref(false)
-const selectedReport = ref<ReportResponse | null>(null)
+const contact = ref<ContactResponse[]>([])
+const loadingContact = ref(false)
+const errorContact = ref<string | null>(null)
+const isContactCardExpanded = ref(true)
+const showContactDetailDialog = ref(false)
+const selectedContact = ref<ContactResponse | null>(null)
 const showCommentInput = ref(false)
-const commentType = ref<'completed' | 'rejected' | 'pending' | null>(null)
+const commentType = ref<'completed' | 'rejected' | 'pending' | 'cancel' | null>(null)
 const commentText = ref('')
-const processingReport = ref(false)
+const processingContact = ref(false)
 
 // 비자갱신 임박 학생 조회
 const fetchVisaRenewalStudents = async () => {
@@ -51,18 +51,18 @@ const fetchVisaRenewalStudents = async () => {
 }
 
 // 보고서 목록 조회
-const fetchReports = async () => {
+const fetchContact = async () => {
   try {
-    loadingReports.value = true
-    errorReports.value = null
+    loadingContact.value = true
+    errorContact.value = null
 
-    const response = await reportService.getReports()
-    reports.value = response.items || []
+    const response = await contactService.getContacts()
+    contact.value = response.items || []
   } catch (error) {
     console.error('보고서 목록 조회 실패:', error)
-    errorReports.value = '보고서 목록の取得に失敗しました。'
+    errorContact.value = '보고서 목록の取得に失敗しました。'
   } finally {
-    loadingReports.value = false
+    loadingContact.value = false
   }
 }
 
@@ -72,20 +72,20 @@ const goToStudentDetail = (studentId: string) => {
 }
 
 // 보고서 상세 팝업 열기
-const openReportDetail = (report: ReportResponse) => {
-  selectedReport.value = report
-  showReportDetailDialog.value = true
+const openContactDetail = (contact: ContactResponse) => {
+  selectedContact.value = contact
+  showContactDetailDialog.value = true
   showCommentInput.value = false
   commentType.value = null
   commentText.value = ''
 }
 
 // 처리/철회 버튼 클릭
-const handleActionClick = async (type: 'completed' | 'rejected' | 'pending' | 'comment') => {
+const handleActionClick = async (type: 'completed' | 'rejected' | 'pending' | 'comment' | 'cancel') => {
   commentType.value = type
   if (type === 'pending') {
     // 되돌릴 것인지 확인
-    const confirmed = confirm('この報告書を再処理状態に戻しますか？')
+    const confirmed = confirm('この連絡を再処理状態に戻しますか？')
     if (confirmed) {
       showCommentInput.value = false
       commentText.value = ''
@@ -103,35 +103,35 @@ const handleActionClick = async (type: 'completed' | 'rejected' | 'pending' | 'c
 
 // 처리/철회 등록
 const submitAction = async () => {
-  if (!selectedReport.value) {
+  if (!selectedContact.value) {
     return
   }
 
   try {
-    processingReport.value = true
+    processingContact.value = true
     
     // 실제 API 호출로 변경
-    await reportService.updateReportStatus(
-      selectedReport.value.id, 
+    await contactService.updateContactStatus(
+      selectedContact.value.id, 
       commentType.value, 
       commentText.value
     )
     
     // 성공 메시지 표시
-    alert(commentType.value === 'completed' ? '処理が完了しました。' : commentType.value === 'rejected' ? '却下が完了しました。' : commentType.value === 'pending' ? '再処理が完了しました。' : 'コメントが完了しました。')
+    alert('処理しました。')
     
     // 팝업 닫기
-    showReportDetailDialog.value = false
-    selectedReport.value = null
+    showContactDetailDialog.value = false
+    selectedContact.value = null
     
     // 목록 새로고침
-    await fetchReports()
+    await fetchContact()
     
   } catch (error) {
     console.error('처리/철회 실패:', error)
     alert('処理に失敗しました。')
   } finally {
-    processingReport.value = false
+    processingContact.value = false
   }
 }
 
@@ -147,7 +147,7 @@ const getVisaStatusColor = (daysUntilExpiry: number) => {
 }
 
 // 보고서 타입을 일본어로 변환
-const getReportTypeText = (type: string) => {
+const getContactTypeText = (type: string) => {
   switch (type) {
     case 'defect':
       return '故障'
@@ -161,7 +161,7 @@ const getReportTypeText = (type: string) => {
 }
 
 // 보고서 상태를 일본어로 변환
-const getReportStatusText = (status: string) => {
+const getContactStatusText = (status: string) => {
   switch (status) {
     case 'completed':
       return '完了'
@@ -171,13 +171,15 @@ const getReportStatusText = (status: string) => {
       return '処理中'
     case 'rejected':
       return '却下'
+    case 'cancel':
+      return 'キャンセル'
     default:
       return status
   }
 }
 
 // 보고서 상태 색상
-const getReportStatusColor = (status: string) => {
+const getContactStatusColor = (status: string) => {
   switch (status) {
     case 'completed':
       return 'success'
@@ -199,7 +201,7 @@ const openPhotoInNewTab = (url: string) => {
 
 onMounted(() => {
   fetchVisaRenewalStudents()
-  fetchReports()
+  fetchContact()
 })
 </script>
 
@@ -324,47 +326,47 @@ onMounted(() => {
     <!-- 보고서 리스트 (Admin만 접근 가능) -->
     <VCol cols="12" md="6">
       <PermissionGuard permission="admin">
-        <VCard :class="isReportCardExpanded ? 'h-400' : 'h-auto'">
+        <VCard :class="isContactCardExpanded ? 'h-400' : 'h-auto'">
           <VCardTitle class="d-flex align-center justify-space-between">
             <div class="d-flex align-center">
               <VIcon class="me-2" color="info">ri-file-text-line</VIcon>
-              <span>報告書一覧</span>
+              <span>連絡一覧</span>
             </div>
             <div class="d-flex align-center">
               <VBtn
                 icon
                 variant="text"
                 size="small"
-                @click="isReportCardExpanded = !isReportCardExpanded"
+                @click="isContactCardExpanded = !isContactCardExpanded"
                 class="me-2"
               >
-                <VIcon>{{ isReportCardExpanded ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line' }}</VIcon>
+                <VIcon>{{ isContactCardExpanded ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line' }}</VIcon>
               </VBtn>
               <VBtn
                 icon
                 variant="text"
                 size="small"
-                @click="fetchReports"
-                :loading="loadingReports"
+                @click="fetchContact"
+                :loading="loadingContact"
               >
                 <VIcon>ri-refresh-line</VIcon>
               </VBtn>
             </div>
           </VCardTitle>
           
-          <VCardText v-if="isReportCardExpanded" class="report-card-content">
+          <VCardText v-if="isContactCardExpanded" class="contact-card-content">
             <!-- 에러 메시지 -->
             <VAlert
-              v-if="errorReports"
+              v-if="errorContact"
               type="error"
               variant="tonal"
               class="mb-4"
             >
-              {{ errorReports }}
+              {{ errorContact }}
             </VAlert>
             
             <!-- 로딩 상태 -->
-            <div v-if="loadingReports" class="d-flex justify-center align-center py-8">
+            <div v-if="loadingContact" class="d-flex justify-center align-center py-8">
               <VProgressCircular
                 indeterminate
                 color="primary"
@@ -374,45 +376,47 @@ onMounted(() => {
             </div>
             
             <!-- 보고서 리스트 -->
-            <div v-else-if="reports.length > 0" class="report-list-container">
+            <div v-else-if="contact.length > 0" class="contact-list-container">
               <VList>
                 <VListItem
-                  v-for="report in reports"
-                  :key="report.id"
-                  @click="openReportDetail(report)"
+                  v-for="contact in contact"
+                  :key="contact.id"
+                  @click="openContactDetail(contact)"
                   class="mb-2 cursor-pointer"
                   style="border-left: 4px solid rgb(var(--v-theme-primary)); border-radius: 4px;"
                 >
                   <template #prepend>
                     <VAvatar
-                      :color="getReportStatusColor(report.status || 'pending')"
+                      :color="getContactStatusColor(contact.status || 'pending')"
                       size="40"
                     >
                       <VIcon>ri-file-text-line</VIcon>
                     </VAvatar>
                   </template>
                   <VListItemTitle class="font-weight-bold">
-                    {{ getReportTypeText(report.report_type) }}
+                    {{ getContactTypeText(contact.contact_type) }}
                   </VListItemTitle>
                   <VListItemSubtitle>
                     <div class="d-flex align-center">
-                      <VIcon size="small" class="me-1">ri-calendar-line</VIcon>
-                      発生日: {{ new Date(report.occurrence_date).toLocaleDateString('ja-JP') }}
+                      <VIcon size="small" class="me-1">ri-user-line</VIcon>
+                      {{ contact.creator?.name || 'システム' }}
                     </div>
                     <div class="d-flex align-center mt-1">
-                      <VIcon size="small" class="me-1">ri-time-line</VIcon>
+                      <VIcon size="small" class="me-1">ri-calendar-line</VIcon>
+                      発生日: {{ new Date(contact.occurrence_date).toLocaleDateString('ja-JP') }}
+                      <VIcon size="small" class="me-2 ms-4">ri-time-line</VIcon>
                       <VChip
-                        :color="getReportStatusColor(report.status || 'pending')"
+                        :color="getContactStatusColor(contact.status || 'pending')"
                         size="x-small"
                         variant="tonal"
                       >
-                        {{ getReportStatusText(report.status || 'pending') }}
+                        {{ getContactStatusText(contact.status || 'pending') }}
                       </VChip>
                     </div>
                     <div class="d-flex align-center mt-1">
                       <VIcon size="small" class="me-1">ri-file-text-line</VIcon>
                       <span class="text-truncate" style="max-width: 200px;">
-                        {{ report.report_content }}
+                        {{ contact.contact_content }}
                       </span>
                     </div>
                   </VListItemSubtitle>
@@ -421,7 +425,7 @@ onMounted(() => {
                       icon
                       variant="text"
                       size="small"
-                      @click.stop="openReportDetail(report)"
+                      @click.stop="openContactDetail(contact)"
                     >
                       <VIcon>ri-arrow-right-line</VIcon>
                     </VBtn>
@@ -433,7 +437,7 @@ onMounted(() => {
             <!-- 데이터 없음 -->
             <div v-else class="text-center py-8">
               <VIcon size="64" color="grey-lighten-1">ri-inbox-line</VIcon>
-              <p class="text-grey mt-2">報告書がありません</p>
+              <p class="text-grey mt-2">連絡がありません</p>
             </div>
           </VCardText>
         </VCard>
@@ -443,23 +447,23 @@ onMounted(() => {
 
   <!-- 보고서 상세 팝업 (Admin만 접근 가능) -->
   <PermissionGuard permission="admin">
-    <VDialog v-model="showReportDetailDialog" max-width="800px">
+    <VDialog v-model="showContactDetailDialog" max-width="800px">
     <VCard>
       <VCardTitle class="d-flex align-center justify-space-between">
         <div class="d-flex align-center gap-2">
           <VIcon>ri-file-text-line</VIcon>
-          <span>報告書詳細</span>
+          <span>連絡詳細</span>
         </div>
         <VBtn
           icon
           variant="text"
-          @click="showReportDetailDialog = false"
+          @click="showContactDetailDialog = false"
         >
           <VIcon>ri-close-line</VIcon>
         </VBtn>
       </VCardTitle>
       
-      <VCardText v-if="selectedReport">
+      <VCardText v-if="selectedContact">
           <!-- 보고서 내용 -->
           <div class="mb-4">            
             <!-- 상세 정보 그리드 -->
@@ -471,29 +475,33 @@ onMounted(() => {
                     <span class="text-subtitle-2 font-weight-bold">基本情報</span>
                   </div>
                   <div class="info-item">
-                    <span class="info-label">報告書種類:</span>
+                    <span class="info-label">作成者:</span>
+                    <span class="info-value">{{ selectedContact.creator?.name || 'システム' }}</span>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-label">連絡種類:</span>
                     <VChip
-                      :color="getReportStatusColor(selectedReport.status || 'pending')"
+                      :color="getContactStatusColor(selectedContact.status || 'pending')"
                       size="small"
                       variant="tonal"
                       class="ms-2"
                     >
-                      {{ getReportTypeText(selectedReport.report_type) }}
+                      {{ getContactTypeText(selectedContact.contact_type) }}
                     </VChip>
                   </div>
                   <div class="info-item">
                     <span class="info-label">発生日:</span>
-                    <span class="info-value">{{ new Date(selectedReport.occurrence_date).toLocaleDateString('ja-JP') }}</span>
+                    <span class="info-value">{{ new Date(selectedContact.occurrence_date).toLocaleDateString('ja-JP') }}</span>
                   </div>
                   <div class="info-item">
                     <span class="info-label">状態:</span>
                     <VChip
-                      :color="getReportStatusColor(selectedReport.status || 'pending')"
+                      :color="getContactStatusColor(selectedContact.status || 'pending')"
                       size="small"
                       variant="tonal"
                       class="ms-2"
                     >
-                      {{ getReportStatusText(selectedReport.status || 'pending') }}
+                      {{ getContactStatusText(selectedContact.status || 'pending') }}
                     </VChip>
                   </div>
                 </VCard>
@@ -506,12 +514,12 @@ onMounted(() => {
                   </div>
                   <div class="info-item">
                     <span class="info-label">作成日:</span>
-                    <span class="info-value">{{ new Date(selectedReport.created_at).toLocaleDateString('ja-JP') }}</span>
+                    <span class="info-value">{{ new Date(selectedContact.created_at).toLocaleDateString('ja-JP') }}</span>
                   </div>
                   <div class="info-item">
                     <span class="info-label">経過時間:</span>
                     <span class="info-value">
-                      {{ Math.floor((new Date().getTime() - new Date(selectedReport.created_at).getTime()) / (1000 * 60 * 60 * 24)) }}日
+                      {{ Math.floor((new Date().getTime() - new Date(selectedContact.created_at).getTime()) / (1000 * 60 * 60 * 24)) }}日
                     </span>
                   </div>
                 </VCard>
@@ -520,21 +528,21 @@ onMounted(() => {
             <!-- 메인 정보 카드 -->
             <VCard 
               variant="outlined" 
-              class="pa-4 mt-4 report-content-card"
-              :color="getReportStatusColor(selectedReport.status || 'pending')"
+              class="pa-4 mt-4 contact-content-card"
+              :color="getContactStatusColor(selectedContact.status || 'pending')"
             >
               <div class="d-flex align-center mb-3">
                 <VAvatar
-                  :color="getReportStatusColor(selectedReport.status || 'pending')"
+                  :color="getContactStatusColor(selectedContact.status || 'pending')"
                   size="32"
                   class="me-3"
                 >
                   <VIcon size="20">ri-file-text-line</VIcon>
                 </VAvatar>
                 <div>
-                  <h6 class="text-h6 mb-1">{{ getReportTypeText(selectedReport.report_type) }}</h6>
+                  <h6 class="text-h6 mb-1">{{ getContactTypeText(selectedContact.contact_type) }}</h6>
                   <p class="text-caption text-medium-emphasis mb-0">
-                    {{ new Date(selectedReport.occurrence_date).toLocaleDateString('ja-JP', { 
+                    {{ new Date(selectedContact.occurrence_date).toLocaleDateString('ja-JP', { 
                       year: 'numeric', 
                       month: 'long', 
                       day: 'numeric',
@@ -546,18 +554,18 @@ onMounted(() => {
               
               <VDivider class="my-3" />
               
-              <div class="report-content-text">
-                {{ selectedReport.report_content }}
+              <div class="contact-content-text">
+                {{ selectedContact.contact_content }}
               </div>
             </VCard>
           </div>
 
           <!-- 사진 -->
-          <div v-if="selectedReport.photos && selectedReport.photos.length > 0" class="mb-4">
+          <div v-if="selectedContact.photos && selectedContact.photos.length > 0" class="mb-4">
             <h6 class="text-h6 mb-3">添付写真</h6>
             <div class="d-flex flex-wrap gap-2">
               <div
-                v-for="(photo, index) in selectedReport.photos"
+                v-for="(photo, index) in selectedContact.photos"
                 :key="index"
                 class="photo-container"
               >
@@ -572,11 +580,11 @@ onMounted(() => {
           </div>
 
           <!-- 기존 코멘트 목록 -->
-          <div v-if="selectedReport.comments && selectedReport.comments.length > 0" class="mb-4">
+          <div v-if="selectedContact.comments && selectedContact.comments.length > 0" class="mb-4">
             <h6 class="text-h6 mb-3">コメント履歴</h6>
             <div class="comments-container">
               <div
-                v-for="comment in selectedReport.comments"
+                v-for="comment in selectedContact.comments"
                 :key="comment.id"
                 class="comment-item"
               >
@@ -602,7 +610,7 @@ onMounted(() => {
             <VCard variant="outlined" class="pa-3 comment-input-card">
               <div class="d-flex align-center mb-3">
                 <VIcon 
-                  :color="commentType === 'completed' ? 'success' : commentType === 'rejected' ? 'error' : 'primary'" 
+                  :color="commentType === 'completed' ? 'success' : commentType === 'rejected' ? 'error' : commentType === 'cancel' ? 'error' : 'primary'" 
                   size="20" 
                   class="me-2"
                 >
@@ -624,7 +632,7 @@ onMounted(() => {
                 <VBtn
                   color="primary"
                   @click="submitAction"
-                  :loading="processingReport"
+                  :loading="processingContact"
                   :disabled="!commentText.trim()"
                 >
                   {{ commentType === 'completed' ? '処理完了' : commentType === 'rejected' ? '却下完了' : 'コメント完了' }}
@@ -641,7 +649,7 @@ onMounted(() => {
 
           <!-- 하단 액션 버튼 -->
           <div 
-            v-if="selectedReport.status === 'pending'"
+            v-if="selectedContact.status === 'pending'"
             class="d-flex justify-end gap-2 mt-4 pt-4" 
             style="border-top: 1px solid rgba(var(--v-theme-outline), 0.2);"
           >
@@ -650,7 +658,7 @@ onMounted(() => {
               variant="outlined"
               prepend-icon="ri-check-line"
               @click="handleActionClick('comment')"
-              :disabled="selectedReport.status === 'completed'"
+              :disabled="selectedContact.status === 'completed'"
             >
               コメント入力
             </VBtn>
@@ -659,7 +667,7 @@ onMounted(() => {
               variant="outlined"
               prepend-icon="ri-check-line"
               @click="handleActionClick('completed')"
-              :disabled="selectedReport.status === 'completed'"
+              :disabled="selectedContact.status === 'completed'"
             >
               完了
             </VBtn>
@@ -668,13 +676,13 @@ onMounted(() => {
               variant="outlined"
               prepend-icon="ri-close-line"
               @click="handleActionClick('rejected')"
-              :disabled="selectedReport.status === 'rejected'"
+              :disabled="selectedContact.status === 'rejected'"
             >
               却下
             </VBtn>
           </div>
           <div 
-            v-else
+            v-else-if="selectedContact.status === 'rejected' || selectedContact.status === 'completed'"
             class="d-flex justify-end gap-2 mt-4 pt-4" 
             style="border-top: 1px solid rgba(var(--v-theme-outline), 0.2);"
           >
@@ -753,14 +761,14 @@ onMounted(() => {
 }
 
 /* 보고서 내용 카드 스타일 */
-.report-content-card {
+.contact-content-card {
   border-radius: 12px;
   transition: all 0.3s ease;
   position: relative;
   overflow: hidden;
 }
 
-.report-content-card::before {
+.contact-content-card::before {
   content: '';
   position: absolute;
   top: 0;
@@ -770,12 +778,12 @@ onMounted(() => {
   background: linear-gradient(90deg, var(--v-theme-primary), var(--v-theme-secondary));
 }
 
-.report-content-card:hover {
+.contact-content-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
 }
 
-.report-content-text {
+.contact-content-text {
   font-size: 1rem;
   line-height: 1.6;
   color: var(--v-theme-on-surface);
@@ -851,38 +859,38 @@ onMounted(() => {
   padding-right: 8px;
 }
 
-.report-card-content {
+.contact-card-content {
   height: calc(400px - 80px); /* 카드 제목 높이 제외 */
   overflow-y: auto;
   padding-right: 8px;
 }
 
 .visa-list-container,
-.report-list-container {
+.contact-list-container {
   max-height: 100%;
   overflow-y: auto;
 }
 
 /* 스크롤바 스타일링 */
 .visa-card-content::-webkit-scrollbar,
-.report-card-content::-webkit-scrollbar {
+.contact-card-content::-webkit-scrollbar {
   width: 6px;
 }
 
 .visa-card-content::-webkit-scrollbar-track,
-.report-card-content::-webkit-scrollbar-track {
+.contact-card-content::-webkit-scrollbar-track {
   background: rgba(var(--v-theme-outline), 0.1);
   border-radius: 3px;
 }
 
 .visa-card-content::-webkit-scrollbar-thumb,
-.report-card-content::-webkit-scrollbar-thumb {
+.contact-card-content::-webkit-scrollbar-thumb {
   background: rgba(var(--v-theme-outline), 0.3);
   border-radius: 3px;
 }
 
 .visa-card-content::-webkit-scrollbar-thumb:hover,
-.report-card-content::-webkit-scrollbar-thumb:hover {
+.contact-card-content::-webkit-scrollbar-thumb:hover {
   background: rgba(var(--v-theme-outline), 0.5);
 }
 
