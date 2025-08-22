@@ -3,6 +3,7 @@ import { onMounted, ref, watch, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { elderlyService, type Elderly } from '@/services/elderly'
 import { elderlyHospitalizationService, type ElderlyHospitalizationCreate, type ElderlyHospitalizationResponse } from '@/services/elderlyHospitalization'
+import { reportService } from '@/services/report'
 
 const router = useRouter()
 const route = useRoute()
@@ -11,6 +12,7 @@ const route = useRoute()
 const elderlys = ref<Elderly[]>([])
 const loading = ref(false)
 const error = ref<string | null>(null)
+const success = ref<string | null>(null)
 
 // 입원/퇴원 기록
 const hospitalizationRecords = ref<ElderlyHospitalizationResponse[]>([])
@@ -20,6 +22,14 @@ const showAdmissionDialog = ref(false)
 const showDischargeDialog = ref(false)
 const selectedElderly = ref<Elderly | null>(null)
 const selectedRecord = ref<ElderlyHospitalizationResponse | null>(null)
+
+const showReportDialog = ref(false)
+const imageInput = ref<HTMLInputElement>()
+const reportTab = ref<'create' | 'list'>('create')
+
+// 보고서 목록 데이터
+const reportList = ref<any[]>([])
+const reportListLoading = ref(false)
 
 // 입원 연락표 폼
 const admissionForm = ref({
@@ -211,6 +221,143 @@ const handleEdit = (id: string) => {
   router.push(`/elderly-detail/${id}`)
 }
 
+// 報告書作成
+const handleReport = async () => {
+  showReportDialog.value = true
+  // 목록 탭으로 이동하고 데이터 로드
+  reportTab.value = 'create'
+  await fetchReportList()
+}
+
+// 이미지 파일 선택
+const handleImageSelect = (event: Event) => {
+  const target = event.target as HTMLInputElement
+  if (target.files) {
+    const newFiles = Array.from(target.files)
+    
+    // 파일 크기 및 타입 검증
+    const validFiles = newFiles.filter(file => {
+      // 파일 크기 체크 (5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('ファイルサイズは5MBを超えることはできません。')
+        return false
+      }
+      
+      // 파일 타입 체크
+      const allowedTypes = ['image/jpg', 'image/jpeg', 'image/png']
+      if (!allowedTypes.includes(file.type)) {
+        alert('JPG、PNGファイルのみアップロード可能です。')
+        return false
+      }
+      
+      return true
+    })
+    
+    // 기존 이미지와 합치기 (최대 10장)
+    if (reportForm.value.images.length + validFiles.length > 5) {
+      alert('画像は最大5枚までアップロード可能です。')
+      return
+    }
+    
+    reportForm.value.images.push(...validFiles)
+  }
+}
+
+// 이미지 제거
+const removeImage = (index: number) => {
+  reportForm.value.images.splice(index, 1)
+}
+
+// 이미지 미리보기 URL 생성
+const getImagePreviewUrl = (file: File) => {
+  return URL.createObjectURL(file)
+}
+
+// 보고서 목록 조회
+const fetchReportList = async () => {
+  try {
+    reportListLoading.value = true
+    // TODO: 실제 API 호출로 변경
+    const response = await reportService.getReports()
+    reportList.value = response.items
+
+  } catch (error) {
+    console.error('보고서 목록 조회 실패:', error)
+  } finally {
+    reportListLoading.value = false
+  }
+}
+
+const reportOptions = [
+  { title: '故障', value: 'defect' },
+  { title: 'クレーム', value: 'claim' },
+  { title: 'その他', value: 'other' },
+]
+
+const reportForm = ref({
+  report_type: '' as 'defect' | 'claim' | 'other' | '',
+  content: '',
+  incident_date: new Date().toISOString().split('T')[0],
+  images: [] as File[],
+})
+
+// 보고서 저장
+const saveReport = async () => {
+  try {
+    loading.value = true
+    error.value = null
+    success.value = null
+
+    // FormData 생성
+    const formData = new FormData()
+    formData.append('report_type', reportForm.value.report_type)
+    formData.append('content', reportForm.value.content)
+    formData.append('incident_date', reportForm.value.incident_date)
+    reportForm.value.images.forEach((image, index) => {
+      formData.append(`images[${index}]`, image)
+    })
+    
+    // reportService.createReport 호출 (올바른 타입으로 변환)
+    if (reportForm.value.report_type && ['defect', 'claim', 'other'].includes(reportForm.value.report_type)) {
+      await reportService.createReport({
+        occurrence_date: reportForm.value.incident_date,
+        report_type: reportForm.value.report_type as 'defect' | 'claim' | 'other',
+        report_content: reportForm.value.content,
+        photos: reportForm.value.images
+      })
+    } else {
+      throw new Error('리포트 타입을 선택해주세요.')
+    }
+
+    // 성공 메시지 표시
+    success.value = '報告書が正常に送信されました。'
+    
+    // 폼 초기화
+    reportForm.value = {
+      report_type: '',
+      content: '',
+      incident_date: new Date().toISOString().split('T')[0],
+      images: []
+    }
+    
+    // 목록 새로고침
+    await fetchReportList()
+    
+    // 작성 탭으로 이동
+    reportTab.value = 'list'
+    
+    // 3초 후 성공 메시지 숨기기
+    setTimeout(() => {
+      success.value = null
+    }, 3000)
+    
+  } catch (err: any) {
+    error.value = err.response?.data?.detail || '報告書の送信に失敗しました。'
+  } finally {
+    loading.value = false
+  }
+}
+
 // 거주자 추가 페이지로 이동 (건물 ID 포함)
 const handleAdd = () => {
   const params = buildingId.value ? { building_id: buildingId.value } : {}
@@ -328,6 +475,36 @@ const pageTitle = computed(() => {
   return '介護施設入居者リスト'
 })
 
+// 보고서 타입을 일본어로 변환
+const getReportTypeText = (type: string) => {
+  switch (type) {
+    case 'defect':
+      return '故障'
+    case 'claim':
+      return 'クレーム'
+    case 'other':
+      return 'その他'
+    default:
+      return type
+  }
+}
+
+// 보고서 상태를 일본어로 변환
+const getReportStatusText = (status: string) => {
+  switch (status) {
+    case 'completed':
+      return '完了'
+    case 'pending':
+      return '処理中'
+    case 'cancelled':
+      return 'キャンセル'
+    case 'rejected':
+      return '却下'
+    default:
+      return status
+  }
+}
+
 // 초기화
 onMounted(() => {
   fetchElderlys()
@@ -343,6 +520,15 @@ onMounted(() => {
           <div class="d-flex justify-space-between align-center mb-6">
             <h3 class="text-h3">{{ pageTitle }}</h3>
             <div class="d-flex gap-2">
+              <PermissionGuard permission="admin">
+                <VBtn
+                  color="error"
+                  prepend-icon="ri-file-text-line"
+                  @click="handleReport"
+                >
+                  報告書作成
+                </VBtn>
+              </PermissionGuard>
               <VBtn
                 color="primary"
                 prepend-icon="ri-add-line"
@@ -613,19 +799,270 @@ onMounted(() => {
     </VCard>
   </VDialog>
 
-  <!-- 퇴원 연락표 다이얼로그 -->
-  <VDialog v-model="showDischargeDialog" max-width="600px">
+  <!-- 보고서 다이얼로그 (Admin만 접근 가능) -->
+  <PermissionGuard permission="admin">
+    <VDialog v-model="showReportDialog" max-width="800px">
+    <VCard>
+      <VCardTitle class="d-flex align-center justify-space-between">
+        <div class="d-flex align-center gap-2">
+          <VIcon>ri-file-text-line</VIcon>
+          <span>報告書管理</span>
+        </div>
+        <VBtn
+          icon
+          variant="text"
+          @click="showReportDialog = false"
+        >
+          <VIcon>ri-close-line</VIcon>
+        </VBtn>
+      </VCardTitle>
+      
+      <!-- 탭 헤더 -->
+      <VTabs v-model="reportTab" class="px-4">
+        <VTab value="create">
+          <VIcon class="me-2">ri-edit-line</VIcon>
+          作成
+        </VTab>
+        <VTab value="list">
+          <VIcon class="me-2">ri-list-check</VIcon>
+          送信済み
+        </VTab>
+      </VTabs>
+      
+      <VDivider />
+      
+      <!-- 성공 메시지 -->
+      <VAlert
+        v-if="success"
+        type="success"
+        variant="tonal"
+        class="ma-4"
+      >
+        {{ success }}
+      </VAlert>
+      
+      <!-- 에러 메시지 -->
+      <VAlert
+        v-if="error"
+        type="error"
+        variant="tonal"
+        class="ma-4"
+      >
+        {{ error }}
+      </VAlert>
+      
+      <!-- 탭 내용 -->
+      <VWindow v-model="reportTab">
+        <!-- 작성 탭 -->
+        <VWindowItem value="create">
+          <VCardText>
+            <VForm @submit.prevent="saveReport">
+              <VRow>
+                <VCol cols="12">
+                  <VTextField
+                    v-model="reportForm.incident_date"
+                    label="発生日"
+                    type="date"
+                    hide-details
+                  />
+                </VCol>
+                <VCol cols="12">
+                  <VSelect
+                    v-model="reportForm.report_type"
+                    :items="reportOptions"
+                    item-title="title"
+                    item-value="value"
+                    label="報告書種類"
+                    placeholder="報告書種類を選択してください"
+                    :disabled="loading"
+                  />
+                </VCol>
+                <VCol cols="12">
+                  <VTextarea
+                    v-model="reportForm.content"
+                    label="内容"
+                    placeholder="内容を入力してください"
+                    :disabled="loading"
+                  />
+                </VCol>
+                
+                <!-- 이미지 업로드 섹션 -->
+                <VCol cols="12">
+                  <VDivider class="my-4" />
+                  <div class="d-flex align-center justify-space-between mb-3">
+                    <h6 class="text-h6 mb-0">画像添付</h6>
+                    <span class="text-caption text-medium-emphasis">
+                      {{ reportForm.images.length }}/5
+                    </span>
+                  </div>
+                  
+                  <!-- 이미지 업로드 버튼 -->
+                  <div class="d-flex align-center gap-2 mb-3">
+                    <VBtn
+                      color="primary"
+                      variant="outlined"
+                      size="small"
+                      @click="$refs.imageInput?.click()"
+                      :disabled="reportForm.images.length >= 5"
+                    >
+                      <VIcon class="me-2" size="16">ri-image-add-line</VIcon>
+                      画像を選択
+                    </VBtn>
+                    <span class="text-caption text-medium-emphasis">
+                      JPEG、JPG、PNGファイル (最大5MB、最大5枚)
+                    </span>
+                  </div>
+                  
+                  <!-- 숨겨진 파일 입력 -->
+                  <input
+                    ref="imageInput"
+                    type="file"
+                    multiple
+                    accept=".jpg,.jpeg,.png"
+                    hidden
+                    @change="handleImageSelect"
+                  />
+                  
+                  <!-- 이미지 미리보기 -->
+                  <div v-if="reportForm.images.length > 0" class="d-flex flex-wrap gap-2">
+                    <div
+                      v-for="(image, index) in reportForm.images"
+                      :key="index"
+                      class="image-preview-container"
+                    >
+                      <img
+                        :src="getImagePreviewUrl(image)"
+                        :alt="`画像${index + 1}`"
+                        class="image-preview"
+                      />
+                      <VBtn
+                        icon
+                        size="x-small"
+                        color="error"
+                        variant="tonal"
+                        class="remove-image-btn"
+                        @click="removeImage(index)"
+                      >
+                        <VIcon size="12">ri-close-line</VIcon>
+                      </VBtn>
+                      <div class="image-name">{{ image.name }}</div>
+                    </div>
+                  </div>
+                </VCol>
+              </VRow>
+            </VForm>
+          </VCardText>
+          <VCardActions>
+            <VSpacer />
+            <VBtn
+              variant="flat"
+              color="primary"
+              :loading="loading"
+              :disabled="reportForm.report_type === '' || reportForm.content === ''"
+              @click="saveReport"
+            >
+              送信
+            </VBtn>
+          </VCardActions>
+        </VWindowItem>
+        
+        <!-- 목록 탭 -->
+        <VWindowItem value="list">
+          <VCardText>
+            <div class="d-flex justify-space-between align-center mb-4">
+              <h6 class="text-h6 mb-0">送信済み報告書一覧</h6>
+              <VBtn
+                color="primary"
+                variant="outlined"
+                size="small"
+                @click="fetchReportList"
+                :loading="reportListLoading"
+              >
+                <VIcon class="me-2" size="16">ri-refresh-line</VIcon>
+                更新
+              </VBtn>
+            </div>
+            
+            <!-- 로딩 상태 -->
+            <div v-if="reportListLoading" class="d-flex justify-center py-8">
+              <VProgressCircular indeterminate color="primary" />
+            </div>
+            
+            <!-- 보고서 목록 -->
+            <div 
+            v-else-if="reportList.length > 0"
+            class="report-list-container"
+            >
+              <VList>
+                <VListItem
+                  v-for="report in reportList"
+                  :key="report.id"
+                  class="mb-2"
+                >
+                  <template #prepend>
+                    <VAvatar
+                      :color="report.report_type === '故障' ? 'error' : report.report_type === 'クレーム' ? 'warning' : 'info'"
+                      size="40"
+                    >
+                      <VIcon>ri-file-text-line</VIcon>
+                    </VAvatar>
+                  </template>
+                  
+                  <VListItemTitle class="font-weight-bold">
+                    {{ getReportTypeText(report.report_type) }}
+                  </VListItemTitle>
+                  
+                  <VListItemSubtitle>
+                    <div class="d-flex align-center gap-4">
+                      <span class="text-caption">
+                        <VIcon size="small" class="me-1">ri-calendar-line</VIcon>
+                        {{ formatDate(report.occurrence_date) }}
+                      </span>
+                      <span class="text-caption">
+                        <VIcon size="small" class="me-1">ri-time-line</VIcon>
+                        {{ formatDate(report.created_at) }}
+                      </span>
+                      <VChip
+                        :color="report.status === 'completed' ? 'success' : report.status === 'rejected' ? 'error' : 'warning'"
+                        size="x-small"
+                        variant="tonal"
+                      >
+                        {{ getReportStatusText(report.status) }}
+                      </VChip>
+                    </div>
+                    <div class="mt-2 text-body-2">
+                      {{ report.report_content }}
+                    </div>
+                  </VListItemSubtitle>
+                </VListItem>
+              </VList>
+            </div>
+            
+            <!-- 빈 목록 -->
+            <div v-else class="text-center py-8">
+              <VIcon size="64" color="grey-lighten-1">ri-inbox-line</VIcon>
+              <p class="text-grey mt-2">送信済みの報告書がありません</p>
+            </div>
+          </VCardText>
+        </VWindowItem>
+      </VWindow>
+    </VCard>
+  </VDialog>
+  </PermissionGuard>
+
+  <!-- 입원 연락표 다이얼로그 -->
+  <VDialog v-model="showAdmissionDialog" max-width="600px">
     <VCard>
       <VCardTitle class="d-flex align-center gap-2">
-        <VIcon>ri-home-line</VIcon>
-        <span>退院連絡票作成</span>
+        <VIcon>ri-file-text-line</VIcon>
+        <span>報告書作成</span>
       </VCardTitle>
       <VCardText>
-        <VForm @submit.prevent="saveDischargeRecord">
+        <VForm @submit.prevent="saveAdmissionRecord">
           <VRow>
             <VCol cols="12">
               <VTextField
-                :model-value="selectedElderly?.name"
+                v-model="admissionForm.elderly_name"
                 label="入居者名"
                 readonly
                 hide-details
@@ -633,21 +1070,29 @@ onMounted(() => {
             </VCol>
             <VCol cols="12" md="6">
               <VTextField
-                v-model="dischargeForm.discharge_date"
-                label="退院日"
+                v-model="admissionForm.admission_date"
+                label="入院日"
                 type="date"
+                required
+                hide-details
+              />
+            </VCol>
+            <VCol cols="12" md="6">
+              <VTextField
+                v-model="admissionForm.hospital_name"
+                label="病院名"
                 required
                 hide-details
               />
             </VCol>
             <VCol cols="12">
               <VDivider class="my-4" />
-              <h6 class="text-h6 mb-3">食事再開</h6>
+              <h6 class="text-h6 mb-3">最終食事</h6>
             </VCol>
             <VCol cols="12" md="6">
               <VTextField
-                v-model="dischargeForm.meal_resume_date"
-                label="食事再開日"
+                v-model="admissionForm.meal_final_date"
+                label="最終食事日"
                 type="date"
                 required
                 hide-details
@@ -655,8 +1100,8 @@ onMounted(() => {
             </VCol>
             <VCol cols="12">
               <VRadioGroup
-                v-model="dischargeForm.meal_resume_type"
-                label="食事再開"
+                v-model="admissionForm.meal_final_type"
+                label="最終食事"
                 required
                 hide-details
               >
@@ -673,13 +1118,13 @@ onMounted(() => {
         <VBtn
           color="grey"
           variant="text"
-          @click="showDischargeDialog = false"
+          @click="showAdmissionDialog = false"
         >
           キャンセル
         </VBtn>
         <VBtn
           color="primary"
-          @click="saveDischargeRecord"
+          @click="saveAdmissionRecord"
         >
           保存
         </VBtn>
@@ -693,5 +1138,45 @@ onMounted(() => {
   .v-data-table-header {
     background-color: rgb(var(--v-theme-surface));
   }
+}
+
+/* 이미지 미리보기 스타일 */
+.image-preview-container {
+  position: relative;
+  display: inline-block;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 4px;
+  background: white;
+}
+
+.image-preview {
+  width: 120px;
+  height: 120px;
+  object-fit: cover;
+  border-radius: 4px;
+  display: block;
+}
+
+.remove-image-btn {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  z-index: 10;
+}
+
+.image-name {
+  font-size: 12px;
+  color: #666;
+  text-align: center;
+  margin-top: 4px;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.report-list-container {
+  height: 400px;
+  overflow-y: auto;
 }
 </style> 

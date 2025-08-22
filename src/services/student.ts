@@ -62,6 +62,7 @@ export interface Student {
   orientation_date: string
   certification_application_date: string
   interview_date: string | null
+  note: string | null
 }
 
 // 비자갱신 임박 학생 인터페이스
@@ -124,7 +125,7 @@ export interface StudentInput {
   visa_year?: string
   experience_over_2_years: boolean
   arrival_type: string
-  entry_date: string  
+  entry_date: string
   student_type: string
   pre_guidance_date: string
   orientation_date: string
@@ -133,6 +134,7 @@ export interface StudentInput {
   current_room_id?: string
   grade_id?: string
   facebook_name?: string
+  note?: string
 }
 
 // 수정용 인터페이스 (모든 필드가 선택적)
@@ -234,8 +236,8 @@ export const studentService = {
   },
 
   // 비자갱신 임박 학생 조회
-getVisaRenewalStudents: async (): Promise<{ data: VisaRenewalStudent[] }> => {
-  const response = await api.get<{ data: VisaRenewalStudent[] }>(`/students/expiring-soon`)
+getVisaRenewalStudents: async (student_type: string): Promise<{ data: VisaRenewalStudent[] }> => {
+  const response = await api.get<{ data: VisaRenewalStudent[] }>(`/students/expiring-soon${student_type ? `?student_type=${student_type}` : ''}`)
   return response.data
 },
 } 

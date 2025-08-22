@@ -2,6 +2,8 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { studentService, type VisaRenewalStudent } from '@/services/student'
+import { reportService, type ReportResponse } from '@/services/report'
+import { getCurrentUserPermission } from '@/utils/permissions';
 
 const router = useRouter()
 
@@ -11,6 +13,18 @@ const loadingVisaStudents = ref(false)
 const errorVisaStudents = ref<string | null>(null)
 const isVisaCardExpanded = ref(true) // 카드 확장/축소 상태
 
+// 보고서 관련 상태
+const reports = ref<ReportResponse[]>([])
+const loadingReports = ref(false)
+const errorReports = ref<string | null>(null)
+const isReportCardExpanded = ref(true)
+const showReportDetailDialog = ref(false)
+const selectedReport = ref<ReportResponse | null>(null)
+const showCommentInput = ref(false)
+const commentType = ref<'completed' | 'rejected' | 'pending' | null>(null)
+const commentText = ref('')
+const processingReport = ref(false)
+
 // 비자갱신 임박 학생 조회
 const fetchVisaRenewalStudents = async () => {
   try {
@@ -18,7 +32,15 @@ const fetchVisaRenewalStudents = async () => {
     errorVisaStudents.value = null
 
     // ビザ更新が迫っている技能生を取得
-    const response = await studentService.getVisaRenewalStudents()
+    const studentType = getCurrentUserPermission()
+    let response: { data: VisaRenewalStudent[] }
+    if (studentType === 'manager_specified') {
+      response = await studentService.getVisaRenewalStudents('SPECIFIED')
+    } else if (studentType === 'manager_general') {
+      response = await studentService.getVisaRenewalStudents('GENERAL')
+    } else {
+      response = await studentService.getVisaRenewalStudents()
+    }
     visaRenewalStudents.value = response.items || []
   } catch (error) {
     console.error('ビザ更新が迫っている技能生の取得中にエラーが発生しました:', error)
@@ -28,20 +50,156 @@ const fetchVisaRenewalStudents = async () => {
   }
 }
 
+// 보고서 목록 조회
+const fetchReports = async () => {
+  try {
+    loadingReports.value = true
+    errorReports.value = null
+
+    const response = await reportService.getReports()
+    reports.value = response.items || []
+  } catch (error) {
+    console.error('보고서 목록 조회 실패:', error)
+    errorReports.value = '보고서 목록の取得に失敗しました。'
+  } finally {
+    loadingReports.value = false
+  }
+}
+
 // 학생 상세 페이지로 이동
 const goToStudentDetail = (studentId: string) => {
   router.push(`/student-detail/${studentId}`)
 }
 
+// 보고서 상세 팝업 열기
+const openReportDetail = (report: ReportResponse) => {
+  selectedReport.value = report
+  showReportDetailDialog.value = true
+  showCommentInput.value = false
+  commentType.value = null
+  commentText.value = ''
+}
+
+// 처리/철회 버튼 클릭
+const handleActionClick = async (type: 'completed' | 'rejected' | 'pending' | 'comment') => {
+  commentType.value = type
+  if (type === 'pending') {
+    // 되돌릴 것인지 확인
+    const confirmed = confirm('この報告書を再処理状態に戻しますか？')
+    if (confirmed) {
+      showCommentInput.value = false
+      commentText.value = ''
+      await submitAction()
+    }
+  } else if (type === 'comment') {
+    commentType.value = 'pending'
+    showCommentInput.value = true
+    commentText.value = ''
+  } else {
+    showCommentInput.value = true
+    commentText.value = ''
+  }
+}
+
+// 처리/철회 등록
+const submitAction = async () => {
+  if (!selectedReport.value) {
+    return
+  }
+
+  try {
+    processingReport.value = true
+    
+    // 실제 API 호출로 변경
+    await reportService.updateReportStatus(
+      selectedReport.value.id, 
+      commentType.value, 
+      commentText.value
+    )
+    
+    // 성공 메시지 표시
+    alert(commentType.value === 'completed' ? '処理が完了しました。' : commentType.value === 'rejected' ? '却下が完了しました。' : commentType.value === 'pending' ? '再処理が完了しました。' : 'コメントが完了しました。')
+    
+    // 팝업 닫기
+    showReportDetailDialog.value = false
+    selectedReport.value = null
+    
+    // 목록 새로고침
+    await fetchReports()
+    
+  } catch (error) {
+    console.error('처리/철회 실패:', error)
+    alert('処理に失敗しました。')
+  } finally {
+    processingReport.value = false
+  }
+}
+
 // 비자 상태에 따른 색상 반환
 const getVisaStatusColor = (daysUntilExpiry: number) => {
-  if (daysUntilExpiry <= 30) return 'error'
-  if (daysUntilExpiry <= 60) return 'warning'
+  if (daysUntilExpiry <= 30) {
+    return 'error'
+  }
+  if (daysUntilExpiry <= 60) {
+    return 'warning'
+  }
   return 'info'
+}
+
+// 보고서 타입을 일본어로 변환
+const getReportTypeText = (type: string) => {
+  switch (type) {
+    case 'defect':
+      return '故障'
+    case 'claim':
+      return 'クレーム'
+    case 'other':
+      return 'その他'
+    default:
+      return type
+  }
+}
+
+// 보고서 상태를 일본어로 변환
+const getReportStatusText = (status: string) => {
+  switch (status) {
+    case 'completed':
+      return '完了'
+    case 'pending':
+      return '処理中'
+    case 'in_progress':
+      return '処理中'
+    case 'rejected':
+      return '却下'
+    default:
+      return status
+  }
+}
+
+// 보고서 상태 색상
+const getReportStatusColor = (status: string) => {
+  switch (status) {
+    case 'completed':
+      return 'success'
+    case 'pending':
+      return 'warning'
+    case 'in_progress':
+      return 'info'
+    case 'rejected':
+      return 'error'
+    default:
+      return 'default'
+  }
+}
+
+// 사진 클릭 시 새 창에서 열기
+const openPhotoInNewTab = (url: string) => {
+  window.open(url, '_blank')
 }
 
 onMounted(() => {
   fetchVisaRenewalStudents()
+  fetchReports()
 })
 </script>
 
@@ -49,7 +207,7 @@ onMounted(() => {
   <VRow class="match-height">
     <!-- 비자갱신 임박 학생 리스트 -->
     <VCol cols="12" md="6">
-      <VCard>
+      <VCard :class="isVisaCardExpanded ? 'h-400' : 'h-auto'">
         <VCardTitle class="d-flex align-center justify-space-between">
           <div class="d-flex align-center">
             <VIcon class="me-2" color="warning">ri-passport-line</VIcon>
@@ -77,7 +235,7 @@ onMounted(() => {
           </div>
         </VCardTitle>
         
-        <VCardText v-if="isVisaCardExpanded">
+        <VCardText v-if="isVisaCardExpanded" class="visa-card-content">
           <!-- 에러 메시지 -->
           <VAlert
             v-if="errorVisaStudents"
@@ -95,11 +253,11 @@ onMounted(() => {
               color="primary"
               size="32"
             />
-            <span class="ml-3">データを読み込み中...</span>
+            <span class="ms-3">データを読み込み中...</span>
           </div>
           
           <!-- 학생 리스트 -->
-          <div v-else-if="visaRenewalStudents.length > 0">
+          <div v-else-if="visaRenewalStudents.length > 0" class="visa-list-container">
             <VList>
               <VListItem
                 v-for="student in visaRenewalStudents"
@@ -123,7 +281,7 @@ onMounted(() => {
                 <VListItemSubtitle>
                   <div class="d-flex align-center">
                     <VIcon size="small" class="me-1">ri-calendar-line</VIcon>
-                    在留カード有効期限: {{ new Date(student.residence_card_expiry).toLocaleDateString('ja-JP') }}
+                    在留カード有効期限: {{ student.residence_card_expiry ? new Date(student.residence_card_expiry).toLocaleDateString('ja-JP') : '-' }}
                   </div>
                   <div class="d-flex align-center mt-1">
                     <VIcon size="small" class="me-1">ri-time-line</VIcon>
@@ -163,57 +321,376 @@ onMounted(() => {
       </VCard>
     </VCol>
 
-    <!-- 기존 대시보드 컴포넌트들 -->
-    <!-- <VCol cols="12" md="6">
-      <VRow class="match-height">
-        <VCol cols="12" sm="6">
-          <CardStatisticsVertical v-bind="totalProfit" />
-        </VCol>
-        <VCol cols="12" sm="6">
-          <CardStatisticsVertical v-bind="newProject" />
-        </VCol>
-      </VRow>
+    <!-- 보고서 리스트 (Admin만 접근 가능) -->
+    <VCol cols="12" md="6">
+      <PermissionGuard permission="admin">
+        <VCard :class="isReportCardExpanded ? 'h-400' : 'h-auto'">
+          <VCardTitle class="d-flex align-center justify-space-between">
+            <div class="d-flex align-center">
+              <VIcon class="me-2" color="info">ri-file-text-line</VIcon>
+              <span>報告書一覧</span>
+            </div>
+            <div class="d-flex align-center">
+              <VBtn
+                icon
+                variant="text"
+                size="small"
+                @click="isReportCardExpanded = !isReportCardExpanded"
+                class="me-2"
+              >
+                <VIcon>{{ isReportCardExpanded ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line' }}</VIcon>
+              </VBtn>
+              <VBtn
+                icon
+                variant="text"
+                size="small"
+                @click="fetchReports"
+                :loading="loadingReports"
+              >
+                <VIcon>ri-refresh-line</VIcon>
+              </VBtn>
+            </div>
+          </VCardTitle>
+          
+          <VCardText v-if="isReportCardExpanded" class="report-card-content">
+            <!-- 에러 메시지 -->
+            <VAlert
+              v-if="errorReports"
+              type="error"
+              variant="tonal"
+              class="mb-4"
+            >
+              {{ errorReports }}
+            </VAlert>
+            
+            <!-- 로딩 상태 -->
+            <div v-if="loadingReports" class="d-flex justify-center align-center py-8">
+              <VProgressCircular
+                indeterminate
+                color="primary"
+                size="32"
+              />
+              <span class="ms-3">データを読み込み中...</span>
+            </div>
+            
+            <!-- 보고서 리스트 -->
+            <div v-else-if="reports.length > 0" class="report-list-container">
+              <VList>
+                <VListItem
+                  v-for="report in reports"
+                  :key="report.id"
+                  @click="openReportDetail(report)"
+                  class="mb-2 cursor-pointer"
+                  style="border-left: 4px solid rgb(var(--v-theme-primary)); border-radius: 4px;"
+                >
+                  <template #prepend>
+                    <VAvatar
+                      :color="getReportStatusColor(report.status || 'pending')"
+                      size="40"
+                    >
+                      <VIcon>ri-file-text-line</VIcon>
+                    </VAvatar>
+                  </template>
+                  <VListItemTitle class="font-weight-bold">
+                    {{ getReportTypeText(report.report_type) }}
+                  </VListItemTitle>
+                  <VListItemSubtitle>
+                    <div class="d-flex align-center">
+                      <VIcon size="small" class="me-1">ri-calendar-line</VIcon>
+                      発生日: {{ new Date(report.occurrence_date).toLocaleDateString('ja-JP') }}
+                    </div>
+                    <div class="d-flex align-center mt-1">
+                      <VIcon size="small" class="me-1">ri-time-line</VIcon>
+                      <VChip
+                        :color="getReportStatusColor(report.status || 'pending')"
+                        size="x-small"
+                        variant="tonal"
+                      >
+                        {{ getReportStatusText(report.status || 'pending') }}
+                      </VChip>
+                    </div>
+                    <div class="d-flex align-center mt-1">
+                      <VIcon size="small" class="me-1">ri-file-text-line</VIcon>
+                      <span class="text-truncate" style="max-width: 200px;">
+                        {{ report.report_content }}
+                      </span>
+                    </div>
+                  </VListItemSubtitle>
+                  <template #append>
+                    <VBtn
+                      icon
+                      variant="text"
+                      size="small"
+                      @click.stop="openReportDetail(report)"
+                    >
+                      <VIcon>ri-arrow-right-line</VIcon>
+                    </VBtn>
+                  </template>
+                </VListItem>
+              </VList>
+            </div>
+            
+            <!-- 데이터 없음 -->
+            <div v-else class="text-center py-8">
+              <VIcon size="64" color="grey-lighten-1">ri-inbox-line</VIcon>
+              <p class="text-grey mt-2">報告書がありません</p>
+            </div>
+          </VCardText>
+        </VCard>
+      </PermissionGuard>
     </VCol>
-
-    <VCol cols="12" md="4">
-      <AnalyticsAward />
-    </VCol>
-
-    <VCol cols="12" md="8">
-      <AnalyticsTransactions />
-    </VCol>
-
-    <VCol cols="12" md="4">
-      <AnalyticsWeeklyOverview />
-    </VCol>
-
-    <VCol cols="12" md="4">
-      <AnalyticsTotalEarning />
-    </VCol>
-
-    <VCol cols="12" md="4">
-      <VRow class="match-height">
-        <VCol cols="12" sm="6">
-          <AnalyticsTotalProfitLineCharts />
-        </VCol>
-        <VCol cols="12" sm="6">
-          <AnalyticsBarCharts />
-        </VCol>
-      </VRow>
-    </VCol>
-
-    <VCol cols="12" md="4">
-      <AnalyticsSalesByCountries />
-    </VCol>
-
-    <VCol cols="12" md="8">
-      <AnalyticsDepositWithdraw />
-    </VCol>
-
-    <VCol cols="12">
-      <AnalyticsUserTable />
-    </VCol> -->
   </VRow>
+
+  <!-- 보고서 상세 팝업 (Admin만 접근 가능) -->
+  <PermissionGuard permission="admin">
+    <VDialog v-model="showReportDetailDialog" max-width="800px">
+    <VCard>
+      <VCardTitle class="d-flex align-center justify-space-between">
+        <div class="d-flex align-center gap-2">
+          <VIcon>ri-file-text-line</VIcon>
+          <span>報告書詳細</span>
+        </div>
+        <VBtn
+          icon
+          variant="text"
+          @click="showReportDetailDialog = false"
+        >
+          <VIcon>ri-close-line</VIcon>
+        </VBtn>
+      </VCardTitle>
+      
+      <VCardText v-if="selectedReport">
+          <!-- 보고서 내용 -->
+          <div class="mb-4">            
+            <!-- 상세 정보 그리드 -->
+            <VRow>
+              <VCol cols="12" md="6">
+                <VCard variant="outlined" class="pa-3 info-card">
+                  <div class="d-flex align-center mb-2">
+                    <VIcon color="info" size="20" class="me-2">ri-information-line</VIcon>
+                    <span class="text-subtitle-2 font-weight-bold">基本情報</span>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-label">報告書種類:</span>
+                    <VChip
+                      :color="getReportStatusColor(selectedReport.status || 'pending')"
+                      size="small"
+                      variant="tonal"
+                      class="ms-2"
+                    >
+                      {{ getReportTypeText(selectedReport.report_type) }}
+                    </VChip>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-label">発生日:</span>
+                    <span class="info-value">{{ new Date(selectedReport.occurrence_date).toLocaleDateString('ja-JP') }}</span>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-label">状態:</span>
+                    <VChip
+                      :color="getReportStatusColor(selectedReport.status || 'pending')"
+                      size="small"
+                      variant="tonal"
+                      class="ms-2"
+                    >
+                      {{ getReportStatusText(selectedReport.status || 'pending') }}
+                    </VChip>
+                  </div>
+                </VCard>
+              </VCol>
+              <VCol cols="12" md="6">
+                <VCard variant="outlined" class="pa-3 info-card">
+                  <div class="d-flex align-center mb-2">
+                    <VIcon color="success" size="20" class="me-2">ri-time-line</VIcon>
+                    <span class="text-subtitle-2 font-weight-bold">時間情報</span>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-label">作成日:</span>
+                    <span class="info-value">{{ new Date(selectedReport.created_at).toLocaleDateString('ja-JP') }}</span>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-label">経過時間:</span>
+                    <span class="info-value">
+                      {{ Math.floor((new Date().getTime() - new Date(selectedReport.created_at).getTime()) / (1000 * 60 * 60 * 24)) }}日
+                    </span>
+                  </div>
+                </VCard>
+              </VCol>
+            </VRow>
+            <!-- 메인 정보 카드 -->
+            <VCard 
+              variant="outlined" 
+              class="pa-4 mt-4 report-content-card"
+              :color="getReportStatusColor(selectedReport.status || 'pending')"
+            >
+              <div class="d-flex align-center mb-3">
+                <VAvatar
+                  :color="getReportStatusColor(selectedReport.status || 'pending')"
+                  size="32"
+                  class="me-3"
+                >
+                  <VIcon size="20">ri-file-text-line</VIcon>
+                </VAvatar>
+                <div>
+                  <h6 class="text-h6 mb-1">{{ getReportTypeText(selectedReport.report_type) }}</h6>
+                  <p class="text-caption text-medium-emphasis mb-0">
+                    {{ new Date(selectedReport.occurrence_date).toLocaleDateString('ja-JP', { 
+                      year: 'numeric', 
+                      month: 'long', 
+                      day: 'numeric',
+                      weekday: 'long'
+                    }) }}
+                  </p>
+                </div>
+              </div>
+              
+              <VDivider class="my-3" />
+              
+              <div class="report-content-text">
+                {{ selectedReport.report_content }}
+              </div>
+            </VCard>
+          </div>
+
+          <!-- 사진 -->
+          <div v-if="selectedReport.photos && selectedReport.photos.length > 0" class="mb-4">
+            <h6 class="text-h6 mb-3">添付写真</h6>
+            <div class="d-flex flex-wrap gap-2">
+              <div
+                v-for="(photo, index) in selectedReport.photos"
+                :key="index"
+                class="photo-container"
+              >
+                <img
+                  :src="photo.photo_url"
+                  :alt="`写真${index + 1}`"
+                  class="photo-preview"
+                  @click="openPhotoInNewTab(photo.photo_url)"
+                />
+              </div>
+            </div>
+          </div>
+
+          <!-- 기존 코멘트 목록 -->
+          <div v-if="selectedReport.comments && selectedReport.comments.length > 0" class="mb-4">
+            <h6 class="text-h6 mb-3">コメント履歴</h6>
+            <div class="comments-container">
+              <div
+                v-for="comment in selectedReport.comments"
+                :key="comment.id"
+                class="comment-item"
+              >
+                <div class="comment-line">
+                  <span class="comment-author">{{ comment.operator?.name || comment.created_by }}</span>
+                  <span class="comment-date">
+                    {{ new Date(comment.created_at).toLocaleString('ja-JP', {
+                      month: '2-digit',
+                      day: '2-digit',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    }) }}
+                  </span>
+                  <span class="comment-content">{{ comment.comment }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 코멘트 입력 영역 -->
+          <div v-if="showCommentInput" class="mb-4">
+            <VDivider class="my-3" />
+            <VCard variant="outlined" class="pa-3 comment-input-card">
+              <div class="d-flex align-center mb-3">
+                <VIcon 
+                  :color="commentType === 'completed' ? 'success' : commentType === 'rejected' ? 'error' : 'primary'" 
+                  size="20" 
+                  class="me-2"
+                >
+                  {{ commentType === 'completed' ? 'ri-check-line' : commentType === 'rejected' ? 'ri-close-line' : 'ri-message-line' }}
+                </VIcon>
+                <h6 class="text-h6 mb-0">
+                  {{ commentType === 'completed' ? '処理' : commentType === 'rejected' ? '却下' : '' }}コメント
+                </h6>
+              </div>
+              <VTextarea
+                v-model="commentText"
+                :label="commentType === 'completed' ? '処理内容を入力してください' : commentType === 'rejected' ? '却下理由を入力してください' : 'コメントを入力してください'"
+                rows="3"
+                variant="outlined"
+                class="mb-3"
+                placeholder="コメントを入力してください..."
+              />
+              <div class="d-flex gap-2 justify-end">
+                <VBtn
+                  color="primary"
+                  @click="submitAction"
+                  :loading="processingReport"
+                  :disabled="!commentText.trim()"
+                >
+                  {{ commentType === 'completed' ? '処理完了' : commentType === 'rejected' ? '却下完了' : 'コメント完了' }}
+                </VBtn>
+                <VBtn
+                  variant="outlined"
+                  @click="showCommentInput = false"
+                >
+                  キャンセル
+                </VBtn>
+              </div>
+            </VCard>
+          </div>
+
+          <!-- 하단 액션 버튼 -->
+          <div 
+            v-if="selectedReport.status === 'pending'"
+            class="d-flex justify-end gap-2 mt-4 pt-4" 
+            style="border-top: 1px solid rgba(var(--v-theme-outline), 0.2);"
+          >
+            <VBtn
+              color="primary"
+              variant="outlined"
+              prepend-icon="ri-check-line"
+              @click="handleActionClick('comment')"
+              :disabled="selectedReport.status === 'completed'"
+            >
+              コメント入力
+            </VBtn>
+            <VBtn
+              color="success"
+              variant="outlined"
+              prepend-icon="ri-check-line"
+              @click="handleActionClick('completed')"
+              :disabled="selectedReport.status === 'completed'"
+            >
+              完了
+            </VBtn>
+            <VBtn
+              color="error"
+              variant="outlined"
+              prepend-icon="ri-close-line"
+              @click="handleActionClick('rejected')"
+              :disabled="selectedReport.status === 'rejected'"
+            >
+              却下
+            </VBtn>
+          </div>
+          <div 
+            v-else
+            class="d-flex justify-end gap-2 mt-4 pt-4" 
+            style="border-top: 1px solid rgba(var(--v-theme-outline), 0.2);"
+          >
+            <VBtn
+              color="success"
+              variant="outlined"
+              prepend-icon="ri-check-line"
+              @click="handleActionClick('pending')"
+            >
+              再処理
+            </VBtn>
+          </div>
+        </VCardText>
+    </VCard>
+  </VDialog>
+  </PermissionGuard>
 </template>
 
 <style scoped>
@@ -242,5 +719,217 @@ onMounted(() => {
 
 .border-success {
   border-left-color: rgb(var(--v-theme-success)) !important;
+}
+
+/* 사진 미리보기 스타일 */
+.photo-container {
+  position: relative;
+  display: inline-block;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 4px;
+  background: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.photo-container:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.photo-preview {
+  width: 120px;
+  height: 120px;
+  object-fit: cover;
+  border-radius: 4px;
+  display: block;
+}
+
+.text-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 보고서 내용 카드 스타일 */
+.report-content-card {
+  border-radius: 12px;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.report-content-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--v-theme-primary), var(--v-theme-secondary));
+}
+
+.report-content-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+}
+
+.report-content-text {
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--v-theme-on-surface);
+  padding: 16px;
+  border-radius: 8px;
+  border-left: 4px solid var(--v-theme-primary);
+}
+
+/* 정보 카드 스타일 */
+.info-card {
+  border-radius: 12px;
+  transition: all 0.3s ease;
+  height: 100%;
+}
+
+.info-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+}
+
+.info-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(var(--v-theme-outline), 0.2);
+}
+
+.info-item:last-child {
+  border-bottom: none;
+}
+
+.info-label {
+  font-weight: 500;
+  color: var(--v-theme-on-surface-variant);
+  font-size: 0.875rem;
+}
+
+.info-value {
+  font-weight: 600;
+  color: var(--v-theme-on-surface);
+  font-size: 0.875rem;
+}
+
+/* 코멘트 입력 카드 스타일 */
+.comment-input-card {
+  border-radius: 12px;
+  border-left: 4px solid var(--v-theme-primary);
+  background: rgba(var(--v-theme-surface-variant), 0.05);
+  transition: all 0.3s ease;
+}
+
+.comment-input-card:hover {
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+}
+
+/* 카드 높이 및 스크롤 스타일 */
+.h-400 {
+  height: 400px !important;
+}
+
+.h-600 {
+  height: 600px !important;
+}
+
+.h-auto {
+  height: auto !important;
+}
+
+.visa-card-content {
+  height: calc(400px - 80px); /* 카드 제목 높이 제외 */
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+.report-card-content {
+  height: calc(400px - 80px); /* 카드 제목 높이 제외 */
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+.visa-list-container,
+.report-list-container {
+  max-height: 100%;
+  overflow-y: auto;
+}
+
+/* 스크롤바 스타일링 */
+.visa-card-content::-webkit-scrollbar,
+.report-card-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.visa-card-content::-webkit-scrollbar-track,
+.report-card-content::-webkit-scrollbar-track {
+  background: rgba(var(--v-theme-outline), 0.1);
+  border-radius: 3px;
+}
+
+.visa-card-content::-webkit-scrollbar-thumb,
+.report-card-content::-webkit-scrollbar-thumb {
+  background: rgba(var(--v-theme-outline), 0.3);
+  border-radius: 3px;
+}
+
+.visa-card-content::-webkit-scrollbar-thumb:hover,
+.report-card-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(var(--v-theme-outline), 0.5);
+}
+
+/* 코멘트 목록 스타일 */
+.comments-container {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.comment-item {
+  background: rgba(var(--v-theme-surface-variant), 0.03);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 8px;
+  border-left: 3px solid rgb(var(--v-theme-primary));
+  transition: all 0.2s ease;
+}
+
+.comment-item:hover {
+  background: rgba(var(--v-theme-surface-variant), 0.08);
+}
+
+.comment-line {
+  display: flex;
+  align-items: center;
+  gap: 12px; /* 작성자, 날짜, 내용 사이 간격 */
+  flex-wrap: wrap; /* 긴 내용일 때 줄바꿈 */
+}
+
+.comment-author {
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--v-theme-primary);
+  min-width: fit-content; /* 작성자 이름이 줄바꿈되지 않도록 */
+}
+
+.comment-date {
+  font-size: 0.75rem;
+  color: var(--v-theme-on-surface-variant);
+  min-width: fit-content; /* 날짜가 줄바꿈되지 않도록 */
+}
+
+.comment-content {
+  font-size: 0.875rem;
+  line-height: 1.4;
+  color: var(--v-theme-on-surface);
+  word-break: break-word;
+  flex: 1; /* 남은 공간을 모두 차지 */
 }
 </style>

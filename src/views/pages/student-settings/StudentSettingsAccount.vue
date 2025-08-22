@@ -49,6 +49,7 @@ const form = ref({
   interview_date: props.student.interview_date,
   student_type: props.student.student_type,
   grade: props.student.grade_id,
+  note: props.student.note || '',
 })
 
 const loading = ref(false)
@@ -373,6 +374,7 @@ watch(() => props.student, async newStudent => {
     interview_date: newStudent.interview_date,
     student_type: newStudent.student_type,
     grade: newStudent.grade_id,
+    note: newStudent.note || '',
   }
 
   // current_room 데이터가 있으면 우선 사용
@@ -492,6 +494,7 @@ const updateStudent = async () => {
       interview_date: form.value.interview_date || undefined,
       student_type: form.value.student_type,
       grade_id: form.value.grade || undefined,
+      note: form.value.note || undefined,
     })
 
     success.value = '技能生情報が正常に修正されました。'
@@ -540,7 +543,7 @@ const updateStudent = async () => {
 
         <!-- 아바타 섹션 -->
         <VCol cols="12">
-          <div class="d-flex align-center gap-6">
+          <div class="d-flex align-start gap-6">
             <!-- 아바타 이미지 -->
             <VAvatar
               rounded="lg"
@@ -589,8 +592,23 @@ const updateStudent = async () => {
                 JPG、GIF、PNGファイルのみ可能です。最大800KB
               </p>
             </form>
+
+            <!-- 비고란 -->
+            <div class="flex-grow-1">
+              <VTextarea
+                v-model="form.note"
+                label="備考"
+                placeholder="追加情報やメモを入力してください..."
+                rows="4"
+                :disabled="loading"
+                hide-details
+                class="ml-6"
+              />
+            </div>
           </div>
         </VCol>
+
+
 
         <!-- 필수항목 섹션 -->
         <VCol cols="12">
