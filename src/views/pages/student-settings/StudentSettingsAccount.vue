@@ -494,7 +494,7 @@ const updateStudent = async () => {
       interview_date: form.value.interview_date || undefined,
       student_type: form.value.student_type,
       grade_id: form.value.grade || undefined,
-      note: form.value.note || undefined,
+      note: form.value.note,
     })
 
     success.value = '技能生情報が正常に修正されました。'
