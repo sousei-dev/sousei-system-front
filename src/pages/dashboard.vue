@@ -60,7 +60,7 @@ const fetchContact = async () => {
     contact.value = response.items || []
   } catch (error) {
     console.error('연락목록 조회 실패:', error)
-    errorContact.value = '연락목록の取得に失敗しました。'
+    errorContact.value = '連絡リストの取得に失敗しました。'
   } finally {
     loadingContact.value = false
   }
