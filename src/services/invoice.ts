@@ -93,6 +93,9 @@ export const invoiceService = {
   deleteMonthlyItem: async (studentId: string, year: number, itemName: string) => {
     return api.delete(`/students/${studentId}/monthly-items/${year}/${itemName}`)
   },
+  updateMonthlyItemName: async (studentId: string, year: number, itemName: string, newName: string) => {
+    return api.put(`/students/${studentId}/monthly-items/${year}/${itemName}`, { item_name: newName })
+  },
   getStudentMonthlyItems: async (studentId: string, year?: number, month?: number): Promise<GetStudentMonthlyItemsResponse> => {
     const params = new URLSearchParams()
     if (year !== undefined) params.append('year', year.toString())

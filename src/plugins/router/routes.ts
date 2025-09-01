@@ -100,6 +100,10 @@ export const routes = [
         path: 'form-layouts',
         component: () => import('@/pages/form-layouts.vue'),
       },
+      {
+        path: 'chat',
+        component: () => import('@/pages/chat.vue'),
+      },
     ],
   },
   {

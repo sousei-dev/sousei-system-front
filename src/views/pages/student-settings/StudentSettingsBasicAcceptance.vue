@@ -322,6 +322,44 @@ const removeBillingItem = async (itemId: string) => {
   }
 }
 
+// 請求書項目編集
+const editingItemId = ref<string | null>(null)
+const editingItemName = ref('')
+
+const editBillingItem = (itemId: string) => {
+  const item = billingItems.value.find(bi => bi.id === itemId)
+  if (item) {
+    editingItemId.value = itemId
+    editingItemName.value = item.name
+  }
+}
+
+const saveBillingItemName = async (itemId: string) => {
+  try {
+    const item = billingItems.value.find(bi => bi.id === itemId)
+    if (item && editingItemName.value.trim() !== '') {
+      // TODO: API 호출로 이름 업데이트
+      await invoiceService.updateMonthlyItemName(props.student.id, selectedYear.value, item.name, editingItemName.value.trim())
+      
+      // 로컬 상태 업데이트
+      item.name = editingItemName.value.trim()
+      
+      // 편집 모드 종료
+      editingItemId.value = null
+      editingItemName.value = ''
+    }
+  } catch (error: any) {
+    console.error('項目名更新中にエラー:', error)
+    showError('項目名の更新に失敗しました。')
+  }
+}
+
+const cancelBillingItemEdit = () => {
+  editingItemId.value = null
+  editingItemName.value = ''
+}
+
+
 // 月別請求書照会
 const fetchMonthlyInvoices = async () => {
   try {
@@ -689,18 +727,65 @@ onMounted(() => {
                             ri-draggable
                           </VIcon>
                         </div>
-                        <span class="font-weight-bold">{{ item.name }}</span>
+                        <!-- 편집 모드일 때 -->
+                        <div v-if="editingItemId === item.id" class="d-flex align-center gap-2">
+                          <VTextField
+                            v-model="editingItemName"
+                            density="compact"
+                            hide-details
+                            variant="outlined"
+                            size="small"
+                            style="min-width: 120px;"
+                            @keyup.esc="cancelBillingItemEdit"
+                          />
+                        </div>
+                        <!-- 일반 모드일 때 -->
+                        <span v-else class="font-weight-bold">{{ item.name }}</span>
                       </div>
-                      <VBtn
-                        icon
-                        variant="text"
-                        color="error"
-                        size="small"
-                        @click="removeBillingItem(item.id)"
-                        class="ms-2"
-                      >
-                        <VIcon>ri-delete-bin-line</VIcon>
-                      </VBtn>
+                      <div class="d-flex align-center">
+                        <!-- 편집 모드일 때 -->
+                        <div v-if="editingItemId === item.id" class="d-flex align-center gap-2">
+                          <VBtn
+                            icon
+                            variant="text"
+                            color="success"
+                            size="small"
+                            @click="saveBillingItemName(item.id)"
+                          >
+                            <VIcon>ri-check-line</VIcon>
+                          </VBtn>
+                          <VBtn
+                            icon
+                            variant="text"
+                            color="error"
+                            size="small"
+                            @click="cancelBillingItemEdit"
+                          >
+                            <VIcon>ri-close-line</VIcon>
+                          </VBtn>
+                        </div>
+                        <!-- 일반 모드일 때 -->
+                        <div v-else class="d-flex align-center gap-2">
+                          <VBtn
+                            icon
+                            variant="text"
+                            color="primary"
+                            size="small"
+                            @click="editBillingItem(item.id)"
+                          >
+                            <VIcon>ri-edit-line</VIcon>
+                          </VBtn>
+                          <VBtn
+                            icon
+                            variant="text"
+                            color="error"
+                            size="small"
+                            @click="removeBillingItem(item.id)"
+                          >
+                            <VIcon>ri-delete-bin-line</VIcon>
+                          </VBtn>
+                        </div>
+                      </div>
                     </div>
                   </td>
                   <td 

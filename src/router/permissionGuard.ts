@@ -25,7 +25,13 @@ const PERMISSION_PAGES = {
     // 모든 페이지 접근 가능
     '*',
   ],
+  manager: [
+    // 모든 페이지 접근 가능
+    '/chat',
+    '/unauthorized',
+  ],
   user: [
+    '/chat',
     '/student-list',
     '/student-detail/:id',
     '/billing',

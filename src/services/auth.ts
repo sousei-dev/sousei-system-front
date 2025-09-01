@@ -3,12 +3,7 @@ import { api } from '@/utils/api'
 interface LoginResponse {
   access_token: string
   role: string
-  user?: {
-    id: string
-    email: string
-    role: string
-    name: string
-  }
+  user_id: string
 }
 
 interface LoginInput {
@@ -29,6 +24,7 @@ export const authService = {
     // 로그인 성공 시 토큰 저장
     if (response.data.access_token) {
       localStorage.setItem('token', response.data.access_token)
+      localStorage.setItem('user_id', response.data.user_id)
 
       // 사용자 정보 저장
       if (response.data.role) {

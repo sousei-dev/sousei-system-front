@@ -856,16 +856,6 @@ const enforceStudentTypeFilter = () => {
               >
                 <VIcon>ri-edit-line</VIcon>
               </VBtn>
-              <VBtn
-                icon
-                variant="text"
-                size="small"
-                color="primary"
-                @click="handleEdit(item.id, 'bill')"
-                class="me-2"
-              >
-                <VIcon>ri-bank-card-line</VIcon>
-              </VBtn>
             </template>
           </VDataTableServer>
         </VCardText>

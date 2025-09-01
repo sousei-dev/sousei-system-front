@@ -2,9 +2,10 @@
 import VerticalNavLink from '@layouts/components/VerticalNavLink.vue';
 import VerticalNavSectionTitle from '@layouts/components/VerticalNavSectionTitle.vue';
 import VerticalNavGroup from '@layouts/components/VerticalNavGroup.vue';
-import { authService } from '@/services/auth';
-import { computed } from 'vue';
-import { getCurrentUserPermission } from '@/utils/permissions';
+import { authService } from '@/services/auth'
+import { computed } from 'vue'
+import { getCurrentUserPermission } from '@/utils/permissions'
+import { useChatNotificationStore } from '@/stores/chatNotification'
 
 // 사용자 권한 가져오기
 const currentPermission = computed(() => getCurrentUserPermission());
@@ -18,10 +19,16 @@ const isManagerSpecified = computed(() => currentPermission.value === 'manager_s
 // 技能実習 관리자 권한 확인
 const isManagerGeneral = computed(() => currentPermission.value === 'manager_general');
 
+// 技能実習 관리자 권한 확인
+const isUser = computed(() => currentPermission.value === 'user');
+
+// 채팅 알림 store
+const chatNotificationStore = useChatNotificationStore()
+
 // 스킬생 관리 권한 확인 (관리자 또는 스킬생 관리자)
 const canManageStudents = computed(() => {
-  return isAdmin.value || isManagerSpecified.value || isManagerGeneral.value;
-});
+  return isAdmin.value || isManagerSpecified.value || isManagerGeneral.value
+})
 </script>
 
 <template>
@@ -33,7 +40,20 @@ const canManageStudents = computed(() => {
       to: '/dashboard',
     }"
   />
-  <!-- <VerticalNavGroup
+  <template v-if="isAdmin || isUser">
+    <VerticalNavLink
+      :item="{
+        title: 'チャット',
+        icon: 'ri-message-2-line',
+        to: '/chat',
+        badgeContent: chatNotificationStore.totalUnreadCount > 0 ? chatNotificationStore.totalUnreadCount.toString() : undefined,
+        badgeClass: chatNotificationStore.hasNotification ? 'bg-error' : undefined,
+      }"
+    />
+  </template>
+
+  <!-- 
+  <VerticalNavGroup
     :item="{
       title: 'Dashboards',
       badgeContent: '5',
@@ -46,7 +66,7 @@ const canManageStudents = computed(() => {
         title: 'Analytics',
         to: '/dashboard',
       }"
-    /> -->
+    /> 
     <!-- <VerticalNavLink
       :item="{
         title: 'CRM',
