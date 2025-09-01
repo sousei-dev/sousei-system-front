@@ -38,7 +38,7 @@ class WebSocketService {
     this.isConnecting.value = true
 
     try {
-      const wsUrl = `ws://localhost:8000/ws/chat?token=${token}`
+      const wsUrl = `${import.meta.env.VITE_WEB_SOCKET}/ws/chat?token=${token}`
       this.ws = new WebSocket(wsUrl)
 
       this.ws.onopen = () => {
