@@ -50,7 +50,7 @@ class ChatRoomWebSocketService {
     this.isConnecting.value = true
 
     try {
-      const wsUrl = `ws://localhost:8000/ws/chat/${conversationId}?token=${token}`
+      const wsUrl = `${import.meta.env.VITE_WEB_SOCKET}/ws/chat/${conversationId}?token=${token}`
       console.log('채팅방 웹소켓 연결 시도:', wsUrl)
       
       this.ws = new WebSocket(wsUrl)
