@@ -127,7 +127,7 @@ const handleCancel = () => {
 
 // 목록으로 돌아가기
 const goToList = () => {
-  router.push('/building-list')
+  router.push('/building-list?type=student')
 }
 
 // 방 상세로 이동
@@ -294,14 +294,14 @@ onMounted(async () => {
       <VCard class="mt-6">
         <VCardTitle class="text-h6 pa-4 d-flex justify-space-between align-center">
           <span>部屋リスト</span>
-          <!-- <VBtn
+          <VBtn
             color="primary"
             size="small"
             prepend-icon="ri-add-line"
             @click="goToRoomCreate"
           >
             部屋追加
-          </VBtn> -->
+          </VBtn>
         </VCardTitle>
 
         <VCardText>

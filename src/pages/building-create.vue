@@ -34,11 +34,12 @@ const handleSubmit = async () => {
       address: form.value.address || undefined,
       building_type: form.value.building_type || undefined,
       total_rooms: form.value.total_rooms,
-      note: form.value.note || undefined
+      note: form.value.note || undefined,
+      resident_type: 'student',
     })
     
     // 성공 시 목록 페이지로 이동
-    router.push('/building-list')
+    router.push('/building-list?type=student')
   } catch (err: any) {
     error.value = err.response?.data?.message || '建物の作成に失敗しました。'
   } finally {
