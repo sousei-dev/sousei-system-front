@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { buildingService } from '@/services/building'
+import { buildingService, type Building } from '@/services/building'
 import { companyService, type Company } from '@/services/company'
 import { invoiceService, type Invoice } from '@/services/invoice'
 import { computed, onMounted, ref } from 'vue'
@@ -14,10 +14,13 @@ const route = useRoute()
 const loading = ref(false)
 const error = ref<string | null>(null)
 const companies = ref<Company[]>([])
+const buildings = ref<Building[]>([])
 const selectedYear = ref(new Date().getFullYear())
 const selectedMonth = ref(new Date().getMonth() + 1)
 const selectedCompany = ref<Company | null>(null)
+const selectedBuilding = ref<Building | null>(null)
 const companyInvoices = ref<Invoice[]>([])
+const billingType = ref<'company' | 'building'>('company') // 기본값: 회사 기준
 
 // 권한 체크
 const checkPermission = () => {
@@ -29,11 +32,12 @@ const checkPermission = () => {
       path: '/unauthorized',
       query: { 
         requiredPermission: 'manager_specified',
-        currentPermission: currentPermission,
+        currentPermission,
         from: route.path,
-        message: '特定技能管理者は/special-student-listページのみアクセス可能です。'
-      }
+        message: '特定技能管理者は/special-student-listページのみアクセス可能です。',
+      },
     })
+
     return false
   }
   
@@ -48,7 +52,13 @@ const yearOptions = computed(() => {
 })
 
 // 월 옵션
-const monthOptions = Array.from({ length: 12 }, (_, i) => i + 1)
+const monthOptions = Array.from({ length: 12 }, (_, i) => ({ title: i + 1 + '月の請求書', value: i + 1 }))
+
+// 청구 기준 옵션
+const billingTypeOptions = [
+  { title: '会社基準', value: 'company' },
+  { title: '建物基準', value: 'building', },
+]
 
 // 회사 목록 조회
 const fetchCompanies = async () => {
@@ -57,10 +67,29 @@ const fetchCompanies = async () => {
     error.value = null
 
     const response = await companyService.getCompanies()
+
     companies.value = response
   }
   catch (err: any) {
     error.value = err.response?.data?.message || '会社リストの取得に失敗しました。'
+  }
+  finally {
+    loading.value = false
+  }
+}
+
+// 건물 목록 조회
+const fetchBuildings = async () => {
+  try {
+    loading.value = true
+    error.value = null
+
+    const response = await buildingService.getBuildings({ resident_type: 'student' })
+
+    buildings.value = response.items
+  }
+  catch (err: any) {
+    error.value = err.response?.data?.message || '建物リストの取得に失敗しました。'
   }
   finally {
     loading.value = false
@@ -83,18 +112,20 @@ interface StudentBilling {
   student_name: string
   room_number: string
   building_name: string
+  company_name: string // 회사명 필드 추가
   student_type: string
   grade_name: string
   days_in_month: number
   rent_amount: number
   wifi_amount: number
+  management_fee: number // 관리비 필드 추가
   has_utilities: boolean
   utilities: Utility[]
   electricity_amount: number
   water_amount: number
   gas_amount: number
   total_utilities_amount: number
-  rent_wifi_total: number
+  rent_management_wifi_total: number
   utilities_total: number
   total_amount: number
 }
@@ -112,76 +143,110 @@ interface MonthlyInvoiceResponse {
     total_gas_amount: number
     total_rent_amount: number
     total_wifi_amount: number
+    total_management_fee: number // 관리비 합계 추가
     grand_total: number
   }
 }
 
-// 선택된 회사의 청구서 조회
+// 회사 기준 청구서 조회
 const fetchCompanyInvoices = async (companyId: string) => {
   try {
     loading.value = true
     error.value = null
 
-    const response = await buildingService.getMonthlyInvoicePreview(
+    const response = await buildingService.getMonthlyInvoicePreviewCompany(
       selectedYear.value,
       selectedMonth.value,
       companyId || '',
     ) as unknown as MonthlyInvoiceResponse
 
     // API 응답을 기존 Invoice 형식으로 변환
-    companyInvoices.value = response.students.map(student => ({
-      id: student.student_id,
-      student_id: student.student_id,
-      student_name: student.student_name,
-      room_number: student.room_number,
-      building_name: student.building_name,
-      student_type: student.student_type,
-      grade_name: student.grade_name,
-      year: response.year,
-      month: response.month,
-      items: [
-        {
-          name: '家賃',
-          unit_price: student.rent_amount,
+    companyInvoices.value = response.students.map(student => {
+      // 광열비 항목들 계산
+      const utilities = student.has_utilities && student.utilities.length > 0 
+        ? student.utilities.map((utility, index) => ({
+          name: utility.utility_type === 'electricity' 
+            ? '電気代' 
+            : utility.utility_type === 'water' 
+              ? '水道代' 
+              : utility.utility_type === 'gas' 
+                ? 'ガス代' 
+                : '光熱費',
+          unit_price: utility.utility_type === 'electricity' 
+            ? student.electricity_amount 
+            : utility.utility_type === 'water' 
+              ? student.water_amount 
+              : utility.utility_type === 'gas' 
+                ? student.gas_amount 
+                : 0,
           quantity: 1,
-          sort_order: 1,
-          amount: student.rent_amount,
+          sort_order: 3 + index,
+          amount: utility.utility_type === 'electricity' 
+            ? student.electricity_amount 
+            : utility.utility_type === 'water' 
+              ? student.water_amount 
+              : utility.utility_type === 'gas' 
+                ? student.gas_amount 
+                : 0,
           memo: `${response.month}月分`,
-          type: 'rent'
-        },
-        ...(student.has_utilities && student.utilities.length > 0 
-          ? student.utilities.map((utility, index) => ({
-            name: utility.utility_type === 'electricity' ? '電気代' : 
-                  utility.utility_type === 'water' ? '水道代' : 
-                  utility.utility_type === 'gas' ? 'ガス代' : '光熱費',
-            unit_price: utility.utility_type === 'electricity' ? student.electricity_amount :
-                        utility.utility_type === 'water' ? student.water_amount :
-                        utility.utility_type === 'gas' ? student.gas_amount : 0,
+          type: utility.utility_type,
+        }))
+        : []
+
+      // 총 금액 계산 (월세 + WiFi + 관리비 + 광열비)
+      const rentAmount = student.rent_amount || 0
+      const wifiAmount = student.wifi_amount || 0
+      const managementFee = student.management_fee || 0
+      const utilitiesAmount = utilities.reduce((sum, utility) => sum + utility.amount, 0)
+      const calculatedTotal = rentAmount + wifiAmount + managementFee + utilitiesAmount
+
+      return {
+        id: student.student_id,
+        student_id: student.student_id,
+        student_name: student.student_name,
+        room_number: student.room_number,
+        building_name: student.building_name,
+        company_name: student.company_name, // 회사명 추가
+        student_type: student.student_type,
+        grade_name: student.grade_name,
+        year: response.year,
+        month: response.month,
+        items: [
+          {
+            name: '家賃',
+            unit_price: student.rent_amount,
             quantity: 1,
-            sort_order: 2 + index,
-            amount: utility.utility_type === 'electricity' ? student.electricity_amount :
-                    utility.utility_type === 'water' ? student.water_amount :
-                    utility.utility_type === 'gas' ? student.gas_amount : 0,
+            sort_order: 1,
+            amount: student.rent_amount,
             memo: `${response.month}月分`,
-            type: utility.utility_type,
-          }))
-          : []
-        ),
-        {
-          name: 'WiFi代',
-          unit_price: student.wifi_amount,
-          quantity: 1,
-          sort_order: 2 + (student.utilities?.length || 0),
-          amount: student.wifi_amount,
-          memo: `${response.month}月分`,
-          type: 'wifi'
-        }
-      ],
-      payment_status: 'ACTIVE', // 기본값
-      is_data: true,
-      total_amount: student.total_amount,
-      days_in_month: student.days_in_month
-    }))
+            type: 'rent',
+          },
+          {
+            name: 'WiFi代',
+            unit_price: student.wifi_amount,
+            quantity: 1,
+            sort_order: 2,
+            amount: student.wifi_amount,
+            memo: `${response.month}月分`,
+            type: 'wifi',
+          },
+          {
+            name: '管理費',
+            unit_price: student.management_fee,
+            quantity: 1,
+            sort_order: 3,
+            amount: student.management_fee,
+            memo: `${response.month}月分`,
+            type: 'management_fee',
+          },
+          ...utilities,
+        ],
+        payment_status: 'ACTIVE',
+        is_data: true,
+        total_amount: calculatedTotal, // 계산된 총 금액 사용
+        days_in_month: student.days_in_month,
+      }
+    })
 
     // 요약 행 추가
     if (response.summary) {
@@ -198,48 +263,57 @@ const fetchCompanyInvoices = async (companyId: string) => {
             sort_order: 1,
             amount: response.summary.total_rent_amount,
             memo: `${response.month}月分`,
-            type: 'rent'
-          },
-          {
-            name: '電気代',
-            unit_price: response.summary.total_electricity_amount,
-            quantity: 1,
-            sort_order: 2,
-            amount: response.summary.total_electricity_amount,
-            memo: `${response.month}月分`,
-            type: 'electricity'
-          },
-          {
-            name: '水道代',
-            unit_price: response.summary.total_water_amount,
-            quantity: 1,
-            sort_order: 2,
-            amount: response.summary.total_water_amount,
-            memo: `${response.month}月分`,
-            type: 'water'
-          },
-          {
-            name: 'ガス代',
-            unit_price: response.summary.total_gas_amount,
-            quantity: 1,
-            sort_order: 2,
-            amount: response.summary.total_gas_amount,
-            memo: `${response.month}月分`,
-            type: 'gas'
+            type: 'rent',
           },
           {
             name: 'WiFi代',
             unit_price: response.summary.total_wifi_amount,
             quantity: 1,
-            sort_order: 3,
+            sort_order: 2,
             amount: response.summary.total_wifi_amount,
             memo: `${response.month}月分`,
-            type: 'wifi'
+            type: 'wifi',
+          },
+          {
+            name: '管理費',
+            unit_price: response.summary.total_management_fee,
+            quantity: 1,
+            sort_order: 3,
+            amount: response.summary.total_management_fee,
+            memo: `${response.month}月分`,
+            type: 'management_fee',
+          },
+          {
+            name: '電気代',
+            unit_price: response.summary.total_electricity_amount,
+            quantity: 1,
+            sort_order: 4,
+            amount: response.summary.total_electricity_amount,
+            memo: `${response.month}月分`,
+            type: 'electricity',
+          },
+          {
+            name: '水道代',
+            unit_price: response.summary.total_water_amount,
+            quantity: 1,
+            sort_order: 5,
+            amount: response.summary.total_water_amount,
+            memo: `${response.month}月分`,
+            type: 'water',
+          },
+          {
+            name: 'ガス代',
+            unit_price: response.summary.total_gas_amount,
+            quantity: 1,
+            sort_order: 6,
+            amount: response.summary.total_gas_amount,
+            memo: `${response.month}月分`,
+            type: 'gas',
           },
         ],
         total_amount: response.summary.grand_total,
         payment_status: 'ACTIVE',
-        is_data: true
+        is_data: true,
       } as any)
     }
   }
@@ -251,50 +325,225 @@ const fetchCompanyInvoices = async (companyId: string) => {
   }
 }
 
-// 드롭다운에서 회사 선택 처리
-const handleCompanySelectFromDropdown = async (companyId: string) => {
+// 건물 기준 청구서 조회
+const fetchBuildingInvoices = async (buildingId: string) => {
+  try {
+    loading.value = true
+    error.value = null
+
+    const response = await buildingService.getMonthlyInvoicePreviewBuilding(
+      selectedYear.value,
+      selectedMonth.value,
+      buildingId,
+    ) as unknown as MonthlyInvoiceResponse
+
+    // 동일한 변환 로직 사용
+    companyInvoices.value = response.students.map(student => {
+      // 광열비 항목들 계산
+      const utilities = student.has_utilities && student.utilities.length > 0 
+        ? student.utilities.map((utility, index) => ({
+          name: utility.utility_type === 'electricity' 
+            ? '電気代' 
+            : utility.utility_type === 'water' 
+              ? '水道代' 
+              : utility.utility_type === 'gas' 
+                ? 'ガス代' 
+                : '光熱費',
+          unit_price: utility.utility_type === 'electricity' 
+            ? student.electricity_amount 
+            : utility.utility_type === 'water' 
+              ? student.water_amount 
+              : utility.utility_type === 'gas' 
+                ? student.gas_amount 
+                : 0,
+          quantity: 1,
+          sort_order: 3 + index,
+          amount: utility.utility_type === 'electricity' 
+            ? student.electricity_amount 
+            : utility.utility_type === 'water' 
+              ? student.water_amount 
+              : utility.utility_type === 'gas' 
+                ? student.gas_amount 
+                : 0,
+          memo: `${response.month}月分`,
+          type: utility.utility_type,
+        }))
+        : []
+
+      // 총 금액 계산 (월세 + WiFi + 관리비 + 광열비)
+      const rentAmount = student.rent_amount || 0
+      const wifiAmount = student.wifi_amount || 0
+      const managementFee = student.management_fee || 0
+      const utilitiesAmount = utilities.reduce((sum, utility) => sum + utility.amount, 0)
+      const calculatedTotal = rentAmount + wifiAmount + managementFee + utilitiesAmount
+
+      return {
+        id: student.student_id,
+        student_id: student.student_id,
+        student_name: student.student_name,
+        room_number: student.room_number,
+        building_name: student.building_name,
+        company_name: student.company_name, // 회사명 추가
+        student_type: student.student_type,
+        grade_name: student.grade_name,
+        year: response.year,
+        month: response.month,
+        items: [
+          {
+            name: '家賃',
+            unit_price: student.rent_amount,
+            quantity: 1,
+            sort_order: 1,
+            amount: student.rent_amount,
+            memo: `${response.month}月分`,
+            type: 'rent',
+          },
+          {
+            name: 'WiFi代',
+            unit_price: student.wifi_amount,
+            quantity: 1,
+            sort_order: 2,
+            amount: student.wifi_amount,
+            memo: `${response.month}月分`,
+            type: 'wifi',
+          },
+          {
+            name: '管理費',
+            unit_price: student.management_fee,
+            quantity: 1,
+            sort_order: 3,
+            amount: student.management_fee,
+            memo: `${response.month}月分`,
+            type: 'management_fee',
+          },
+          ...utilities,
+        ],
+        payment_status: 'ACTIVE',
+        is_data: true,
+        total_amount: calculatedTotal, // 계산된 총 금액 사용
+        days_in_month: student.days_in_month,
+      }
+    })
+
+    // 요약 행 추가
+    if (response.summary) {
+      companyInvoices.value.push({
+        id: 'summary',
+        student_id: '',
+        year: response.year,
+        month: response.month,
+        items: [
+          {
+            name: '家賃',
+            unit_price: response.summary.total_rent_amount,
+            quantity: 1,
+            sort_order: 1,
+            amount: response.summary.total_rent_amount,
+            memo: `${response.month}月分`,
+            type: 'rent',
+          },
+          {
+            name: 'WiFi代',
+            unit_price: response.summary.total_wifi_amount,
+            quantity: 1,
+            sort_order: 2,
+            amount: response.summary.total_wifi_amount,
+            memo: `${response.month}月分`,
+            type: 'wifi',
+          },
+          {
+            name: '管理費',
+            unit_price: response.summary.total_management_fee,
+            quantity: 1,
+            sort_order: 3,
+            amount: response.summary.total_management_fee,
+            memo: `${response.month}月分`,
+            type: 'management_fee',
+          },
+          {
+            name: '電気代',
+            unit_price: response.summary.total_electricity_amount,
+            quantity: 1,
+            sort_order: 4,
+            amount: response.summary.total_electricity_amount,
+            memo: `${response.month}月分`,
+            type: 'electricity',
+          },
+          {
+            name: '水道代',
+            unit_price: response.summary.total_water_amount,
+            quantity: 1,
+            sort_order: 5,
+            amount: response.summary.total_water_amount,
+            memo: `${response.month}月分`,
+            type: 'water',
+          },
+          {
+            name: 'ガス代',
+            unit_price: response.summary.total_gas_amount,
+            quantity: 1,
+            sort_order: 6,
+            amount: response.summary.total_gas_amount,
+            memo: `${response.month}月分`,
+            type: 'gas',
+          },
+        ],
+        total_amount: response.summary.grand_total,
+        payment_status: 'ACTIVE',
+        is_data: true,
+      } as any)
+    }
+  }
+  catch (err: any) {
+    error.value = err.response?.data?.message || '請求書の取得に失敗しました。'
+  }
+  finally {
+    loading.value = false
+  }
+}
+
+// 회사 선택 처리
+const handleCompanySelect = async (companyId: string) => {
   if (!companyId) {
     selectedCompany.value = null
     companyInvoices.value = []
+
     return
   }
   
-  selectedCompany.value = companyId
-  await fetchCompanyInvoices(selectedCompany.value || '')
+  const company = companies.value.find(c => c.id === companyId)
+
+  selectedCompany.value = company || null
+  await fetchCompanyInvoices(companyId)
 }
 
-// 년도/월 변경 시 회사 초기화
-const handleYearMonthChange = () => {
+// 건물 선택 처리
+const handleBuildingSelect = async (buildingId: string) => {
+  if (!buildingId) {
+    selectedBuilding.value = null
+    companyInvoices.value = []
+
+    return
+  }
+  
+  const building = buildings.value.find(b => b.id === buildingId)
+
+  selectedBuilding.value = building || null
+  await fetchBuildingInvoices(buildingId)
+}
+
+// 청구 기준 변경 처리
+const handleBillingTypeChange = () => {
   selectedCompany.value = null
+  selectedBuilding.value = null
   companyInvoices.value = []
 }
 
-// 청구서 상태에 따른 색상 반환
-const getStatusColor = (status: string) => {
-  switch (status) {
-    case 'ACTIVE':
-      return 'warning'
-    case 'SAVED':
-      return 'success'
-    case 'OVERDUE':
-      return 'error'
-    default:
-      return 'primary'
-  }
-}
-
-// 청구서 상태에 따른 텍스트 반환
-const getStatusText = (status: string) => {
-  switch (status) {
-    case 'ACTIVE':
-      return '未保存'
-    case 'SAVED':
-      return '保存完了'
-    case 'OVERDUE':
-      return '延滞'
-    default:
-      return status
-  }
+// 년도/월 변경 시 초기화
+const handleYearMonthChange = () => {
+  selectedCompany.value = null
+  selectedBuilding.value = null
+  companyInvoices.value = []
 }
 
 // 금액 포맷팅
@@ -302,18 +551,14 @@ const formatAmount = (amount: number) => {
   return new Intl.NumberFormat('ja-JP').format(Math.floor(amount))
 }
 
-// 총 금액 계산
-const calculateTotalAmount = (invoice: Invoice) => {
-  return invoice.items.reduce((sum, item) => sum + item.amount, 0)
-}
-
 // 청구서 PDF 다운로드
-const downloadInvoicePdf = async (invoiceId: string) => {
+const _downloadInvoicePdf = async (invoiceId: string) => {
   try {
     const response = await invoiceService.getInvoicePdf(invoiceId)
     const blob = new Blob([response.data], { type: 'application/pdf' })
     const url = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
+
     link.href = url
     link.download = `invoice-${invoiceId}.pdf`
     link.click()
@@ -325,50 +570,53 @@ const downloadInvoicePdf = async (invoiceId: string) => {
 }
 
 // 청구서 작성 페이지로 이동
-const goToCreateInvoice = (buildingId: string) => {
-  // 실제 라우터 이동 로직으로 변경
-  console.log('청구서 작성 페이지로 이동:', buildingId)
+const goToCreateInvoice = (id: string) => {
+  console.log('청구서 작성 페이지로 이동:', id)
 }
 
 // EXCEL 다운로드
-const downloadExcel = async (companyId: string) => {
+const downloadExcel = async () => {
   try {
     if (!companyInvoices.value || companyInvoices.value.length === 0) {
-      error.value = '다운로드할 데이터가 없습니다.'
+      error.value = 'ダウンロードするデータがありません。'
+
       return
     }
 
     // 엑셀 데이터 준비
     const excelData = companyInvoices.value.map((invoice: any) => {
-      // 요약 행은 건너뛰기
-      if (invoice.id === 'summary') return null
+      if (invoice.id === 'summary') 
+        return null
       
       return {
-        '名前': invoice.student_name || '',
-        '部屋番号': invoice.room_number || '',
-        '在留資格': invoice.student_type === 'SPECIFIED' ? '特定技能' : 
-                   invoice.student_type === 'GENERAL' ? '技能実習' : 
-                   invoice.student_type || '',
-        '等級': invoice.grade_name || '',
-        '建物名': invoice.building_name || '',
-        '家賃': invoice.items.find((item: any) => item.type === 'rent')?.amount || 0,
-        'WiFi代': invoice.items.find((item: any) => item.type === 'wifi')?.amount || 0,
-        '家賃合計': (invoice.items.find((item: any) => item.type === 'rent')?.amount || 0) + 
-                   (invoice.items.find((item: any) => item.type === 'wifi')?.amount || 0),
-        '電気代': invoice.items.find((item: any) => item.type === 'electricity')?.amount || 0,
-        '水道代': invoice.items.find((item: any) => item.type === 'water')?.amount || 0,
-        'ガス代': invoice.items.find((item: any) => item.type === 'gas')?.amount || 0,
-        '光熱費合計': (invoice.items.find((item: any) => item.type === 'electricity')?.amount || 0) + 
-                     (invoice.items.find((item: any) => item.type === 'water')?.amount || 0) + 
-                     (invoice.items.find((item: any) => item.type === 'gas')?.amount || 0),
-        '合計金額': invoice.total_amount || 0
+        名前: invoice.student_name || '',
+        部屋番号: invoice.room_number || '',
+        在留資格: invoice.student_type === 'SPECIFIED' 
+          ? '特定技能' 
+          : invoice.student_type === 'GENERAL' 
+            ? '技能実習' 
+            : invoice.student_type || '',
+        等級: invoice.grade_name || '',
+        建物名: invoice.building_name || '',
+        会社名: invoice.company_name || '', // 회사명 컬럼 추가
+        家賃: invoice.items.find((item: any) => item.type === 'rent')?.amount || 0,
+        WiFi代: invoice.items.find((item: any) => item.type === 'wifi')?.amount || 0,
+        管理費: invoice.items.find((item: any) => item.type === 'management_fee')?.amount || 0,
+        家賃合計: (invoice.items.find((item: any) => item.type === 'rent')?.amount || 0) 
+          + (invoice.items.find((item: any) => item.type === 'wifi')?.amount || 0)
+          + (invoice.items.find((item: any) => item.type === 'management_fee')?.amount || 0),
+        電気代: invoice.items.find((item: any) => item.type === 'electricity')?.amount || 0,
+        水道代: invoice.items.find((item: any) => item.type === 'water')?.amount || 0,
+        ガス代: invoice.items.find((item: any) => item.type === 'gas')?.amount || 0,
+        光熱費合計: (invoice.items.find((item: any) => item.type === 'electricity')?.amount || 0) 
+          + (invoice.items.find((item: any) => item.type === 'water')?.amount || 0) 
+          + (invoice.items.find((item: any) => item.type === 'gas')?.amount || 0),
+        合計金額: invoice.total_amount || 0,
       }
-    }).filter(Boolean) // null 값 제거
+    }).filter(Boolean)
 
     // 워크북 생성
     const workbook = XLSX.utils.book_new()
-    
-    // 워크시트 생성
     const worksheet = XLSX.utils.json_to_sheet(excelData)
     
     // 컬럼 너비 자동 조정
@@ -378,132 +626,100 @@ const downloadExcel = async (companyId: string) => {
       { wch: 12 }, // 재류자격
       { wch: 10 }, // 등급
       { wch: 15 }, // 빌딩명
+      { wch: 15 }, // 회사명
       { wch: 12 }, // 월세
       { wch: 12 }, // WiFi료
-      { wch: 12 }, // 월세+WiFi
+      { wch: 12 }, // 관리비
+      { wch: 12 }, // 월세+WiFi+관리비
       { wch: 12 }, // 전기료
       { wch: 12 }, // 수도료
       { wch: 12 }, // 가스료
       { wch: 12 }, // 광열비 합계
-      { wch: 15 }  // 총 금액
+      { wch: 15 }, // 총 금액
     ]
+
     worksheet['!cols'] = columnWidths
-
-    // 헤더 행 추가 (광열비 병합 + 세부 분리)
-    const headerRow = [
-      '名前', '部屋番号', '在留資格', '等級', '建物名', '家賃', 'WiFi代', '家賃合計',
-      '光熱費', '光熱費', '光熱費', '光熱費合計', '合計金額'
-    ]
-    
-    const subHeaderRow = [
-      '名前', '部屋番号', '在留資格', '等級', '建物名', '家賃', 'WiFi代', '家賃合計',
-      '電気代', '水道代', 'ガス代', '', ''
-    ]
-
-    // 헤더 행들을 워크시트에 추가
-    XLSX.utils.sheet_add_aoa(worksheet, [headerRow, subHeaderRow], { origin: 'A1' })
-    
-    // 데이터를 헤더 아래로 이동 (2차원 배열로 변환)
-    const dataRows = excelData.map((row: any) => [
-      row['名前'],
-      row['部屋番号'],
-      row['在留資格'],
-      row['等級'],
-      row['建物名'],
-      row['家賃'],
-      row['WiFi代'],
-      row['家賃合計'],
-      row['電気代'],
-      row['水道代'],
-      row['ガス代'],
-      row['光熱費合計'],
-      row['合計金額']
-    ])
-    
-    // 합계 행 추가
-    const totalRow = [
-      '合計',
-      '',
-      '',
-      '',
-      '',
-      excelData.reduce((sum, row) => sum + (row?.['家賃'] || 0), 0),
-      excelData.reduce((sum, row) => sum + (row?.['WiFi代'] || 0), 0),
-      excelData.reduce((sum, row) => sum + (row?.['家賃合計'] || 0), 0),
-      excelData.reduce((sum, row) => sum + (row?.['電気代'] || 0), 0),
-      excelData.reduce((sum, row) => sum + (row?.['水道代'] || 0), 0),
-      excelData.reduce((sum, row) => sum + (row?.['ガス代'] || 0), 0),
-      excelData.reduce((sum, row) => sum + (row?.['光熱費合計'] || 0), 0),
-      excelData.reduce((sum, row) => sum + (row?.['合計金額'] || 0), 0)
-    ]
-    
-    // 데이터 행과 합계 행을 헤더 아래로 추가
-    XLSX.utils.sheet_add_aoa(worksheet, [...dataRows, totalRow], { origin: 'A3' })
-
-    // 셀 병합 설정
-    if (!worksheet['!merges']) worksheet['!merges'] = []
-    
-    // 광열비를 제외한 다른 컬럼들을 1행과 2행 병합
-    // 이름 (A1:A2)
-    worksheet['!merges'].push({ s: { r: 0, c: 0 }, e: { r: 1, c: 0 } })
-    // 방번호 (B1:B2)
-    worksheet['!merges'].push({ s: { r: 0, c: 1 }, e: { r: 1, c: 1 } })
-    // 재류자격 (C1:C2)
-    worksheet['!merges'].push({ s: { r: 0, c: 2 }, e: { r: 1, c: 2 } })
-    // 등급 (D1:D2)
-    worksheet['!merges'].push({ s: { r: 0, c: 3 }, e: { r: 1, c: 3 } })
-    // 빌딩명 (E1:E2)
-    worksheet['!merges'].push({ s: { r: 0, c: 4 }, e: { r: 1, c: 4 } })
-    // 월세 (F1:F2)
-    worksheet['!merges'].push({ s: { r: 0, c: 5 }, e: { r: 1, c: 5 } })
-    // WiFi료 (G1:G2)
-    worksheet['!merges'].push({ s: { r: 0, c: 6 }, e: { r: 1, c: 6 } })
-    // 월세+WiFi (H1:H2)
-    worksheet['!merges'].push({ s: { r: 0, c: 7 }, e: { r: 1, c: 7 } })
-    
-    // 광열비 컬럼들을 1행에서 병합 (I1:K1)
-    worksheet['!merges'].push({ s: { r: 0, c: 8 }, e: { r: 0, c: 10 } })
-    
-    // 광열비 합계 컬럼을 1행과 2행 병합 (L1:L2)
-    worksheet['!merges'].push({ s: { r: 0, c: 11 }, e: { r: 1, c: 11 } })
-    
-    // 총 금액 컬럼을 1행과 2행 병합 (M1:M2)
-    worksheet['!merges'].push({ s: { r: 0, c: 12 }, e: { r: 1, c: 12 } })
 
     // 워크시트를 워크북에 추가
     XLSX.utils.book_append_sheet(workbook, worksheet, `${selectedYear.value}年${selectedMonth.value}月請求書`)
 
     // 파일명 생성
-    const fileName = `${selectedYear.value}年${selectedMonth.value}月_${selectedCompany.value?.name || '家賃請求書'}.xlsx`
+    const targetName = billingType.value === 'company' 
+      ? selectedCompany.value?.name 
+      : selectedBuilding.value?.name
+
+    const fileName = `${selectedYear.value}年${selectedMonth.value}月_${targetName || '請求書'}.xlsx`
 
     // 엑셀 파일 다운로드
     XLSX.writeFile(workbook, fileName)
 
     console.log('엑셀 다운로드 완료:', fileName)
-  } catch (err: any) {
+  } 
+  catch (err: any) {
     console.error('엑셀 다운로드 오류:', err)
-    
-    // API 에러 메시지 처리
-    if (err.response?.data?.detail) {
-      error.value = err.response.data.detail
-    } else if (err.response?.data?.message) {
-      error.value = err.response.data.message
-    } else if (err.message) {
-      error.value = err.message
-    } else {
-      error.value = '엑셀 다운로드 중 오류가 발생했습니다.'
-    }
+    error.value = 'EXCELダウンロード中にエラーが発生しました。'
   }
 }
 
+// 선택된 대상 정보
+const selectedTarget = computed(() => {
+  if (billingType.value === 'company') 
+    return selectedCompany.value
+  else 
+    return selectedBuilding.value
+})
+
+// 월의 마지막 날 계산
+const getLastDayOfMonth = (year: number, month: number) => {
+  return new Date(year, month, 0).getDate()
+}
+
 onMounted(() => {
-  // 권한 체크
-  if (!checkPermission()) {
+  if (!checkPermission()) 
     return
-  }
   
   fetchCompanies()
+  fetchBuildings()
 })
+
+// 청구서 PDF 다운로드 (회사 기준만)
+const downloadInvoicePdf = async () => {
+  try {
+    if (!selectedCompany.value) {
+      error.value = 'PDFをダウンロードする会社を選択してください。'
+      return
+    }
+
+    loading.value = true
+    error.value = null
+
+    const response = await buildingService.downloadMonthlyInvoicePdfCompany(
+      selectedYear.value,
+      selectedMonth.value,
+      selectedCompany.value.id
+    )
+
+    // PDF 파일 다운로드
+    const blob = new Blob([response.data], { type: 'application/pdf' })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+
+    link.href = url
+    link.download = `${selectedYear.value}年${selectedMonth.value}月_${selectedCompany.value.name}_請求書.pdf`
+    link.click()
+    window.URL.revokeObjectURL(url)
+
+    console.log('PDF 다운로드 완료')
+  }
+  catch (err: any) {
+    console.error('PDF 다운로드 오류:', err)
+    error.value = err.response?.data?.message || 'PDFのダウンロードに失敗しました。'
+  }
+  finally {
+    loading.value = false
+  }
+}
+
 </script>
 
 <template>
@@ -528,7 +744,7 @@ onMounted(() => {
       <VCardText>
         <VRow>
           <!-- 년도 선택 -->
-          <VCol cols="12" md="3">
+          <VCol cols="12" md="2">
             <VSelect
               v-model="selectedYear"
               :items="yearOptions"
@@ -539,18 +755,31 @@ onMounted(() => {
           </VCol>
           
           <!-- 월 선택 -->
-          <VCol cols="12" md="3">
+          <VCol cols="12" md="2">
             <VSelect
               v-model="selectedMonth"
               :items="monthOptions"
+              item-title="title"
+              item-value="value"
               label="月"
               variant="outlined"
               @update:model-value="handleYearMonthChange"
             />
           </VCol>
+
+          <!-- 청구 기준 선택 -->
+          <VCol cols="12" md="3">
+            <VSelect
+              v-model="billingType"
+              :items="billingTypeOptions"
+              label="請求基準"
+              variant="outlined"
+              @update:model-value="handleBillingTypeChange"
+            />
+          </VCol>
           
-          <!-- 회사 선택 -->
-          <VCol cols="12" md="4">
+          <!-- 회사 선택 (회사 기준일 때만) -->
+          <VCol v-if="billingType === 'company'" cols="12" md="5">
             <VSelect
               v-model="selectedCompany"
               :items="companies"
@@ -560,41 +789,93 @@ onMounted(() => {
               placeholder="会社を選択してください"
               variant="outlined"
               clearable
-              @update:model-value="handleCompanySelectFromDropdown"
+              @update:model-value="handleCompanySelect"
+            />
+          </VCol>
+
+          <!-- 건물 선택 (건물 기준일 때만) -->
+          <VCol v-if="billingType === 'building'" cols="12" md="5">
+            <VSelect
+              v-model="selectedBuilding"
+              :items="buildings"
+              item-title="name"
+              item-value="id"
+              label="建物"
+              placeholder="建物を選択してください"
+              variant="outlined"
+              clearable
+              @update:model-value="handleBuildingSelect"
             />
           </VCol>
         </VRow>
       </VCardText>
     </VCard>
 
-
-
-    <!-- 선택된 회사의 청구서 리스트 -->
-    <VCard v-if="selectedCompany">
+    <!-- 선택된 대상의 청구서 리스트 -->
+    <VCard v-if="selectedTarget">
       <VCardTitle class="text-h6 d-flex align-center justify-space-between">
         <div class="d-flex align-center">
           <VIcon class="me-2">ri-file-text-line</VIcon>
-            {{ selectedYear }}年{{ selectedMonth }}月 請求書一覧
+          {{ selectedYear }}年{{ selectedMonth }}月 請求書一覧 
+          <VChip class="ms-2" color="primary" size="small">
+            {{ billingType === 'company' ? '会社基準' : '建物基準' }}
+          </VChip>
         </div>
         <div class="d-flex align-center">
+          <!-- PDF 다운로드 버튼 (회사 기준일 때만 표시) -->
+          <VBtn
+            v-if="billingType === 'company'"
+            color="info"
+            prepend-icon="ri-file-pdf-line"
+            class="me-2"
+            @click="downloadInvoicePdf"
+          >
+            PDFダウンロード
+          </VBtn>
           <VBtn
             color="success"
             prepend-icon="ri-file-excel-line"
             class="me-2"
-            @click="downloadExcel(selectedCompany.id || '')"
+            @click="downloadExcel"
           >
             EXCELダウンロード
           </VBtn>
           <VBtn
             color="primary"
             prepend-icon="ri-add-line"
-            @click="goToCreateInvoice(selectedCompany.id || '')"
+            @click="goToCreateInvoice(selectedTarget.id || '')"
             disabled
           >
             請求書作成
           </VBtn>
         </div>
       </VCardTitle>
+      
+      <!-- 계산 기준 정보 -->
+      <VCardText class="pb-0">
+        <VAlert
+          type="info"
+          variant="tonal"
+          class="mb-4"
+        >
+          <template #title>
+            {{ selectedYear }}年{{ selectedMonth }}月 計算基準
+          </template>
+          <div class="mt-2">
+            <div class="text-body-2 mb-1">
+              <strong>家賃（月額）・WiFi代:</strong>
+            </div>
+            <ul class="text-body-2 mb-2">
+              <li>一般: {{ selectedYear }}年{{ selectedMonth - 1 }}月1日 ～ {{ selectedYear }}年{{ selectedMonth - 1 }}月{{ getLastDayOfMonth(selectedYear, selectedMonth - 1) }}日</li>
+              <li class="text-warning font-weight-bold">技能実習2期生: {{ selectedYear }}年{{ selectedMonth + 1 }}月1日 ～ {{ selectedYear }}年{{ selectedMonth + 1 }}月{{ getLastDayOfMonth(selectedYear, selectedMonth + 1) }}日</li>
+              <li class="text-success font-weight-bold">技能実習3期生: {{ selectedYear }}年{{ selectedMonth }}月1日 ～ {{ selectedYear }}年{{ selectedMonth }}月{{ getLastDayOfMonth(selectedYear, selectedMonth) }}日</li>
+            </ul>
+            <div class="text-body-2">
+              <strong>光熱費:</strong> {{ selectedYear }}年{{ selectedMonth }}月分として登録された基準で計算
+            </div>
+          </div>
+        </VAlert>
+      </VCardText>
       
       <VCardText>
         <VDataTable
@@ -603,10 +884,14 @@ onMounted(() => {
             { title: '部屋番号', key: 'room_number' },
             { title: '在留資格', key: 'student_type' },
             { title: '等級', key: 'grade_name' },
-            { title: '建物名', key: 'building_name' },
+            {
+              title: billingType === 'company' ? '建物名' : '会社名',
+              key: billingType === 'company' ? 'building_name' : 'company_name',
+            },
             { title: '家賃', key: 'rent_amount' },
+            { title: '管理費', key: 'management_fee' },
             { title: 'WiFi代', key: 'wifi_amount' },
-            { title: '家賃合計', key: 'rent_wifi_total' },
+            { title: '家賃合計', key: 'rent_management_wifi_total' },
             { 
               title: '光熱費',
               key: 'utilities',
@@ -614,12 +899,11 @@ onMounted(() => {
               children: [
                 { title: '電気代', key: 'electricity_amount' },
                 { title: '水道代', key: 'water_amount' },
-                { title: 'ガス代', key: 'gas_amount' }
-              ]
+                { title: 'ガス代', key: 'gas_amount' },
+              ],
             },
             { title: '光熱費合計', key: 'utilities_total' },
             { title: '合計金額', key: 'total_amount' },
-            // { title: '操作', key: 'actions' }
           ]"
           :items="companyInvoices"
           :loading="loading"
@@ -639,86 +923,81 @@ onMounted(() => {
 
           <!-- 재류자격 컬럼 -->
           <template #[`item.student_type`]="{ item }">
-            {{ item.student_type === 'SPECIFIED' ? '特定技能' : item.student_type === 'GENERAL' ? '技能実習' : item.student_type }}
+            <VChip
+              v-if="item.student_type"
+              :color="item.student_type === 'SPECIFIED' ? 'primary' : 'secondary'"
+              size="small"
+              variant="tonal"
+            >
+              {{ item.student_type === 'SPECIFIED' ? '特定技能' : item.student_type === 'GENERAL' ? '技能実習' : item.student_type }}
+            </VChip>
           </template>
 
           <!-- 등급 컬럼 -->
           <template #[`item.grade_name`]="{ item }">
-            {{ item.grade_name }}
+            <div v-if="item.student_type === 'GENERAL' && item.grade_name?.includes('2期') || item.grade_name?.includes('3期')" class="d-flex align-center">
+              <VChip
+                :color="item.grade_name?.includes('2期') ? 'warning' : item.grade_name?.includes('3期') ? 'success' : 'default'"
+                size="small"
+                variant="tonal"
+                class="me-1"
+              >
+                {{ item.grade_name?.includes('2期') ? '2期生' : item.grade_name?.includes('3期') ? '3期生' : '' }}
+              </VChip>
+            </div>
+            <div v-else>
+              {{ item.grade_name }}
+            </div>
           </template>
 
-          <!-- 빌딩명 컬럼 -->
+          <!-- 건물명/회사명 컬럼 (기준에 따라 다르게 표시) -->
           <template #[`item.building_name`]="{ item }">
-            {{ item.building_name }}
+            {{ billingType === 'company' ? item.building_name : item.company_name }}
           </template>
 
           <!-- 월세 컬럼 -->
           <template #[`item.rent_amount`]="{ item }">
-            ¥{{ formatAmount(item.items.find(item => item.type === 'rent')?.amount || 0) }}
+            ¥{{ formatAmount(item.items.find(i => i.type === 'rent')?.amount || 0) }}
           </template>
 
           <!-- WiFi료 컬럼 -->
           <template #[`item.wifi_amount`]="{ item }">
-            ¥{{ formatAmount(item.items.find(item => item.type === 'wifi')?.amount || 0) }}
+            ¥{{ formatAmount(item.items.find(i => i.type === 'wifi')?.amount || 0) }}
           </template>
 
-          <!-- 월세+WiFi 컬럼 -->
-          <template #[`item.rent_wifi_total`]="{ item }">
-            ¥{{ formatAmount((item.items.find(item => item.type === 'rent')?.amount || 0) + (item.items.find(item => item.type === 'wifi')?.amount || 0)) }}
+          <!-- 관리비 컬럼 -->
+          <template #[`item.management_fee`]="{ item }">
+            ¥{{ formatAmount(item.items.find(i => i.type === 'management_fee')?.amount || 0) }}
+          </template>
+
+          <!-- 월세+WiFi+관리비 컬럼 -->
+          <template #[`item.rent_management_wifi_total`]="{ item }">
+            ¥{{ formatAmount((item.items.find(i => i.type === 'rent')?.amount || 0) + (item.items.find(i => i.type === 'wifi')?.amount || 0) + (item.items.find(i => i.type === 'management_fee')?.amount || 0)) }}
           </template>
 
           <!-- 전기료 컬럼 -->
           <template #[`item.electricity_amount`]="{ item }">
-            ¥{{ formatAmount(item.items.find(item => item.type === 'electricity')?.amount || 0) }}
+            ¥{{ formatAmount(item.items.find(i => i.type === 'electricity')?.amount || 0) }}
           </template>
 
           <!-- 수도료 컬럼 -->
           <template #[`item.water_amount`]="{ item }">
-            ¥{{ formatAmount(item.items.find(item => item.type === 'water')?.amount || 0) }}
+            ¥{{ formatAmount(item.items.find(i => i.type === 'water')?.amount || 0) }}
           </template>
 
           <!-- 가스료 컬럼 -->
           <template #[`item.gas_amount`]="{ item }">
-            ¥{{ formatAmount(item.items.find(item => item.type === 'gas')?.amount || 0) }}
+            ¥{{ formatAmount(item.items.find(i => i.type === 'gas')?.amount || 0) }}
           </template>
 
           <!-- 광열비 합계 컬럼 -->
           <template #[`item.utilities_total`]="{ item }">
-            ¥{{ formatAmount((item.items.find(item => item.type === 'electricity')?.amount || 0) + (item.items.find(item => item.type === 'water')?.amount || 0) + (item.items.find(item => item.type === 'gas')?.amount || 0)) }}
+            ¥{{ formatAmount((item.items.find(i => i.type === 'electricity')?.amount || 0) + (item.items.find(i => i.type === 'water')?.amount || 0) + (item.items.find(i => i.type === 'gas')?.amount || 0)) }}
           </template>
 
           <!-- 총 금액 컬럼 -->
           <template #[`item.total_amount`]="{ item }">
             ¥{{ formatAmount(item.total_amount) }}
-          </template>
-
-          <!-- 작업 컬럼 -->
-          <template #[`item.actions`]="{ item }">
-            <VBtn
-              icon
-              variant="text"
-              color="primary"
-              size="small"
-              @click="downloadInvoicePdf(item.id || '')"
-            >
-              <VIcon>ri-download-line</VIcon>
-            </VBtn>
-            <VBtn
-              icon
-              variant="text"
-              color="info"
-              size="small"
-            >
-              <VIcon>ri-eye-line</VIcon>
-            </VBtn>
-            <VBtn
-              icon
-              variant="text"
-              color="warning"
-              size="small"
-            >
-              <VIcon>ri-edit-line</VIcon>
-            </VBtn>
           </template>
         </VDataTable>
 
@@ -733,36 +1012,25 @@ onMounted(() => {
       </VCardText>
     </VCard>
 
-    <!-- 회사를 선택하지 않았을 때 안내 -->
+    <!-- 대상을 선택하지 않았을 때 안내 -->
     <VCard v-else class="text-center pa-8">
-      <VIcon size="64" color="medium-emphasis" class="mb-4">ri-building-line</VIcon>
-      <h3 class="text-h5 mb-2">会社を選択してください</h3>
+      <VIcon size="64" color="medium-emphasis" class="mb-4">
+        {{ billingType === 'company' ? 'ri-building-line' : 'ri-home-line' }}
+      </VIcon>
+      <h3 class="text-h5 mb-2">
+        {{ billingType === 'company' ? '会社を選択してください' : '建物を選択してください' }}
+      </h3>
       <p class="text-body-1 text-medium-emphasis">
-        上記の会社選択から請求書を確認したい会社を選択してください。
+        {{ billingType === 'company' 
+          ? '上記の会社選択から請求書を確認したい会社を選択してください。' 
+          : '上記の建物選択から請求書を確認したい建物を選択してください。' 
+        }}
       </p>
     </VCard>
   </div>
 </template>
 
 <style scoped>
-.company-card {
-  transition: all 0.2s ease;
-}
-
-.company-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-}
-
-.company-card.selected {
-  border-color: rgb(var(--v-theme-primary));
-  background-color: rgb(var(--v-theme-primary-container));
-}
-
-.cursor-pointer {
-  cursor: pointer;
-}
-
 /* 헤더 높이 조정 */
 .custom-table table__td {
   height: 25px;

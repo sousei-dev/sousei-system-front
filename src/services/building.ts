@@ -15,6 +15,7 @@ export interface BuildingCreateRequest {
   building_type?: string
   total_rooms?: number
   note?: string
+  resident_type?: 'elderly' | 'student'
 }
 
 export interface BuildingUpdateRequest {
@@ -100,24 +101,28 @@ export const buildingService = {
     resident_type?: 'elderly' | 'student'
   }): Promise<BuildingListResponse> {
     const response = await api.get('/buildings', { params })
+
     return response.data
   },
 
   // 빌딩 상세 조회
   async getBuilding(id: string): Promise<Building> {
     const response = await api.get(`/buildings/${id}`)
+
     return response.data
   },
 
   // 빌딩 생성
   async createBuilding(data: BuildingCreateRequest): Promise<Building> {
     const response = await api.post('/buildings', data)
+
     return response.data
   },
 
   // 빌딩 수정
   async updateBuilding(id: string, data: BuildingUpdateRequest): Promise<Building> {
     const response = await api.put(`/buildings/${id}`, data)
+
     return response.data
   },
 
@@ -129,27 +134,43 @@ export const buildingService = {
   // 빌딩 옵션 조회 (셀렉트용)
   async getBuildingOptions(): Promise<BuildingOptionsResponse> {
     const response = await api.get('/buildings/options')
+
     return response.data
   },
 
   // 특정 빌딩의 빈 호실 목록 조회
   async getEmptyRoomsByBuilding(buildingId: string): Promise<EmptyRoomsResponse> {
     const response = await api.get(`/buildings/${buildingId}/empty-rooms`)
+
     return response.data
   },
 
-  // 월별 청구서 미리보기 조회
-  async getMonthlyInvoicePreview(
+  // 월별 청구서 미리보기 조회 (회사 기준)
+  async getMonthlyInvoicePreviewCompany(
     year: number,
     month: number,
     companyId?: string,
   ): Promise<MonthlyInvoicePreview> {
     const params: any = {}
-    if (companyId) {
+    if (companyId)
       params.company_id = companyId
-    }
 
-    const response = await api.get(`/buildings/monthly-invoice-preview/students/${year}/${month}`, { params })
+    const response = await api.get(`/buildings/monthly-invoice-preview/students/company/${year}/${month}`, { params })
+
+    return response.data
+  },
+
+  // 월별 청구서 미리보기 조회 (건물 기준)
+  async getMonthlyInvoicePreviewBuilding(
+    year: number,
+    month: number,
+    buildingId?: string,
+  ): Promise<MonthlyInvoicePreview> {
+    const params: any = {}
+    if (buildingId)
+      params.building_id = buildingId
+
+    const response = await api.get(`/buildings/monthly-invoice-preview/students/by-building/${year}/${month}`, { params })
 
     return response.data
   },
@@ -161,6 +182,17 @@ export const buildingService = {
 
   getBuildingDownloadMonthlyInvoiceValidate: async (year: number, month: number) => {
     const response = await api.get(`/buildings/download-monthly-invoice/validate/${year}/${month}`)
+
     return response.data
-  }
+  },
+
+  // 월별 청구서 PDF 다운로드 (회사 기준)
+  downloadMonthlyInvoicePdfCompany: async (year: number, month: number, companyId: string) => {
+    const response = await api.get(`/buildings/download-monthly-invoice-pdf/students/company/${year}/${month}`, {
+      params: { company_id: companyId },
+      responseType: 'blob',
+    })
+
+    return response
+  },
 } 
