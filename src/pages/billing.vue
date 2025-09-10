@@ -840,14 +840,6 @@ const downloadInvoicePdf = async () => {
           >
             EXCELダウンロード
           </VBtn>
-          <VBtn
-            color="primary"
-            prepend-icon="ri-add-line"
-            @click="goToCreateInvoice(selectedTarget.id || '')"
-            disabled
-          >
-            請求書作成
-          </VBtn>
         </div>
       </VCardTitle>
       
