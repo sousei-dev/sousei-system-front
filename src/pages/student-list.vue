@@ -16,7 +16,7 @@ const filters = ref({
   nationality: route.query.nationality as string || '',
   name: route.query.name as string || '',
   name_katakana: route.query.name_katakana as string || '',
-  company: route.query.company as string || '',
+  department: route.query.department as string || '',
   status: route.query.status as string || '',
   building_name: route.query.building_name as string || '',
   student_type: route.query.type as string || '',
@@ -38,6 +38,7 @@ const nationalityOptions = [
   { title: '🇻🇳 ベトナム', value: 'ベトナム' },
   { title: '🇰🇷 韓国', value: '韓国' },
   { title: '🇰🇭 カンボジア', value: 'カンボジア' },
+  { title: '🇳🇵 ネパール', value: 'ネパール' }
 ]
 const statusOptions = [
   { title: '在留中', value: 'ACTIVE' },
@@ -92,7 +93,7 @@ const applyUrlParams = () => {
   filters.value.nationality = (urlParams.value.allQueries.nationality as string) || ''
   filters.value.name = (urlParams.value.allQueries.name as string) || ''
   filters.value.name_katakana = (urlParams.value.allQueries.name_katakana as string) || ''
-  filters.value.company = (urlParams.value.allQueries.company as string) || ''
+  filters.value.department = (urlParams.value.allQueries.department as string) || ''
   filters.value.status = (urlParams.value.allQueries.status as string) || ''
   filters.value.building_name = (urlParams.value.allQueries.building_name as string) || ''
   filters.value.grade = (urlParams.value.allQueries.grade as string) || ''
@@ -127,7 +128,8 @@ const applyUrlParams = () => {
 // 회사 목록 조회
 const fetchCompanies = async () => {
   try {
-    companies.value = await companyService.getCompanies()
+    const response = await companyService.getCompanies()
+    companies.value = response.items
   } catch (err: any) {
     error.value = err.response?.data?.message || '会社リストの取得に失敗しました。'
   }
@@ -209,8 +211,8 @@ const updateUrlWithFilters = (newFilters: any, resetPage: boolean = true) => {
   if (newFilters.name_katakana) query.name_katakana = newFilters.name_katakana
   else delete query.name_katakana
   
-  if (newFilters.company) query.company = newFilters.company
-  else delete query.company
+  if (newFilters.department) query.department = newFilters.department
+  else delete query.department
   
   if (newFilters.status) query.status = newFilters.status
   else delete query.status
@@ -278,7 +280,10 @@ watch(() => route.query, (newQuery) => {
 
 // 회사 옵션
 const companyOptions = computed(() => {
-  return companies.value.map(company => company.name)
+  return companies.value.map(company => ({
+    title: company.name,
+    id: company.id
+  }))
 })
 
 // 건물 옵션
@@ -306,7 +311,7 @@ const tableHeaders = [
   { title: '国籍', key: 'nationality', sortable: true, filterable: true },
   { title: '期生', key: 'grade.name', sortable: true, filterable: true },
   { title: '名前', key: 'name', sortable: false, filterable: true },
-  { title: '会社', key: 'company.name', sortable: false, filterable: true },
+  { title: '会社', key: 'department.name', sortable: false, filterable: true },
   { title: '建物', key: 'building', sortable: false, filterable: true },
   { title: '状態', key: 'status', sortable: false, filterable: false },
   { title: '操作', key: 'actions', sortable: false, filterable: false },
@@ -710,9 +715,11 @@ const enforceStudentTypeFilter = () => {
             </VCol>
             <VCol cols="12" sm="6" md="3">
               <VSelect
-                v-model="filters.company"
+                v-model="filters.department"
                 label="会社"
                 :items="companyOptions"
+                item-title="title"
+                item-value="id"
                 hide-details
                 density="compact"
                 clearable
@@ -761,7 +768,7 @@ const enforceStudentTypeFilter = () => {
                     studentType = 'GENERAL'
                   }
                   
-                  filters = { name: '', name_katakana: '', company: '', status: '', nationality: '', building_name: '', student_type: studentType, grade: '' }
+                  filters = { name: '', name_katakana: '', department: '', status: '', nationality: '', building_name: '', student_type: studentType, grade: '' }
                   sortBy = ''
                   sortDesc = false
                   updateUrlWithFilters(filters, true)

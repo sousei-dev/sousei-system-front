@@ -3,6 +3,10 @@ import { api } from '@/utils/api'
 export interface Company {
   id: string | null
   name: string
+  address: string
+  company_name: string
+  company_id: string
+  billing_scope: boolean
 }
 
 export const companyService = {

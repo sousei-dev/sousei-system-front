@@ -25,7 +25,7 @@ const form = ref({
   email: '',
   phone: '',
   facebook_name: '',
-  company: '',
+  department: '',
   assignment_date: '',
   consultant: 0,
   gender: '',
@@ -62,17 +62,27 @@ const success = ref<string | null>(null)
 const companies = ref<Company[]>([])
 const grades = ref<Grade[]>([])
 
+// 회사 옵션
+const companyOptions = computed(() => {
+  return companies.value.map(company => ({
+    title: company.name,
+    id: company.id
+  }))
+})
+
 const nationalityOptions = [
   { title: '🇲🇲 ミャンマー', value: 'ミャンマー' },
   { title: '🇻🇳 ベトナム', value: 'ベトナム' },
   { title: '🇰🇷 韓国', value: '韓国' },
   { title: '🇰🇭 カンボジア', value: 'カンボジア' },
+  { title: '🇳🇵 ネパール', value: 'ネパール' }
 ]
 
 // 회사 목록 조회
 const fetchCompanies = async () => {
   try {
-    companies.value = await companyService.getCompanies()
+    const response = await companyService.getCompanies()
+    companies.value = response.items
     companies.value.unshift({ id: null, name: '未定' })
   }
   catch (err: any) {
@@ -162,7 +172,7 @@ const createStudent = async () => {
       phone: form.value.phone,
       consultant: form.value.consultant,
       assignment_date: form.value.assignment_date,
-      company_id: form.value.company,
+      department_id: form.value.department,
       avatar: avatar1, // 기본 아바타로 생성
       gender: form.value.gender,
       birth_date: form.value.birth_date,
@@ -514,9 +524,9 @@ const createStudent = async () => {
               <!-- 회사 -->
               <VCol cols="12" md="6">
                 <VSelect
-                  v-model="form.company"
-                  :items="companies"
-                  item-title="name"
+                  v-model="form.department"
+                  :items="companyOptions"
+                  item-title="title"
                   item-value="id"
                   label="会社"
                   placeholder="会社を選択してください"

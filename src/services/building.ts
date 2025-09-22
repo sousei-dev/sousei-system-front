@@ -149,11 +149,16 @@ export const buildingService = {
   async getMonthlyInvoicePreviewCompany(
     year: number,
     month: number,
-    companyId?: string,
+    id?: string,
+    isBillingScope?: boolean,
   ): Promise<MonthlyInvoicePreview> {
     const params: any = {}
-    if (companyId)
-      params.company_id = companyId
+    params.is_billing_scope = isBillingScope
+    if (isBillingScope) {
+      params.department_id = id
+    } else {
+      params.company_id = id
+    }
 
     const response = await api.get(`/buildings/monthly-invoice-preview/students/company/${year}/${month}`, { params })
 

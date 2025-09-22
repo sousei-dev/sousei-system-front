@@ -14,7 +14,7 @@
         </VBtn>
         <div class="mobile-title">
           <span v-if="selectedChat">{{ selectedChat.title }}</span>
-          <span v-else>채팅</span>
+          <span v-else>チャット</span>
         </div>
         <div class="mobile-actions">
           <VBtn
@@ -44,7 +44,6 @@
         <div class="user-profile">
           <VAvatar size="40" class="me-3">
             <VImg src="/src/assets/images/avatars/avatar-1.png" />
-            <div class="online-indicator"></div>
           </VAvatar>
           <VTextField
             v-model="searchQuery"
@@ -91,7 +90,7 @@
             @click="selectChat(chat)"
           >
             <VAvatar size="40" class="me-3">
-              <VImg v-if="getUserAvatar(chat.title)" :src="getUserAvatar(chat.title)" />
+              <VImg v-if="chat.participants[0].avatar" :src="chat.participants[0].avatar" />
               <VAvatar v-else :color="getUserColor(chat.title)" size="40">
                 <span class="text-white text-h6">{{ getUserInitials(chat.title) }}</span>
               </VAvatar>
@@ -99,8 +98,8 @@
             </VAvatar>
             <div class="chat-info">
               <div class="chat-name">{{ chat.title }}</div>
-              <div class="chat-last-message">{{ chat.last_message?.body || '메시지가 없습니다' }}</div>
-              <div class="chat-date">{{ formatDate(chat.created_at) }}</div>
+              <div class="chat-last-message">{{ chat.last_message?.body || 'メッセージがありません' }}</div>
+              <div class="chat-date">{{ formatDate(chat.last_message?.created_at) }}</div>
             </div>
             <div class="chat-actions">
               <!-- 나가기 버튼 제거됨 -->
@@ -112,7 +111,7 @@
       <!-- ユーザー一覧 -->
       <div v-if="activeTab === 'users'" class="sidebar-section">
         <div class="user-section-header">
-          <h3 class="section-title">ユーザーリスト</h3>
+          <h3 class="section-title">ユーザーリスト ({{ totalUsers }}명)</h3>
           <VBtn
             v-if="!isGroupChatMode"
             size="small"
@@ -139,7 +138,7 @@
               color="success"
               variant="elevated"
               @click="createGroupChat"
-              :disabled="selectedUsersForGroup.length === 0"
+              :disabled="selectedUsersForGroup.length < 2"
               class="create-btn"
             >
               作成 ({{ selectedUsersForGroup.length }})
@@ -149,41 +148,81 @@
         
         <div v-if="isLoadingUsers" class="loading-users">
           <VIcon class="loading-icon">ri-loader-4-line</VIcon>
-          <span>사용자 목록을 불러오는 중...</span>
+          <span>ユーザーリストを読み込んでいます...</span>
         </div>
-        <div v-else class="user-list">
-          <div
-            v-for="user in users"
-            :key="user.id"
-            :class="['user-item', { 
-              active: selectedUser?.id === user.id,
-              'group-selected': isGroupChatMode && selectedUsersForGroup.includes(user.id)
-            }]"
-            @click="isGroupChatMode ? toggleUserSelection(user.id) : selectUser(user)"
+        <div v-else class="user-list-container">
+          <!-- 부서별 사용자 목록 -->
+          <div 
+            v-for="(deptData, department) in usersByDepartment" 
+            :key="department"
+            class="department-section"
           >
-            <!-- 그룹채팅 모드일 때 체크박스 표시 -->
-            <VCheckbox
-              v-if="isGroupChatMode"
-              v-model="selectedUsersForGroup"
-              :value="user.id"
-              class="user-checkbox"
-              @click.stop
-            />
+            <div 
+              class="department-header"
+              @click="toggleDepartment(department)"
+            >
+              <VIcon class="department-icon">ri-building-line</VIcon>
+              <span class="department-name">{{ department }}</span>
+              <span class="department-count">({{ deptData.count }}명)</span>
+              <VIcon 
+                class="dropdown-icon"
+                :class="{ 'expanded': expandedDepartments.has(department) }"
+              >
+                {{ expandedDepartments.has(department) ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line' }}
+              </VIcon>
+            </div>
             
-            <VAvatar size="40" class="me-3">
-              <VImg v-if="user.avatar" :src="user.avatar" />
-              <VAvatar v-else :color="getUserColor(user.name)" size="40">
-                <span class="text-white text-h6">{{ getUserInitials(user.name) }}</span>
-              </VAvatar>
-              <div v-if="user.online" class="online-indicator"></div>
-            </VAvatar>
-            <div class="user-info">
-              <div class="user-name">{{ user.name }}</div>
-              <div class="user-status">{{ user.status }}</div>
+            <div 
+              v-show="expandedDepartments.has(department)"
+              class="department-users"
+              :class="{ 'show': expandedDepartments.has(department) }"
+            >
+              <div
+                v-for="user in deptData.users"
+                :key="user.id"
+                :class="['user-item', { 
+                  active: selectedUser?.id === user.id,
+                  'group-selected': isGroupChatMode && selectedUsersForGroup.includes(user.id)
+                }]"
+                @click="isGroupChatMode ? toggleUserSelection(user.id) : selectUser(user)"
+              >
+                <!-- 그룹채팅 모드일 때 체크박스 표시 -->
+                <VCheckbox
+                  v-if="isGroupChatMode"
+                  v-model="selectedUsersForGroup"
+                  :value="user.id"
+                  class="user-checkbox"
+                  @click.stop
+                />
+                
+                <VAvatar size="40" class="me-3">
+                  <VImg v-if="user.avatar" :src="user.avatar" />
+                  <VAvatar v-else :color="getUserColor(user.name)" size="40">
+                    <span class="text-white text-h6">{{ getUserInitials(user.name) }}</span>
+                  </VAvatar>
+                  <div v-if="user.online" class="online-indicator"></div>
+                </VAvatar>
+                
+                <div class="user-info">
+                  <div class="user-name">{{ user.name }}</div>
+                  <div class="user-details">
+                    <span v-if="user.position" class="user-position">{{ user.position }}</span>
+                    <span v-if="user.position && user.department" class="separator">•</span>
+                    <span v-if="user.department" class="user-department">{{ user.department }}</span>
+                  </div>
+                </div>
+                
+                <div v-if="isLoading && selectedUser?.id === user.id" class="loading-indicator">
+                  <VIcon>ri-loader-4-line</VIcon>
+                </div>
+              </div>
             </div>
-            <div v-if="isLoading && selectedUser?.id === user.id" class="loading-indicator">
-              <VIcon>ri-loader-4-line</VIcon>
-            </div>
+          </div>
+          
+          <!-- 부서가 없는 경우 빈 상태 표시 -->
+          <div v-if="Object.keys(usersByDepartment).length === 0" class="empty-users">
+            <VIcon size="48" color="grey-lighten-1" class="mb-3">ri-user-line</VIcon>
+            <p class="text-grey-darken-2">ユーザーがいません</p>
           </div>
         </div>
       </div>
@@ -214,14 +253,24 @@
       </div>
 
       <!-- チャットメッセージエリア -->
-      <div class="chat-messages" ref="messagesContainer">
+      <div 
+        class="chat-messages" 
+        ref="messagesContainer"
+        @scroll="handleScroll"
+      >
+        <!-- 로딩 인디케이터 (상단) -->
+        <div v-if="isLoadingMessages" class="loading-messages">
+          <VIcon class="loading-icon">ri-loader-4-line</VIcon>
+          <span>以前のメッセージを読み込んでいます...</span>
+        </div>
+        
         <!-- 채팅이 선택되지 않았을 때 안내 메시지 -->
         <div v-if="!selectedChat" class="no-chat-selected">
           <div class="no-chat-content">
             <VIcon size="64" color="grey-lighten-1" class="mb-4">ri-message-2-line</VIcon>
-            <h3 class="text-h5 text-grey-darken-1 mb-2">채팅을 선택해주세요</h3>
+            <h3 class="text-h5 text-grey-darken-1 mb-2">チャットを選択してください</h3>
             <p class="text-body-1 text-grey-darken-2">
-              왼쪽에서 채팅방을 선택하거나 새로운 대화를 시작하세요
+              左側からチャットルームを選択するか、新しい会話を始めてください
             </p>
           </div>
         </div>
@@ -231,12 +280,7 @@
           v-for="message in selectedChat?.messages || []"
           :key="message.id"
           :class="['message', message.css_class]"
-        >
-          <!-- 디버깅용 로그 -->
-          <div v-if="message.attachments && message.attachments.length > 0" style="display: none;">
-            {{ console.log('메시지 렌더링:', message.id, '첨부파일:', message.attachments) }}
-          </div>
-          
+        >          
           <!-- 상대방 메시지: 왼쪽에 아바타와 이름 -->
           <div v-if="!message.is_own_message" class="message-left-content">
             <div class="message-avatar" v-if="message.show_avatar">
@@ -301,8 +345,8 @@
                     <VIcon class="loading-icon">ri-loader-4-line</VIcon>
                   </div>
                   <div class="file-info">
-                    <span class="file-name">업로드중...</span>
-                    <span class="file-size">파일을 업로드하고 있습니다</span>
+                    <span class="file-name">アップロード中...</span>
+                    <span class="file-size">ファイルをアップロードしています</span>
                   </div>
                 </div>
               </div>
@@ -351,18 +395,18 @@
               :class="{ 'drag-over': isDragOver }"
             >
               <VIcon>ri-attachment-2</VIcon>
-              <span>파일을 선택하거나 여기에 드래그하세요</span>
+              <span>ファイルを選択するか、ここにドラッグしてください</span>
             </div>
             <div class="file-input-info">
-              <span>최대 5개 파일, 각 파일 25MB 이하</span>
-              <span>지원 형식: 이미지, PDF, 문서, 텍스트, 압축파일</span>
+              <span>最大5個のファイル、各ファイル25MB以下</span>
+              <span>対応形式: 画像、PDF、文書、テキスト、圧縮ファイル</span>
             </div>
           </div>
           
           <!-- 선택된 파일 미리보기 -->
           <div v-if="selectedFiles.length > 0" class="selected-files-preview">
             <div class="files-header">
-              <span class="files-count">{{ selectedFiles.length }}개 파일 선택됨</span>
+              <span class="files-count">{{ selectedFiles.length }}個のファイルが選択されました</span>
               <VBtn
                 variant="text"
                 size="small"
@@ -370,7 +414,7 @@
                 @click="clearSelectedFiles"
                 class="clear-btn"
               >
-                모두 제거
+                すべて削除
               </VBtn>
             </div>
             <div class="files-grid">
@@ -420,14 +464,14 @@
             color="primary"
             @click="toggleFileUpload"
             class="attach-btn"
-            :title="showFileUpload ? '파일 첨부 닫기' : '파일 첨부'"
+            :title="showFileUpload ? 'ファイル添付を閉じる' : 'ファイル添付'"
           >
             <VIcon>{{ showFileUpload ? 'ri-close-line' : 'ri-attachment-2' }}</VIcon>
           </VBtn>
-          
+            
           <VTextField
             v-model="newMessage"
-            placeholder="메시지를 입력하세요."
+            placeholder="メッセージを入力してください"
             variant="outlined"
             density="comfortable"
             hide-details
@@ -452,7 +496,7 @@
       <div v-if="!selectedChat" class="chat-input-placeholder">
         <div class="placeholder-content">
           <VIcon size="24" color="grey-lighten-1">ri-message-2-line</VIcon>
-          <span class="text-grey-darken-2">채팅을 선택하여 메시지를 보내세요</span>
+          <span class="text-grey-darken-2">チャットを選択してメッセージを送信してください</span>
         </div>
       </div>
     </div>
@@ -519,7 +563,7 @@
   >
     <VCard>
       <VCardTitle class="d-flex align-center justify-space-between">
-        <span>그룹채팅 생성</span>
+        <span>グループチャット作成</span>
         <VBtn
           icon
           variant="text"
@@ -533,7 +577,7 @@
       <VCardText>
         <div class="mb-4">
           <p class="text-body-2 text-medium-emphasis mb-2">
-            선택된 사용자: {{ selectedUsersForGroup.length }}명
+            選択されたユーザー: {{ selectedUsersForGroup.length }}人
           </p>
           <div class="selected-users-preview">
             <VChip
@@ -544,18 +588,18 @@
               color="primary"
               variant="outlined"
             >
-              {{ users.find(u => u.id === userId)?.name || '알 수 없음' }}
+              {{ users.find(u => u.id === userId)?.name || '不明' }}
             </VChip>
           </div>
         </div>
         
         <VTextField
           v-model="groupChatName"
-          label="그룹채팅 이름"
-          placeholder="그룹채팅 이름을 입력하세요"
+          label="グループチャット名"
+          placeholder="グループチャット名を入力してください"
           variant="outlined"
           required
-          :rules="[v => !!v || '그룹채팅 이름을 입력해주세요']"
+          :rules="[v => !!v || 'グループチャット名を入力してください']"
         />
       </VCardText>
       
@@ -565,14 +609,14 @@
           variant="outlined"
           @click="cancelCreateGroupChat"
         >
-          취소
+          キャンセル
         </VBtn>
         <VBtn
           color="primary"
           @click="confirmCreateGroupChat"
           :disabled="!groupChatName.trim()"
         >
-          생성
+          作成
         </VBtn>
       </VCardActions>
     </VCard>
@@ -584,6 +628,7 @@ import { ref, onMounted, nextTick, onUnmounted, computed } from 'vue'
 import { chatService, type ConversationCreate, type Conversation, type User } from '@/services/chat'
 import { chatRoomWebSocketService, type ChatRoomMessage } from '@/services/chatRoomWebSocket'
 import { useChatNotificationStore } from '@/stores/chatNotification'
+import { type User as UserType } from '@/services/users'
 
 // 検索クエリ
 const searchQuery = ref('')
@@ -619,7 +664,9 @@ const isLoadingChats = ref(false)
 const chatNotificationStore = useChatNotificationStore()
 
 // ユーザーデータ
-const users = ref<User[]>([])
+const users = ref<UserType[]>([])
+const usersByDepartment = ref<Record<string, { count: number; users: UserType[] }>>({})
+const totalUsers = ref(0)
 
 // 사용자 목록 로딩 상태
 const isLoadingUsers = ref(false)
@@ -664,6 +711,75 @@ const acceptedFileTypes = [
   'application/zip',
   'application/x-rar-compressed',
 ].join(',')
+
+// 무한스크롤 관련 상태
+const currentPage = ref(1)
+const hasMoreMessages = ref(true)
+const isLoadingMessages = ref(false)
+const messagesPerPage = 20
+
+// 메시지 목록 가져오기 (페이지네이션 지원)
+const fetchMessages = async (conversationId: string, page: number = 1, reset: boolean = false) => {
+  try {
+    if (reset) {
+      currentPage.value = 1
+      hasMoreMessages.value = true
+    }
+    
+    isLoadingMessages.value = true
+    const messages = await chatService.getMessages(conversationId, page, messagesPerPage)
+    
+    // 메시지를 selectedChat에 추가
+    if (selectedChat.value && selectedChat.value.id === conversationId) {
+      if (reset || page === 1) {
+        // 첫 페이지이거나 리셋인 경우 교체
+        selectedChat.value.messages = messages.messages
+      } else {
+        // 추가 페이지인 경우 기존 메시지 앞에 추가
+        selectedChat.value.messages = [...messages.messages, ...selectedChat.value.messages]
+      }
+      
+      // 더 이상 메시지가 없는지 확인
+      hasMoreMessages.value = messages.messages.length === messagesPerPage
+    }
+  } catch (error) {
+    console.error('메시지 목록 가져오기 오류:', error)
+  } finally {
+    isLoadingMessages.value = false
+  }
+}
+
+const handleScroll = () => {
+  if (!messagesContainer.value || isLoadingMessages.value || !hasMoreMessages.value) return
+  
+  const { scrollTop, scrollHeight, clientHeight } = messagesContainer.value
+  
+  // 상단에서 100px 이내에 도달하면 이전 메시지 로드
+  if (scrollTop < 100) {
+    loadMoreMessages()
+  }
+}
+
+// 더 많은 메시지 로드
+const loadMoreMessages = async () => {
+  if (!selectedChat.value || isLoadingMessages.value || !hasMoreMessages.value) return
+  
+  const nextPage = currentPage.value + 1
+  const currentScrollHeight = messagesContainer.value?.scrollHeight || 0
+  
+  await fetchMessages(selectedChat.value.id, nextPage, false)
+  
+  // 스크롤 위치 유지 (새 메시지가 추가되어도 현재 위치 유지)
+  nextTick(() => {
+    if (messagesContainer.value) {
+      const newScrollHeight = messagesContainer.value.scrollHeight
+      const scrollDiff = newScrollHeight - currentScrollHeight
+      messagesContainer.value.scrollTop = scrollDiff
+    }
+  })
+  
+  currentPage.value = nextPage
+}
 
 // 메시지 전송 가능 여부
 const canSendMessage = computed(() => {
@@ -816,6 +932,7 @@ const handleImageError = (event: Event) => {
   
   // 이미지 로드 실패 시 기본 이미지로 대체
   img.src = '/src/assets/images/placeholder-image.jpg'
+  
   img.alt = '이미지를 불러올 수 없습니다'
   
   // 또는 이미지 요소를 숨기고 파일 정보만 표시
@@ -856,7 +973,6 @@ const fetchChats = async () => {
 // 채팅방 리스트 갱신 (웹소켓 메시지로 받은 경우)
 const refreshChatList = async () => {
   try {
-    console.log('채팅방 리스트 갱신 시작')
     const response = await chatService.getConversations()
     
     // 기존 채팅방과 새 채팅방을 비교하여 업데이트
@@ -873,29 +989,8 @@ const refreshChatList = async () => {
     // 전체 읽지 않은 메시지 개수 재계산
     const totalUnread = updatedChats.reduce((total, chat) => total + (chat.unread_count || 0), 0)
     chatNotificationStore.setUnreadCount(totalUnread)
-    
-    // 새 채팅방이 추가된 경우 알림
-    if (hasNewChats) {
-      console.log('새 채팅방이 추가되었습니다')
-      // 필요시 사용자에게 알림 표시
-    }
-    
-    console.log('채팅방 리스트 갱신 완료')
   } catch (error) {
     console.error('채팅방 리스트 갱신 오류:', error)
-  }
-}
-
-// 메시지 목록 가져오기
-const fetchMessages = async (conversationId: string) => {
-  try {
-    const messages = await chatService.getMessages(conversationId, 1, 50)
-    // 메시지를 selectedChat에 추가
-    if (selectedChat.value && selectedChat.value.id === conversationId) {
-      selectedChat.value.messages = messages.messages
-    }
-  } catch (error) {
-    console.error('메시지 목록 가져오기 오류:', error)
   }
 }
 
@@ -907,11 +1002,35 @@ const fetchUsers = async () => {
       page: 1,
       page_size: 100
     })
-    users.value = response.users
+    
+    // 새로운 응답 구조에 맞게 수정
+    users.value = response.users || []
+    
+    // users_by_department가 없으면 users 배열에서 부서별로 그룹화
+    if (response.users_by_department) {
+      usersByDepartment.value = response.users_by_department
+    } else {
+      // users 배열을 부서별로 그룹화
+      const groupedUsers: Record<string, { count: number; users: UserType[] }> = {}
+      users.value.forEach(user => {
+        const dept = user.department || 'その他'
+        if (!groupedUsers[dept]) {
+          groupedUsers[dept] = { count: 0, users: [] }
+        }
+        groupedUsers[dept].users.push(user)
+        groupedUsers[dept].count++
+      })
+      usersByDepartment.value = groupedUsers
+    }
+    
+    totalUsers.value = response.total || 0
+    
   } catch (error) {
     console.error('사용자 목록 가져오기 오류:', error)
     // 에러 발생 시 빈 배열로 설정
     users.value = []
+    usersByDepartment.value = {}
+    totalUsers.value = 0
   } finally {
     isLoadingUsers.value = false
   }
@@ -920,12 +1039,9 @@ const fetchUsers = async () => {
 // 既存のチャットルームを検索する関数
 const findExistingChat = async (userId: number) => {
   try {
-    console.log('사용자 ID로 채팅방 검색:', userId)
-    console.log('현재 채팅 목록:', chats.value)
     
     // 로컬 채팅 목록에서만 검색
     const localChat = chats.value.find(chat => {
-      console.log('검색 중인 채팅:', chat)
       // 그룹이 아닌 채팅방만 검색
       if (chat.is_group) {
         return false
@@ -936,8 +1052,6 @@ const findExistingChat = async (userId: number) => {
       }
       return false
     })
-    
-    console.log('로컬에서 찾은 채팅:', localChat)
     
     return localChat || null
   } catch (error) {
@@ -950,11 +1064,14 @@ const findExistingChat = async (userId: number) => {
 
 // チャット選択
 const selectChat = async (chat: any) => {
-  console.log('채팅 선택됨:', chat)
+  
+  // 파일 선택창 닫기
+  showFileUpload.value = false
+  selectedFiles.value = []
+  isDragOver.value = false
   
   // 이전 채팅방 웹소켓 연결 해제
   if (selectedChat.value && selectedChat.value.id !== chat.id) {
-    console.log(`이전 채팅방 ${selectedChat.value.id} 웹소켓 연결 해제`)
     chatRoomWebSocketService.disconnect()
   }
   
@@ -969,56 +1086,52 @@ const selectChat = async (chat: any) => {
   // 새 채팅방에 개별 웹소켓 연결
   const token = localStorage.getItem('token')
   if (token) {
-    console.log(`새 채팅방 ${chat.id} 웹소켓 연결 시도`)
     chatRoomWebSocketService.connectToChatRoom(chat.id, token, {
       onOpen: () => {
-        console.log(`채팅방 ${chat.id} 웹소켓 연결됨`)
       },
       onMessage: (message: ChatRoomMessage) => {
         handleChatRoomWebSocketMessage(message)
       },
       onClose: () => {
-        console.log(`채팅방 ${chat.id} 웹소켓 연결 종료`)
       },
       onError: (error) => {
-        console.error(`채팅방 ${chat.id} 웹소켓 오류:`, error)
       }
     })
   }
   
-  // 읽지 않은 메시지가 있는 경우 백엔드에 읽음 처리 요청
+  // 읽지 않은 메시지가 있는 경우 백엔드에 읽음 처리 요청 (백그라운드에서 처리)
   if (chat.unread_count > 0) {
-    try {
-      // 백엔드에 읽음 처리 요청
-      await chatService.markConversationAsRead(chat.id)
-      
-      // 로컬 상태 업데이트
-      chatNotificationStore.decrementUnreadCount(chat.unread_count)
-      
-      // 채팅방 목록에서도 읽지 않은 개수 업데이트
-      const chatIndex = chats.value.findIndex(c => c.id === chat.id)
-      if (chatIndex !== -1) {
-        chats.value[chatIndex].unread_count = 0
-      }
-      
-      // 선택된 채팅방의 읽지 않은 개수도 0으로 설정
-      chat.unread_count = 0
-      
-      console.log('대화방 읽음 처리 완료:', chat.id)
-    } catch (error) {
-      console.error('대화방 읽음 처리 실패:', error)
-      // 에러가 발생해도 UI는 업데이트 (사용자 경험 향상)
+    // 로컬 상태 먼저 업데이트 (즉시 UI 반영)
+    chatNotificationStore.decrementUnreadCount(chat.unread_count)
+    
+    // 채팅방 목록에서도 읽지 않은 개수 업데이트
+    const chatIndex = chats.value.findIndex(c => c.id === chat.id)
+    if (chatIndex !== -1) {
+      chats.value[chatIndex].unread_count = 0
     }
+    
+    // 선택된 채팅방의 읽지 않은 개수도 0으로 설정
+    chat.unread_count = 0
+    
+    // 백엔드에 읽음 처리 요청 (백그라운드에서 처리, await 제거)
+    chatService.markConversationAsRead(chat.id).then(() => {
+    }).catch(error => {
+      // 에러가 발생해도 UI는 이미 업데이트됨 (사용자 경험 향상)
+    })
   }
+  
+  // 새 메시지 알림 초기화 (채팅방 선택 시 알림 표시 해제)
+  chatNotificationStore.setNewMessageNotification(false)
+  
+  // 전체 읽지 않은 메시지 개수 재계산 및 업데이트
+  const totalUnread = chats.value.reduce((total, c) => total + (c.unread_count || 0), 0)
+  chatNotificationStore.setUnreadCount(totalUnread)
   
   // 웹소켓 연결 상태 로깅
   const wsStatus = getWebSocketStatus()
-  console.log(`채팅방 ${chat.id} 선택 완료. 웹소켓 상태:`, wsStatus)
   
-  // 메시지가 없으면 서버에서 가져오기
-  if (!chat.messages || chat.messages.length === 0) {
-    await fetchMessages(chat.id)
-  }
+  // 첫 페이지 메시지 로드 (리셋)
+  await fetchMessages(chat.id, 1, true)
   
   nextTick(() => {
     scrollToBottom()
@@ -1033,20 +1146,13 @@ const selectUser = async (user: any) => {
     
     // 기존 채팅방이 있는지 확인
     const existingChat = await findExistingChat(user.id)
-    console.log('기존 채팅방:', existingChat)
     
     if (existingChat) {
       // 기존 채팅방이 있으면 해당 채팅 선택
-      console.log('기존 채팅방 선택:', existingChat)
-      console.log('채팅방 메시지:', existingChat.messages)
-      selectedChat.value = existingChat
+      await selectChat(existingChat)
       activeTab.value = 'chats' // 채팅 탭으로 자동 전환
-      nextTick(() => {
-        scrollToBottom()
-      })
     } else {
       // 기존 채팅방이 없으면 백엔드에 요청해서 채팅방 생성
-      console.log('새 채팅방 생성 요청:', user)
       
       try {
         // 서버에서 채팅방 생성
@@ -1057,41 +1163,30 @@ const selectUser = async (user: any) => {
         }
         
         const newConversation = await chatService.createConversation(conversationData)
-        console.log('서버에서 채팅방 생성 완료:', newConversation)
         
-        // 새로 생성된 채팅방을 채팅 목록에 추가
-        const newChat = {
-          id: newConversation.id,
-          title: user.name,
-          is_group: false,
-          created_by: localStorage.getItem('user_id') || '',
-          created_at: newConversation.created_at || new Date().toISOString(),
-          member_count: 2,
-          unread_count: 0,
-          messages: [],
+        // 채팅방 목록 새로고침
+        await fetchChats()
+
+        // 생성된 채팅방으로 이동
+        const newChat = chats.value.find(chat => chat.id === newConversation.id)
+        if (newChat) {
+          selectChat(newChat)
+          activeTab.value = 'chats'
         }
-        
-        // 새 채팅방을 채팅 목록 맨 앞에 추가
-        chats.value.unshift(newChat)
-        selectedChat.value = newChat
-        activeTab.value = 'chats' // 채팅 탭으로 자동 전환
         
         // 모바일에서 새 채팅방 생성 시 사이드바 닫기
         if (isMobile.value) {
           showSidebar.value = false
         }
         
-        console.log('새 채팅방 생성 및 선택 완료:', newChat)
         nextTick(() => {
           scrollToBottom()
         })
       } catch (error) {
-        console.error('채팅방 생성 실패:', error)
         alert('채팅방을 생성할 수 없습니다. 다시 시도해주세요.')
       }
     }
   } catch (error) {
-    console.error('사용자 선택 오류:', error)
     alert('사용자를 선택할 수 없습니다. 다시 시도해주세요.')
   } finally {
     isLoading.value = false
@@ -1158,8 +1253,8 @@ const sendMessage = async () => {
       
       // 로딩 메시지를 실제 응답으로 교체
       const messageIndex = selectedChat.value.messages.findIndex((m: any) => m.id === tempMessageId)
+      const message = selectedChat.value.messages[messageIndex]
       if (messageIndex !== -1) {
-        const message = selectedChat.value.messages[messageIndex]
         
         // 기존 임시 blob URL들을 정리
         if (message.attachments && message.attachments.length > 0) {
@@ -1182,7 +1277,37 @@ const sendMessage = async () => {
         message.reactions = response.reactions || []
         message.is_loading = false // 로딩 상태 해제
         
-        console.log('파일 메시지 교체 완료:', message)
+      }
+      
+      // 채팅방 목록의 마지막 메시지 정보도 업데이트
+      const chatIndex = chats.value.findIndex(c => c.id === selectedChat.value.id)
+      if (chatIndex !== -1) {
+        chats.value[chatIndex].last_message = {
+          id: message.id,
+          conversation_id: selectedChat.value.id,
+          sender_id: message.sender_id,
+          body: message.body,
+          created_at: message.created_at,
+          edited_at: message.edited_at,
+          deleted_at: message.deleted_at,
+          is_own_message: true,
+          message_type: 'text',
+          alignment: 'right',
+          sender_info: message.sender_info,
+          sender_name: message.sender_name,
+          sender_avatar: message.sender_avatar,
+          sender_role: message.sender_role,
+          attachments: message.attachments,
+          reactions: message.reactions,
+          is_read: true,
+          show_avatar: false,
+          show_name: false,
+          css_class: 'message-right',
+        }
+        
+        // 채팅방을 목록 맨 위로 이동 (최신 메시지가 있는 채팅방이 위로)
+        const updatedChat = chats.value.splice(chatIndex, 1)[0]
+        chats.value.unshift(updatedChat)
       }
       
     } else {
@@ -1238,6 +1363,37 @@ const sendMessage = async () => {
           selectedChat.value.messages[messageIndex].sender_role = response.sender_role || 'user'
           selectedChat.value.messages[messageIndex].reactions = response.reactions || []
         }
+        
+        // 채팅방 목록의 마지막 메시지 정보도 업데이트
+        const chatIndex = chats.value.findIndex(c => c.id === selectedChat.value.id)
+        if (chatIndex !== -1) {
+          chats.value[chatIndex].last_message = {
+            id: response.id || response.message_id,
+            conversation_id: selectedChat.value.id,
+            sender_id: newMessageData.sender_id,
+            body: newMessageData.body,
+            created_at: response.created_at || newMessageData.created_at,
+            edited_at: response.edited_at || undefined,
+            deleted_at: response.deleted_at || undefined,
+            is_own_message: true,
+            message_type: 'text',
+            alignment: 'right',
+            sender_info: response.sender_info || undefined,
+            sender_name: newMessageData.sender_name,
+            sender_avatar: response.sender_avatar || '',
+            sender_role: response.sender_role || 'user',
+            attachments: [],
+            reactions: response.reactions || [],
+            is_read: true,
+            show_avatar: false,
+            show_name: false,
+            css_class: 'message-right',
+          }
+          
+          // 채팅방을 목록 맨 위로 이동 (최신 메시지가 있는 채팅방이 위로)
+          const updatedChat = chats.value.splice(chatIndex, 1)[0]
+          chats.value.unshift(updatedChat)
+        }
       } catch (error) {
         console.error('텍스트 메시지 백엔드 저장 실패:', error)
         // 백엔드 저장 실패해도 UI는 유지 (사용자 경험 향상)
@@ -1252,7 +1408,7 @@ const sendMessage = async () => {
     selectedFiles.value = filesToSend
     showFileUpload.value = filesToSend.length > 0
     
-    alert('메시지를 전송할 수 없습니다. 다시 시도해주세요.')
+
   }
 }
 
@@ -1296,8 +1452,8 @@ const showNewMessageNotification = () => {
   notification.className = 'new-message-notification'
   notification.innerHTML = `
     <div class="notification-content">
-      <span>새 메시지가 있습니다</span>
-      <button onclick="this.parentElement.parentElement.remove()">닫기</button>
+      <span>新しいメッセージがあります</span>
+      <button onclick="this.parentElement.parentElement.remove()">閉じる</button>
     </div>
   `
   
@@ -1316,52 +1472,99 @@ const showNewMessageNotification = () => {
 
 // 채팅방 개별 웹소켓 메시지 처리
 const handleChatRoomWebSocketMessage = (message: ChatRoomMessage) => {
-  console.log(message.type + ' ??????????????')
+  
   switch (message.type) {
     case 'new_message':
       // 새 메시지 수신 시 처리
+      
       if (selectedChat.value && message.conversation_id === selectedChat.value.id) {
         // 현재 선택된 채팅방의 메시지인 경우
+        
         // 현재 스크롤 위치 확인
         const wasNearBottom = isNearBottom()
         
-        // 메시지 목록 갱신
-        fetchMessages(selectedChat.value.id).then(() => {
-          // 메시지 갱신 후 스크롤 처리
-          nextTick(() => {
-            if (wasNearBottom) {
-              // 사용자가 하단 근처에 있었으면 자동 스크롤
-              smoothScrollToBottom()
-            } else {
-              // 사용자가 중간/상단을 보고 있으면 알림만 표시
-              showNewMessageNotification()
-            }
-          })
+        // 웹소켓 메시지 구조 확인 (message.message에 직접 있음)
+        
+        // 메시지 데이터가 있는지 확인
+        if (message.message) {
+          const newMessage = message.message
+          
+          // 메시지 목록에 직접 추가 (API 호출 없이)
+          if (!selectedChat.value.messages) {
+            selectedChat.value.messages = []
+          }
+          
+          // 메시지 포맷팅 (웹소켓에서 받은 메시지를 그대로 사용)
+          const formattedMessage = {
+            id: newMessage.id,
+            conversation_id: newMessage.conversation_id,
+            sender_id: newMessage.sender_id,
+            body: newMessage.body,
+            parent_id: newMessage.parent_id || undefined,
+            created_at: newMessage.created_at,
+            edited_at: newMessage.edited_at || undefined,
+            deleted_at: newMessage.deleted_at || undefined,
+            is_own_message: newMessage.is_own_message,
+            message_type: newMessage.message_type || 'text',
+            alignment: newMessage.alignment || 'left',
+            sender_info: newMessage.sender_info || undefined,
+            sender_name: newMessage.sender_name || '',
+            sender_avatar: newMessage.sender_avatar || '',
+            sender_role: newMessage.sender_role || 'user',
+            attachments: newMessage.attachments || [],
+            reactions: newMessage.reactions || [],
+            is_read: newMessage.is_read || true,
+            show_avatar: newMessage.show_avatar || true,
+            show_name: newMessage.show_name || true,
+            css_class: newMessage.css_class || 'message-left',
+          }
+          
+          
+          // 메시지 목록에 추가
+          selectedChat.value.messages.push(formattedMessage)
+          
+        }
+        
+        // 스크롤 처리
+        nextTick(() => {
+          if (wasNearBottom) {
+            // 사용자가 하단 근처에 있었으면 자동 스크롤
+            smoothScrollToBottom()
+          } else {
+            // 사용자가 중간/상단을 보고 있으면 알림만 표시
+            showNewMessageNotification()
+          }
         })
+        
+        // 현재 선택된 채팅방이어도 채팅 리스트의 마지막 메시지 업데이트
+        updateCurrentChatInfoFromMessage(message)
       } else {
-        // 다른 채팅방의 메시지인 경우
-        console.log('다른 채팅방에서 새 메시지 수신:', message.conversation_id)
         
         // 해당 채팅방 정보 업데이트
-        updateChatInfoFromMessage(message)
+        updateChatInfoFromGlobalMessage(message)
         
         // 알림 증가
         chatNotificationStore.incrementUnreadCount()
         chatNotificationStore.setNewMessageNotification(true)
         
         // 사용자에게 알림 표시 (선택사항)
-        showChatNotification(message)
+        showGlobalChatNotification(message)
       }
       
       break
 
     case 'chat_list_update':
-      // 다른 채팅방에서 새 메시지가 온 경우
-      console.log('chat_list_update 메시지 수신:', message)
+      // conversation_read_all 타입은 나중에 개발할 예정이므로 처리하지 않음
+      if (message.update_data && message.update_type === 'conversation_read_all') {
+        return;
+      }
       
-      // 현재 선택된 채팅방이 아닌 경우에만 처리
-      if (selectedChat.value && selectedChat.value.id !== message.conversation_id) {
-        console.log('다른 채팅방에서 새 메시지 수신:', message.conversation_id)
+      // 채팅방 리스트 업데이트 메시지 수신
+      
+      if (selectedChat.value && selectedChat.value.id === message.conversation_id) {
+        // 현재 선택된 채팅방의 메시지인 경우 - 읽음 처리
+        updateCurrentChatInfoFromMessage(message)
+      } else {
         
         // 해당 채팅방 정보 업데이트
         updateChatInfoFromGlobalMessage(message)
@@ -1375,44 +1578,7 @@ const handleChatRoomWebSocketMessage = (message: ChatRoomMessage) => {
       }
       break
 
-    case 'message_read':
-      // 메시지 읽음 처리
-      if (selectedChat.value && message.conversation_id === selectedChat.value.id) {
-        // 메시지 읽음 상태 업데이트
-        updateMessageReadStatus(message.data.message_id)
-      }
-      break
-      
-    case 'conversation_deleted':
-      // 채팅방 삭제 처리
-      console.log('채팅방 삭제:', message.data.conversation_id)
-      const deletedChatId = message.data.conversation_id
-      
-      // 채팅방 목록에서 제거
-      chats.value = chats.value.filter(chat => chat.id !== deletedChatId)
-      
-      // 현재 선택된 채팅방이 삭제된 경우 선택 해제
-      if (selectedChat.value && selectedChat.value.id === deletedChatId) {
-        selectedChat.value = null
-        // 웹소켓 연결 해제
-        chatRoomWebSocketService.disconnect()
-      }
-      
-      // 읽지 않은 메시지 개수 재계산
-      const totalUnread = chats.value.reduce((total, chat) => total + (chat.unread_count || 0), 0)
-      chatNotificationStore.setUnreadCount(totalUnread)
-      break
-      
-    case 'user_online':
-      // 사용자 온라인 상태 업데이트
-      updateUserOnlineStatus(message.data.user_id, true)
-      break
-    case 'user_offline':
-      // 사용자 오프라인 상태 업데이트
-      updateUserOnlineStatus(message.data.user_id, false)
-      break
-    default:
-      console.log('알 수 없는 메시지 타입:', message.type)
+    // ... existing code ...
   }
 }
 
@@ -1426,35 +1592,23 @@ const updateMessageReadStatus = (messageId: string) => {
   }
 }
 
-// 사용자 온라인 상태 업데이트
-const updateUserOnlineStatus = (userId: string, isOnline: boolean) => {
-  const user = users.value.find(u => u.id.toString() === userId)
-  if (user) {
-    user.online = isOnline
-    user.status = isOnline ? '온라인' : '오프라인'
-  }
-}
-
 // 웹소켓 연결 상태 확인
 const getWebSocketStatus = () => {
   const status = chatRoomWebSocketService.getConnectionStatus()
-  console.log('현재 웹소켓 연결 상태:', status)
   return status
 }
 
 // 전역 웹소켓에서 오는 chat_list_update 이벤트 리스너 등록
 const handleGlobalChatListUpdate = (event: CustomEvent) => {
   const message = event.detail
-  console.log('전역 웹소켓에서 받은 chat_list_update:', message)
   
   // chat_list_update 메시지 처리
   if (message.type === 'chat_list_update') {
     // 다른 채팅방에서 새 메시지가 온 경우
-  if (message.conversation_id && message.update_data) {
-      console.log('다른 채팅방에서 새 메시지 수신:', message.conversation_id)
+    if (message.conversation_id && message.update_data) {
       
       // 현재 선택된 채팅방이 아닌 경우에만 처리
-      if (selectedChat.value && selectedChat.value.id !== message.conversation_id) {
+      if (!selectedChat.value || selectedChat.value.id !== message.conversation_id) {
         // 해당 채팅방 정보 업데이트
         updateChatInfoFromGlobalMessage(message)
         
@@ -1465,20 +1619,15 @@ const handleGlobalChatListUpdate = (event: CustomEvent) => {
         // 사용자에게 알림 표시
         showGlobalChatNotification(message)
       }
-  } else {
-    // 전체 채팅방 리스트 갱신
-    refreshChatList()
+    } else {
+      // 전체 채팅방 리스트 갱신
+      refreshChatList()
     }
   }
 }
 
 // 웹소켓 연결 해제
 const disconnectWebSocket = () => {
-  // 채팅방 개별 웹소켓 연결 해제
-  const status = getWebSocketStatus()
-  if (status.isConnected) {
-    console.log(`웹소켓 연결 해제: ${status.currentConversationId}`)
-  }
   chatRoomWebSocketService.disconnect()
 }
 
@@ -1514,7 +1663,7 @@ const handleFileInputChange = (event: Event) => {
 const addFilesToSelection = (files: File[]) => {
   // 파일 개수 제한 (최대 5개)
   if (selectedFiles.value.length + files.length > 5) {
-    alert('최대 5개까지만 선택할 수 있습니다.')
+    alert('ファイルは5つまでしかアップロードできません。')
     return
   }
   
@@ -1523,7 +1672,7 @@ const addFilesToSelection = (files: File[]) => {
   const oversizedFiles = files.filter(file => file.size > maxSize)
   
   if (oversizedFiles.length > 0) {
-    alert(`다음 파일들이 25MB를 초과합니다: ${oversizedFiles.map(f => f.name).join(', ')}`)
+    alert(`以下のファイルは25MBを超えています: ${oversizedFiles.map(f => f.name).join(', ')}`)
     return
   }
   selectedFiles.value.push(...files)
@@ -1537,14 +1686,12 @@ const addFilesToSelection = (files: File[]) => {
     })
     
     if (!isValidType) {
-      console.warn(`지원하지 않는 파일 타입: ${file.name} (${file.type})`)
+      console.warn(`サポートされていないファイルタイプ: ${file.name} (${file.type})`)
     }
     
     return isValidType
   })
   
-  console.log('파일 선택됨:', validFiles)
-  console.log('총 선택된 파일들:', selectedFiles.value)
 }
 
 // 드래그 오버 처리
@@ -1571,10 +1718,17 @@ const handleDrop = (event: DragEvent) => {
 }
 
 const handleEnterKey = (event: KeyboardEvent) => {
+  // IME 변환 중인지 확인 (isComposing 속성으로 판단)
+  if (event.isComposing || event.keyCode === 229) {
+    // IME 변환 중이면 메시지 전송하지 않음
+    return
+  }
+  
   if (event.shiftKey) {
     // Shift + Enter: 줄바꿈
     return
   }
+  
   // Enter: 메시지 전송
   event.preventDefault()
   sendMessage()
@@ -1604,29 +1758,14 @@ onMounted(async () => {
   // 사용자 목록과 채팅방 목록 가져오기
   await Promise.all([fetchUsers(), fetchChats()])
   
-  // 첫 번째 채팅이 있으면 선택
-  if (chats.value.length > 0) {
-    selectChat(chats.value[0])
-  }
+  // 모든 부서를 열어둠
+  Object.keys(usersByDepartment.value).forEach(dept => {
+    expandedDepartments.value.add(dept)
+  })
   
   // 전역 웹소켓 이벤트 리스너 등록
-  window.addEventListener('chat_list_update', handleGlobalChatListUpdate)
+  window.addEventListener('chat_list_update', handleGlobalChatListUpdate as EventListener)
   
-  // 전역 이벤트 리스너 등록 확인
-  console.log('전역 웹소켓 이벤트 리스너 등록 완료')
-  
-  // 테스트용 이벤트 발생 (디버깅용)
-  setTimeout(() => {
-    console.log('전역 이벤트 리스너 테스트...')
-    window.dispatchEvent(new CustomEvent('chat_list_update', {
-      detail: {
-        type: 'chat_list_update',
-        conversation_id: 'test',
-        update_type: 'test',
-        update_data: { test: true }
-      }
-    }))
-  }, 2000)
 })
 
 // 컴포넌트 언마운트 시 웹소켓 연결 해제
@@ -1676,7 +1815,7 @@ const downloadModalImage = async () => {
       // 파일을 blob으로 가져오기
       const response = await fetch(modalImageUrl.value)
       if (!response.ok) {
-        throw new Error('파일을 가져올 수 없습니다')
+        throw new Error('ファイルを取得できませんでした')
       }
       
       const blob = await response.blob()
@@ -1698,8 +1837,8 @@ const downloadModalImage = async () => {
       document.body.removeChild(a)
       URL.revokeObjectURL(blobUrl)
     } catch (error) {
-      console.error('모달 이미지 다운로드 실패:', error)
-      alert('이미지 다운로드에 실패했습니다.')
+      console.error('モーダル画像のダウンロードに失敗しました:', error)
+      alert('画像のダウンロードに失敗しました。')
     }
   }
 }
@@ -1707,7 +1846,6 @@ const downloadModalImage = async () => {
 // 메시지로부터 채팅방 정보 업데이트
 const updateChatInfoFromMessage = (message: ChatRoomMessage) => {
   try {
-    console.log('메시지로부터 채팅방 정보 업데이트:', message)
     
     // 채팅방 목록에서 해당 채팅방 찾기
     const chatIndex = chats.value.findIndex(chat => chat.id === message.conversation_id)
@@ -1729,7 +1867,7 @@ const updateChatInfoFromMessage = (message: ChatRoomMessage) => {
           message_type: 'text',
           alignment: 'left',
           sender_info: message.data.message.sender_info || undefined,
-          sender_name: message.data.message.sender_name || '알 수 없음',
+          sender_name: message.data.message.sender_name || '',
           sender_avatar: message.data.message.sender_avatar || '',
           sender_role: message.data.message.sender_role || 'user',
           attachments: message.data.message.attachments || [],
@@ -1748,11 +1886,8 @@ const updateChatInfoFromMessage = (message: ChatRoomMessage) => {
       const updatedChat = chats.value.splice(chatIndex, 1)[0]
       chats.value.unshift(updatedChat)
       
-      console.log('채팅방 정보 업데이트 완료:', message.conversation_id)
     } else {
-      console.log('업데이트할 채팅방을 찾을 수 없음:', message.conversation_id)
       // 채팅방이 목록에 없으면 새로 추가 (필요시)
-      // refreshChatList() 호출하여 전체 목록 갱신
     }
   } catch (error) {
     console.error('메시지로부터 채팅방 정보 업데이트 오류:', error)
@@ -1764,7 +1899,6 @@ const showChatNotification = (message: ChatRoomMessage) => {
   try {
     // 브라우저 알림 권한 확인
     if (!('Notification' in window)) {
-      console.log('이 브라우저는 알림을 지원하지 않습니다')
       return
     }
     
@@ -1788,13 +1922,13 @@ const showBrowserNotification = (message: ChatRoomMessage) => {
   try {
     // 채팅방 제목 찾기
     const chat = chats.value.find(c => c.id === message.conversation_id)
-    const chatTitle = chat?.title || '알 수 없는 채팅방'
+    const chatTitle = chat?.title || '未知のチャットボックス'
     
     // 메시지 내용
-    const messageBody = message.data?.message?.body || '새 메시지가 도착했습니다'
+    const messageBody = message.data?.message?.body || '新しいメッセージが届きました'
     
     // 발신자 이름
-    const senderName = message.data?.message?.sender_name || '알 수 없음'
+    const senderName = message.data?.message?.sender_name || '未知の送信者'
     
     // 알림 생성
     const notification = new Notification(`${chatTitle} - ${senderName}`, {
@@ -1836,7 +1970,6 @@ const showBrowserNotification = (message: ChatRoomMessage) => {
 // 전역 웹소켓 메시지로부터 채팅방 정보 업데이트
 const updateChatInfoFromGlobalMessage = (message: any) => {
   try {
-    console.log('전역 웹소켓 메시지로부터 채팅방 정보 업데이트:', message)
     
     // 채팅방 목록에서 해당 채팅방 찾기
     const chatIndex = chats.value.findIndex(chat => chat.id === message.conversation_id)
@@ -1845,25 +1978,40 @@ const updateChatInfoFromGlobalMessage = (message: any) => {
       const chat = chats.value[chatIndex]
       
       // 마지막 메시지 정보 업데이트
-      if (message.update_data && message.update_data.last_message) {
+      let lastMessageData = null
+      
+      // new_message 타입인 경우
+      if (message.data && message.data.message) {
+        lastMessageData = message.data.message
+      }
+      // chat_list_update 타입인 경우
+      else if (message.update_data && message.update_data.last_message) {
+        lastMessageData = message.update_data.last_message
+      }
+      // 직접 message 객체가 있는 경우
+      else if (message.message) {
+        lastMessageData = message.message
+      }
+      
+      if (lastMessageData) {
         chat.last_message = {
-          id: message.update_data.last_message.id,
-          conversation_id: message.conversation_id,
-          sender_id: message.update_data.last_message.sender_id,
-          body: message.update_data.last_message.body,
-          created_at: message.update_data.last_message.created_at,
-          edited_at: message.update_data.last_message.edited_at || undefined,
-          deleted_at: message.update_data.last_message.deleted_at || undefined,
+          id: lastMessageData.id,
+          conversation_id: message.conversation_id || '',
+          sender_id: lastMessageData.sender_id,
+          body: lastMessageData.body,
+          created_at: lastMessageData.created_at,
+          edited_at: lastMessageData.edited_at || undefined,
+          deleted_at: lastMessageData.deleted_at || undefined,
           is_own_message: false,
           message_type: 'text',
           alignment: 'left',
-          sender_info: message.update_data.last_message.sender_info || undefined,
-          sender_name: message.update_data.last_message.sender_name || '알 수 없음',
-          sender_avatar: message.update_data.last_message.sender_avatar || '',
-          sender_role: message.update_data.last_message.sender_role || 'user',
-          attachments: message.update_data.last_message.attachments || [],
-          reactions: message.update_data.last_message.reactions || [],
-          is_read: false,
+          sender_info: lastMessageData.sender_info || undefined,
+          sender_name: lastMessageData.sender_name || '',
+          sender_avatar: lastMessageData.sender_avatar || '',
+          sender_role: lastMessageData.sender_role || 'user',
+          attachments: lastMessageData.attachments || [],
+          reactions: lastMessageData.reactions || [],
+          is_read: false, // 현재 보고 있는 채팅방이므로 읽음으로 처리
           show_avatar: true,
           show_name: true,
           css_class: 'message-left',
@@ -1882,9 +2030,7 @@ const updateChatInfoFromGlobalMessage = (message: any) => {
       const updatedChat = chats.value.splice(chatIndex, 1)[0]
       chats.value.unshift(updatedChat)
       
-      console.log('전역 웹소켓으로 채팅방 정보 업데이트 완료:', message.conversation_id)
     } else {
-      console.log('업데이트할 채팅방을 찾을 수 없음:', message.conversation_id)
       // 채팅방이 목록에 없으면 전체 목록 갱신
       refreshChatList()
     }
@@ -1922,13 +2068,13 @@ const showGlobalBrowserNotification = (message: any) => {
   try {
     // 채팅방 제목 찾기
     const chat = chats.value.find(c => c.id === message.conversation_id)
-    const chatTitle = chat?.title || '알 수 없는 채팅방'
+    const chatTitle = chat?.title || '未知のチャットボックス'
     
     // 메시지 내용
-    const messageBody = message.update_data?.last_message?.body || '새 메시지가 도착했습니다'
+    const messageBody = message.update_data?.last_message?.body || '新しいメッセージが届きました'
     
     // 발신자 이름
-    const senderName = message.update_data?.last_message?.sender_name || '알 수 없음'
+    const senderName = message.update_data?.last_message?.sender_name || '未知の送信者'
     
     // 알림 생성
     const notification = new Notification(`${chatTitle} - ${senderName}`, {
@@ -1992,7 +2138,7 @@ const toggleUserSelection = (userId: number) => {
 
 const createGroupChat = async () => {
   if (selectedUsersForGroup.value.length === 0) {
-    alert('그룹채팅에 참여할 사용자를 선택해주세요.')
+    alert('グループチャットに参加するユーザーを選択してください。')
     return
   }
 
@@ -2001,30 +2147,23 @@ const createGroupChat = async () => {
     showGroupChatDialog.value = true
   } catch (error) {
     console.error('그룹채팅 생성 오류:', error)
-    alert('그룹채팅 생성에 실패했습니다.')
+    alert('グループチャットの作成に失敗しました。')
   }
 }
 
 const confirmCreateGroupChat = async () => {
   if (!groupChatName.value.trim()) {
-    alert('그룹채팅 이름을 입력해주세요.')
+    alert('グループチャットの名前を入力してください。')
     return
   }
 
   try {
-    console.log('그룹채팅 생성 시작:', {
-      name: groupChatName.value,
-      participants: selectedUsersForGroup.value
-    })
-
     // 그룹채팅 생성 API 호출
     const response = await chatService.createConversation({
       title: groupChatName.value,
       is_group: true,
       member_ids: selectedUsersForGroup.value
     })
-
-    console.log('그룹채팅 생성 성공:', response)
 
     // 성공 후 상태 초기화
     showGroupChatDialog.value = false
@@ -2047,16 +2186,96 @@ const confirmCreateGroupChat = async () => {
       }
     }
 
-    alert('그룹채팅이 성공적으로 생성되었습니다!')
+    alert('グループチャットが正常に作成されました！')
   } catch (error) {
-    console.error('그룹채팅 생성 실패:', error)
-    alert('그룹채팅 생성에 실패했습니다.')
+    console.error('グループチャットの作成に失敗しました:', error)
+    alert('グループチャットの作成に失敗しました。')
   }
 }
 
 const cancelCreateGroupChat = () => {
   showGroupChatDialog.value = false
   groupChatName.value = ''
+}
+
+// 현재 선택된 채팅방의 채팅 리스트 정보 업데이트 (읽지 않은 개수 증가 없음)
+const updateCurrentChatInfoFromMessage = (message: ChatRoomMessage) => {
+  try {
+    
+    // 채팅방 목록에서 해당 채팅방 찾기
+    const chatIndex = chats.value.findIndex(chat => chat.id === message.conversation_id)
+    
+    if (chatIndex !== -1) {
+      const chat = chats.value[chatIndex]
+      
+      // 마지막 메시지 정보 업데이트
+      let lastMessageData = null
+      
+      // new_message 타입인 경우
+      if (message.data && message.data.message) {
+        lastMessageData = message.data.message
+      }
+      // chat_list_update 타입인 경우
+      else if (message.update_data && message.update_data.last_message) {
+        lastMessageData = message.update_data.last_message
+      }
+      // 직접 message 객체가 있는 경우
+      else if (message.message) {
+        lastMessageData = message.message
+      }
+      
+      if (lastMessageData) {
+        chat.last_message = {
+          id: lastMessageData.id,
+          conversation_id: message.conversation_id || '',
+          sender_id: lastMessageData.sender_id,
+          body: lastMessageData.body,
+          created_at: lastMessageData.created_at,
+          edited_at: lastMessageData.edited_at || undefined,
+          deleted_at: lastMessageData.deleted_at || undefined,
+          is_own_message: false,
+          message_type: 'text',
+          alignment: 'left',
+          sender_info: lastMessageData.sender_info || undefined,
+          sender_name: lastMessageData.sender_name || '',
+          sender_avatar: lastMessageData.sender_avatar || '',
+          sender_role: lastMessageData.sender_role || 'user',
+          attachments: lastMessageData.attachments || [],
+          reactions: lastMessageData.reactions || [],
+          is_read: true, // 현재 보고 있는 채팅방이므로 읽음으로 처리
+          show_avatar: true,
+          show_name: true,
+          css_class: 'message-left',
+        }
+      }
+      
+      // 현재 보고 있는 채팅방이므로 읽지 않은 개수를 0으로 설정
+      chat.unread_count = 0
+      // 채팅방을 목록 맨 위로 이동 (최신 메시지가 있는 채팅방이 위로)
+      const updatedChat = chats.value.splice(chatIndex, 1)[0]
+      chats.value.unshift(updatedChat)
+
+      // 백엔드에 읽음 처리 요청 (B 사용자가 같은 채팅방에 있을 때)
+      chatService.markConversationAsRead(message.conversation_id).catch(error => {
+        console.error('現在のチャットボックスの読み取り処理に失敗しました:', error)
+      })
+      
+    }
+  } catch (error) {
+    console.error('現在のチャットボックスの情報更新に失敗しました:', error)
+  }
+}
+
+// 부서별 드롭다운 상태 관리
+const expandedDepartments = ref<Set<string>>(new Set())
+
+// 부서 드롭다운 토글 함수
+const toggleDepartment = (department: string) => {
+  if (expandedDepartments.value.has(department)) {
+    expandedDepartments.value.delete(department)
+  } else {
+    expandedDepartments.value.add(department)
+  }
 }
 </script>
 
@@ -3423,5 +3642,229 @@ const cancelCreateGroupChat = () => {
   background-color: rgba(255, 255, 255, 0.2);
   border-color: rgba(255, 255, 255, 0.4);
   color: rgba(255, 255, 255, 0.95);
+}
+
+/* 로딩 인디케이터 (상단) */
+.loading-messages {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+  color: #666;
+  font-size: 14px;
+}
+
+.loading-messages .loading-icon {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.user-list-container {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.department-section {
+  margin-bottom: 20px;
+}
+
+.department-section:last-child {
+  margin-bottom: 0;
+}
+
+.department-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background-color: #f8f9fa;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: #495057;
+  font-size: 13px;
+}
+
+.department-icon {
+  font-size: 14px;
+  color: #7c3aed;
+}
+
+.department-name {
+  flex: 1;
+}
+
+.department-count {
+  color: #6c757d;
+  font-weight: 500;
+}
+
+.department-users {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.user-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+}
+
+.user-item:hover {
+  background-color: #f5f5f5;
+}
+
+.user-item.active {
+  background-color: #f3e8ff;
+  border-left: 3px solid #7c3aed;
+}
+
+.user-item.group-selected {
+  background-color: #e3f2fd;
+  border-left: 3px solid #2196f3;
+}
+
+.user-checkbox {
+  margin-right: 8px;
+}
+
+.user-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.user-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: #333;
+  margin-bottom: 2px;
+}
+
+.user-details {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 2px;
+}
+
+.user-position {
+  font-weight: 500;
+  color: #495057;
+}
+
+.user-department {
+  color: #6c757d;
+}
+
+.separator {
+  color: #adb5bd;
+}
+
+.user-status {
+  display: flex;
+  align-items: center;
+  font-size: 11px;
+  color: #6c757d;
+}
+
+.empty-users {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  text-align: center;
+}
+
+/* 스크롤바 스타일링 */
+.user-list-container::-webkit-scrollbar {
+  width: 4px;
+}
+
+.user-list-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 2px;
+}
+
+.user-list-container::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 2px;
+}
+
+.user-list-container::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* 부서 헤더 드롭다운 스타일 */
+.department-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background-color: #f8f9fa;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: #495057;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.department-header:hover {
+  background-color: #e9ecef;
+  color: #7c3aed;
+}
+
+.dropdown-icon {
+  margin-left: auto;
+  font-size: 16px;
+  transition: transform 0.2s ease;
+  color: #6c757d;
+}
+
+.dropdown-icon.expanded {
+  transform: rotate(180deg);
+  color: #7c3aed;
+}
+
+.department-users {
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+/* 드롭다운 애니메이션 */
+.department-users {
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+.department-users.show {
+  max-height: 1000px;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* 부서 섹션 간격 조정 */
+.department-section {
+  margin-bottom: 16px;
+}
+
+.department-section:last-child {
+  margin-bottom: 0;
 }
 </style> 

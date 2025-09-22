@@ -1,11 +1,12 @@
 import type { Permission } from '@/types/permissions'
 import { PERMISSION_CONFIG } from '@/types/permissions'
+import { authService } from '@/services/auth'
 
 // 현재 사용자의 권한을 가져오는 함수 (실제로는 API나 store에서 가져와야 함)
 export const getCurrentUserPermission = (): Permission => {
   // TODO: 실제 사용자 권한을 가져오는 로직 구현
   // 예: localStorage, Vuex store, API 등에서 가져오기
-  const storedPermission = localStorage.getItem('userRole')
+  const storedPermission = authService.getUserRole()
   
   if (storedPermission && isValidPermission(storedPermission)) {
     return storedPermission as Permission

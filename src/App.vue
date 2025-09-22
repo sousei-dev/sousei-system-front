@@ -18,6 +18,11 @@ const handleGlobalWebSocketMessage = (message: WebSocketMessage) => {
       chatNotificationStore.setNewMessageNotification(true)
       break
     case 'chat_list_update':
+    
+    if (message.update_data && message.update_type === 'conversation_read_all') {
+      console.log('conversation_read_all 타입은 나중에 개발할 예정이므로 처리하지 않음:', message)
+      return;
+    }
       // 채팅방 리스트 업데이트 (전역으로 처리)
       console.log('전역 웹소켓: 채팅방 리스트 업데이트:', message)
 
@@ -47,6 +52,23 @@ const handleGlobalWebSocketMessage = (message: WebSocketMessage) => {
         console.log('채팅 페이지가 활성화되지 않음, 이벤트 전달 생략')
       }
 
+      break
+    case 'conversation_created':
+      // 새 채팅방 생성 처리
+      console.log('전역 웹소켓: 새 채팅방 생성:', message)
+      
+      // 채팅 페이지가 활성화되어 있으면 해당 페이지에 이벤트 전달
+      if (window.location.pathname === '/chat') {
+        console.log('채팅 페이지에 conversation_created 이벤트 전달')
+        
+        // 커스텀 이벤트를 통해 채팅 페이지에 알림
+        window.dispatchEvent(new CustomEvent('conversation_created', {
+          detail: message,
+        }))
+      } else {
+        console.log('채팅 페이지가 활성화되지 않음, 이벤트 전달 생략')
+      }
+      
       break
     case 'message_read':
       // 메시지 읽음 처리 (필요시)

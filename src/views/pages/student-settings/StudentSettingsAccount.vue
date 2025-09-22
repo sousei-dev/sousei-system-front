@@ -17,7 +17,8 @@ const form = ref({
   name_katakana: props.student.name_katakana,
   phone: props.student.phone,
   facebook_name: props.student.facebook_name,
-  company: props.student.company_id,
+  grade: props.student.grade_id,
+  department: props.student.department_id,
   assignment_date: props.student.assignment_date,
   consultant: props.student.consultant,
   gender: props.student.gender,
@@ -48,7 +49,6 @@ const form = ref({
   certification_application_date: props.student.certification_application_date,
   interview_date: props.student.interview_date,
   student_type: props.student.student_type,
-  grade: props.student.grade_id,
   note: props.student.note || '',
 })
 
@@ -57,7 +57,9 @@ const error = ref<string | null>(null)
 const success = ref<string | null>(null)
 const refInputEl = ref<HTMLElement>()
 const companies = ref<Company[]>([])
+
 const grades = ref<Grade[]>([])
+
 const buildingOptions = ref<BuildingOption[]>([])
 const emptyRoomOptions = ref<EmptyRoomOption[]>([])
 const residenceCardHistory = ref<ResidenceCardHistory[]>([])
@@ -90,12 +92,14 @@ const nationalityOptions = [
   { title: '🇻🇳 ベトナム', value: 'ベトナム' },
   { title: '🇰🇷 韓国', value: '韓国' },
   { title: '🇰🇭 カンボジア', value: 'カンボジア' },
+  { title: '🇳🇵 ネパール', value: 'ネパール' },
 ]
 
 // 회사 목록 조회
 const fetchCompanies = async () => {
   try {
-    companies.value = await companyService.getCompanies()
+    const response = await companyService.getCompanies()
+    companies.value = response.items
   }
   catch (err: any) {
     error.value = err.response?.data?.message || '会社リストの取得に失敗しました。'
@@ -277,7 +281,7 @@ const setBuildingAndRoomFromRoomId = async (roomId: string) => {
         emptyRoomOptions.value = response.options
 
         // 주소 설정
-        form.value.address = `${building.address} ${room.room_number}号室`
+        // form.value.address = `${building.address} ${room.room_number}号室`
         break
       }
     }
@@ -310,7 +314,7 @@ const setBuildingAndRoomFromCurrentRoom = async () => {
 
       if (room) {
         form.value.room = room.value
-        form.value.address = `${building.address} ${room.room_number}号室`
+        // form.value.address = `${building.address} ${room.room_number}号室`
       }
     }
   } catch (err: any) {
@@ -339,8 +343,8 @@ const onRoomChange = (roomId: string) => {
 }
 
 onMounted(async () => {
-  await fetchCompanies()
   await fetchGrades()
+  await fetchCompanies()
   await fetchBuildingOptions()
   await fetchResidenceCardHistory()
 
@@ -360,7 +364,7 @@ watch(() => props.student, async newStudent => {
     name_katakana: newStudent.name_katakana,
     phone: newStudent.phone,
     facebook_name: newStudent.facebook_name,
-    company: newStudent.company_id,
+    department: newStudent.department_id,
     assignment_date: newStudent.assignment_date,
     consultant: newStudent.consultant,
     gender: newStudent.gender,
@@ -466,7 +470,7 @@ const updateStudent = async () => {
       name_katakana: form.value.name_katakana,
       phone: form.value.phone,
       facebook_name: form.value.facebook_name,
-      company_id: form.value.company,
+      department_id: form.value.department,
       assignment_date: form.value.assignment_date || undefined,
       consultant: form.value.consultant,
       avatar: form.value.avatarImg,
@@ -877,13 +881,14 @@ const updateStudent = async () => {
               <!-- 회사 -->
               <VCol cols="12" md="6">
                 <VSelect
-                  v-model="form.company"
+                  v-model="form.department"
                   :items="companies"
                   item-title="name"
                   item-value="id"
                   label="会社"
                   placeholder="会社を選択してください"
                   :disabled="loading"
+                  clearable
                 />
               </VCol>
 

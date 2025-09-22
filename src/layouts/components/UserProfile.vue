@@ -1,21 +1,32 @@
 <script setup lang="ts">
-import { authService } from '@/services/auth';
-import avatar1 from '@images/avatars/avatar-1.png';
-import { useRouter } from 'vue-router';
+import { authService } from '@/services/auth'
+import avatar1 from '@images/avatars/avatar-1.png'
+import { computed } from 'vue'
+import { useRouter } from 'vue-router'
 
-const router = useRouter();
+const router = useRouter()
+
+// 사용자 정보 가져오기
+const userInfo = computed(() => authService.getUserInfo())
 
 const handleLogout = async () => {
   try {
-    await authService.logout();
+    await authService.logout()
+
     // 로그아웃 후 로그인 페이지로 리다이렉트
-    router.push('/login');
-  } catch (error) {
-    console.error('Logout failed:', error);
-    // 에러가 발생하더라도 로그인 페이지로 리다이렉트
-    router.push('/login');
+    router.push('/login')
   }
-};
+  catch (error) {
+    console.error('Logout failed:', error)
+
+    // 에러가 발생하더라도 로그인 페이지로 리다이렉트
+    router.push('/login')
+  }
+}
+
+const handleSettings = () => {
+  router.push('/profile-settings')
+}
 </script>
 
 <template>
@@ -32,7 +43,7 @@ const handleLogout = async () => {
       color="primary"
       variant="tonal"
     >
-      <VImg :src="avatar1" />
+      <VImg :src="userInfo.avatar || avatar1" />
 
       <!-- SECTION Menu -->
       <VMenu
@@ -57,21 +68,22 @@ const handleLogout = async () => {
                     color="primary"
                     variant="tonal"
                   >
-                    <VImg :src="avatar1" />
+                    <VImg :src="userInfo.avatar || avatar1" />
                   </VAvatar>
                 </VBadge>
               </VListItemAction>
             </template>
 
             <VListItemTitle class="font-weight-semibold">
-              テスト
+              {{ userInfo.name || 'テスト' }}
             </VListItemTitle>
-            <VListItemSubtitle>Admin</VListItemSubtitle>
+            <VListItemSubtitle>{{ userInfo.position || 'Admin' }}</VListItemSubtitle>
           </VListItem>
           <VDivider class="my-2" />
 
           <!-- 👉 Profile -->
-          <!-- <VListItem link>
+          <!--
+          <VListItem link>
             <template #prepend>
               <VIcon
                 class="me-2"
@@ -81,10 +93,11 @@ const handleLogout = async () => {
             </template>
 
             <VListItemTitle>Profile</VListItemTitle>
-          </VListItem> -->
+          </VListItem>
+          -->
 
           <!-- 👉 Settings -->
-          <!-- <VListItem link>
+          <VListItem @click="handleSettings">
             <template #prepend>
               <VIcon
                 class="me-2"
@@ -94,10 +107,11 @@ const handleLogout = async () => {
             </template>
 
             <VListItemTitle>Settings</VListItemTitle>
-          </VListItem> -->
+          </VListItem>
 
           <!-- 👉 Pricing -->
-          <!-- <VListItem link>
+          <!--
+          <VListItem link>
             <template #prepend>
               <VIcon
                 class="me-2"
@@ -107,10 +121,12 @@ const handleLogout = async () => {
             </template>
 
             <VListItemTitle>Pricing</VListItemTitle>
-          </VListItem> -->
+          </VListItem>
+          -->
 
           <!-- 👉 FAQ -->
-          <!-- <VListItem link>
+          <!--
+          <VListItem link>
             <template #prepend>
               <VIcon
                 class="me-2"
@@ -120,7 +136,8 @@ const handleLogout = async () => {
             </template>
 
             <VListItemTitle>FAQ</VListItemTitle>
-          </VListItem> -->
+          </VListItem>
+          -->
 
           <!-- Divider -->
           <VDivider class="my-2" />

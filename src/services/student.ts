@@ -19,8 +19,8 @@ export interface Student {
   id: string
   name: string
   name_katakana: string
-  company_id: string
-  company: Company
+  department_id: string
+  department: Company
   consultant: number
   phone: string
   facebook_name: string
@@ -99,7 +99,7 @@ export interface VisaRenewalStudent {
 export interface StudentInput {
   name: string
   name_katakana: string
-  company_id: string
+  department_id: string
   consultant: number
   phone: string
   email: string

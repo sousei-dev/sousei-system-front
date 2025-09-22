@@ -17,7 +17,7 @@ const companies = ref<Company[]>([])
 const buildings = ref<Building[]>([])
 const selectedYear = ref(new Date().getFullYear())
 const selectedMonth = ref(new Date().getMonth() + 1)
-const selectedCompany = ref<Company | null>(null)
+const selectedCompany = ref<string | null>(null) // ID만 저장
 const selectedBuilding = ref<Building | null>(null)
 const companyInvoices = ref<Invoice[]>([])
 const billingType = ref<'company' | 'building'>('company') // 기본값: 회사 기준
@@ -60,15 +60,36 @@ const billingTypeOptions = [
   { title: '建物基準', value: 'building', },
 ]
 
+// Company 타입 확장
+interface CompanyData {
+  company_id: string
+  company_name: string
+  billing_scope: boolean
+  address?: string
+}
+
 // 회사 목록 조회
 const fetchCompanies = async () => {
   try {
     loading.value = true
     error.value = null
 
-    const response = await companyService.getCompanies()
-
-    companies.value = response
+    const response = await companyService.getCompanies() as CompanyData[]
+    
+    // 데이터를 하나씩 확인하여 중복 제거 및 필터링
+    const uniqueCompanies: Company[] = []
+    const seenCompanyIds = new Set<string>()
+    
+    for (const company of response.items) {      
+      if (company.billing_scope === true) {
+        uniqueCompanies.push(company)
+      } else if (!seenCompanyIds.has(company.company_id) && company.billing_scope === false) {
+        uniqueCompanies.push(company)
+        seenCompanyIds.add(company.company_id)
+      }
+    }
+    
+    companies.value = uniqueCompanies
   }
   catch (err: any) {
     error.value = err.response?.data?.message || '会社リストの取得に失敗しました。'
@@ -149,7 +170,9 @@ interface MonthlyInvoiceResponse {
 }
 
 // 회사 기준 청구서 조회
-const fetchCompanyInvoices = async (companyId: string) => {
+const fetchCompanyInvoices = async (id: string | null, isBillingScope: boolean = false) => {
+  if (!id) return
+  
   try {
     loading.value = true
     error.value = null
@@ -157,7 +180,8 @@ const fetchCompanyInvoices = async (companyId: string) => {
     const response = await buildingService.getMonthlyInvoicePreviewCompany(
       selectedYear.value,
       selectedMonth.value,
-      companyId || '',
+      id,
+      isBillingScope,
     ) as unknown as MonthlyInvoiceResponse
 
     // API 응답을 기존 Invoice 형식으로 변환
@@ -503,18 +527,15 @@ const fetchBuildingInvoices = async (buildingId: string) => {
 }
 
 // 회사 선택 처리
-const handleCompanySelect = async (companyId: string) => {
-  if (!companyId) {
+const handleCompanySelect = async (company: Company) => {
+  if (!company) {
     selectedCompany.value = null
     companyInvoices.value = []
-
     return
   }
   
-  const company = companies.value.find(c => c.id === companyId)
-
-  selectedCompany.value = company || null
-  await fetchCompanyInvoices(companyId)
+  // 선택된 회사 정보 찾기
+  await fetchCompanyInvoices(company.billing_scope ? company.id : company.company_id, company.billing_scope)
 }
 
 // 건물 선택 처리
@@ -645,7 +666,7 @@ const downloadExcel = async () => {
 
     // 파일명 생성
     const targetName = billingType.value === 'company' 
-      ? selectedCompany.value?.name 
+      ? companies.value.find(c => c.id === selectedCompany.value)?.name
       : selectedBuilding.value?.name
 
     const fileName = `${selectedYear.value}年${selectedMonth.value}月_${targetName || '請求書'}.xlsx`
@@ -690,13 +711,20 @@ const downloadInvoicePdf = async () => {
       return
     }
 
+    // 선택된 회사 정보 찾기
+    const company = companies.value.find(c => c.id === selectedCompany.value)
+    if (!company) {
+      error.value = '選択された会社が見つかりません。'
+      return
+    }
+
     loading.value = true
     error.value = null
 
     const response = await buildingService.downloadMonthlyInvoicePdfCompany(
       selectedYear.value,
       selectedMonth.value,
-      selectedCompany.value.id
+      selectedCompany.value
     )
 
     // PDF 파일 다운로드
@@ -705,7 +733,7 @@ const downloadInvoicePdf = async () => {
     const link = document.createElement('a')
 
     link.href = url
-    link.download = `${selectedYear.value}年${selectedMonth.value}月_${selectedCompany.value.name}_請求書.pdf`
+    link.download = `${selectedYear.value}年${selectedMonth.value}月_${company.name}_請求書.pdf`
     link.click()
     window.URL.revokeObjectURL(url)
 
@@ -783,9 +811,9 @@ const downloadInvoicePdf = async () => {
             <VSelect
               v-model="selectedCompany"
               :items="companies"
-              item-title="name"
-              item-value="id"
+              :item-title="item => item.billing_scope ? item.name : item.company_name"
               label="会社"
+              :return-object="true" 
               placeholder="会社を選択してください"
               variant="outlined"
               clearable

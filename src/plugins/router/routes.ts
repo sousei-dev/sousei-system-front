@@ -33,6 +33,10 @@ export const routes = [
         component: () => import('@/pages/account-settings.vue'),
       },
       {
+        path: 'profile-settings',
+        component: () => import('@/pages/profile-settings.vue'),
+      },
+      {
         path: 'calendar',
         component: () => import('@/pages/calendar.vue'),
       },

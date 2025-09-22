@@ -2,14 +2,30 @@ import { api } from '@/utils/api'
 
 interface LoginResponse {
   access_token: string
+  refresh_token: string
   role: string
   user_id: string
+  name: string
+  email: string
+  department: string
+  position: string
+  avatar?: string
 }
 
 interface LoginInput {
   email: string
   password: string
   remember: boolean
+}
+
+// 사용자 정보 인터페이스
+interface UserInfo {
+  role: string | null
+  name: string | null
+  email: string | null
+  department: string | null
+  position: string | null
+  avatar: string | null
 }
 
 export const authService = {
@@ -24,12 +40,20 @@ export const authService = {
     // 로그인 성공 시 토큰 저장
     if (response.data.access_token) {
       localStorage.setItem('token', response.data.access_token)
+      localStorage.setItem('refreshToken', response.data.refresh_token)
       localStorage.setItem('user_id', response.data.user_id)
 
-      // 사용자 정보 저장
-      if (response.data.role) {
-        localStorage.setItem('userRole', response.data.role)
+      // 사용자 정보를 하나의 객체로 저장
+      const userInfo: UserInfo = {
+        role: response.data.role || null,
+        name: response.data.name || null,
+        email: response.data.email || null,
+        department: response.data.department || null,
+        position: response.data.position || null,
+        avatar: response.data.avatar || null,
       }
+      
+      localStorage.setItem('userInfo', JSON.stringify(userInfo))
       
       // remember me가 체크되어 있다면 토큰을 더 오래 저장
       if (data.remember) {
@@ -51,6 +75,9 @@ export const authService = {
     // 로컬 스토리지의 모든 인증 관련 데이터 제거
     localStorage.removeItem('token')
     localStorage.removeItem('rememberToken')
+    localStorage.removeItem('userInfo')
+    localStorage.removeItem('rememberId')
+    localStorage.removeItem('isRemember')
   },
 
   // 토큰 가져오기
@@ -74,15 +101,52 @@ export const authService = {
 
   // 사용자 역할 가져오기
   getUserRole: (): string | null => {
-    return localStorage.getItem('userRole')
+    const userInfo = authService.getUserInfo()
+    return userInfo.role
   },
 
   // 사용자 정보 가져오기
-  getUserInfo: () => {
-    return {
-      role: localStorage.getItem('userRole'),
-      name: localStorage.getItem('userName'),
-      email: localStorage.getItem('userEmail'),
+  getUserInfo: (): UserInfo => {
+    const userInfoStr = localStorage.getItem('userInfo')
+    if (userInfoStr) {
+      try {
+        return JSON.parse(userInfoStr)
+      } catch (error) {
+        console.error('Failed to parse user info from localStorage:', error)
+        return {
+          role: null,
+          name: null,
+          email: null,
+          department: null,
+          position: null,
+          avatar: null,
+        }
+      }
     }
+    
+    return {
+      role: null,
+      name: null,
+      email: null,
+      department: null,
+      position: null,
+      avatar: null,
+    }
+  },
+
+  // 사용자 정보 업데이트
+  updateUserInfo: (updates: Partial<UserInfo>): void => {
+    const currentUserInfo = authService.getUserInfo()
+    const updatedUserInfo = { ...currentUserInfo, ...updates }
+    localStorage.setItem('userInfo', JSON.stringify(updatedUserInfo))
+  },
+
+  // 특정 사용자 정보 업데이트
+  updateUserName: (name: string): void => {
+    authService.updateUserInfo({ name })
+  },
+
+  updateUserAvatar: (avatar: string): void => {
+    authService.updateUserInfo({ avatar })
   }
 } 

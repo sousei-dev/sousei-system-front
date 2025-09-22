@@ -6,6 +6,8 @@ export interface WebSocketMessage {
   conversation_id?: string
   sender_id?: string
   message?: any
+  update_data?: any
+  update_type?: string
 }
 
 export interface WebSocketCallbacks {
