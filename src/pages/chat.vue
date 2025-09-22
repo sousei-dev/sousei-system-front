@@ -111,7 +111,7 @@
       <!-- ユーザー一覧 -->
       <div v-if="activeTab === 'users'" class="sidebar-section">
         <div class="user-section-header">
-          <h3 class="section-title">ユーザーリスト ({{ totalUsers }}명)</h3>
+          <h3 class="section-title">ユーザーリスト ({{ totalUsers }}人)</h3>
           <VBtn
             v-if="!isGroupChatMode"
             size="small"
@@ -163,12 +163,12 @@
             >
               <VIcon class="department-icon">ri-building-line</VIcon>
               <span class="department-name">{{ department }}</span>
-              <span class="department-count">({{ deptData.count }}명)</span>
+              <span class="department-count">({{ deptData.count }}人)</span>
               <VIcon 
                 class="dropdown-icon"
                 :class="{ 'expanded': expandedDepartments.has(department) }"
               >
-                {{ expandedDepartments.has(department) ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line' }}
+                {{ expandedDepartments.has(department) ? 'ri-arrow-up-s-line' : 'ri-arrow-right-s-line' }}
               </VIcon>
             </div>
             
