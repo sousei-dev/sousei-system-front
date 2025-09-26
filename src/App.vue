@@ -281,7 +281,7 @@ const subscribeUser = async () => {
     const registration = await navigator.serviceWorker.ready
 
     // VAPID 공개 키 (실제 프로덕션에서는 환경변수로 관리)
-    const vapidPublicKey = 'YOUR_PUBLIC_VAPID_KEY'
+    const vapidPublicKey = `${import.meta.env.VAPID_PUBLIC_KEY}`
     const convertedVapidKey = urlBase64ToUint8Array(vapidPublicKey)
 
     const subscription = await registration.pushManager.subscribe({
