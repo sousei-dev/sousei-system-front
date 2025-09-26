@@ -2795,8 +2795,7 @@ const toggleDepartment = (department: string) => {
     position: absolute;
     top: 48px; /* 헤더 아래 */
     left: 0;
-    width: 85vw;
-    max-width: 360px;
+    width: 100%;
     height: calc(100% - 48px);
     transform: translateX(-120%);
     transition: transform 0.3s ease;
