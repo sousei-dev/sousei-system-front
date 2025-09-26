@@ -14,6 +14,11 @@ const notificationPermission = ref<NotificationPermission>('default')
 // PWA 푸시 알림 관련 상태
 const pushSubscription = ref<PushSubscription | null>(null)
 
+// Safari 감지
+const isSafari = ref(false)
+const isIOS = ref(false)
+const isStandalone = ref(false)
+
 // 브라우저 탭 제목 업데이트
 const updateTabTitle = (unreadCount: number) => {
   if (unreadCount > 0) {
@@ -23,8 +28,167 @@ const updateTabTitle = (unreadCount: number) => {
   }
 }
 
-// 브라우저 알림 표시
+// Safari PWA 알림 지원 확인
+const checkSafariPWASupport = () => {
+  const userAgent = navigator.userAgent
+  isSafari.value = /Safari/.test(userAgent) && !/Chrome/.test(userAgent)
+  isIOS.value = /iPad|iPhone|iPod/.test(userAgent)
+  
+  // PWA 모드 확인 (홈화면에서 실행 중인지)
+  isStandalone.value = window.matchMedia('(display-mode: standalone)').matches || 
+                      (window.navigator as any).standalone === true
+  
+  console.log('브라우저 정보:', {
+    isSafari: isSafari.value,
+    isIOS: isIOS.value,
+    isStandalone: isStandalone.value,
+    userAgent: userAgent
+  })
+}
+
+// Safari용 대체 알림 방법
+const showSafariNotification = (message: WebSocketMessage) => {
+  // 1. 탭 제목 변경 (이미 구현됨)
+  updateTabTitle(chatNotificationStore.unreadCount)
+  
+  // 2. 페이지 내 알림 표시
+  showInPageNotification(message)
+  
+  // 3. 진동 (지원되는 경우)
+  if ('vibrate' in navigator) {
+    navigator.vibrate([200, 100, 200])
+  }
+  
+  // 4. 사운드 재생 (선택사항)
+  playNotificationSound()
+}
+
+// 페이지 내 알림 표시
+const showInPageNotification = (message: WebSocketMessage) => {
+  // 기존 알림 제거
+  const existingNotification = document.querySelector('.safari-notification')
+  if (existingNotification) {
+    existingNotification.remove()
+  }
+  
+  // 새 알림 생성
+  const notification = document.createElement('div')
+  notification.className = 'safari-notification'
+  notification.innerHTML = `
+    <div class="notification-content">
+      <div class="notification-icon">🔔</div>
+      <div class="notification-text">
+        <div class="notification-title">새 메시지</div>
+        <div class="notification-body">${message.data?.message_body || '새 메시지가 도착했습니다'}</div>
+      </div>
+      <button class="notification-close" onclick="this.parentElement.parentElement.remove()">×</button>
+    </div>
+  `
+  
+  // 스타일 적용
+  notification.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 10000;
+    max-width: 300px;
+    animation: slideInRight 0.3s ease-out;
+  `
+  
+  // 애니메이션 스타일 추가
+  const style = document.createElement('style')
+  style.textContent = `
+    @keyframes slideInRight {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    .safari-notification .notification-content {
+      display: flex;
+      align-items: center;
+      padding: 12px;
+      gap: 8px;
+    }
+    .safari-notification .notification-icon {
+      font-size: 20px;
+    }
+    .safari-notification .notification-text {
+      flex: 1;
+    }
+    .safari-notification .notification-title {
+      font-weight: bold;
+      font-size: 14px;
+      color: #333;
+      margin-bottom: 2px;
+    }
+    .safari-notification .notification-body {
+      font-size: 12px;
+      color: #666;
+      line-height: 1.3;
+    }
+    .safari-notification .notification-close {
+      background: none;
+      border: none;
+      font-size: 18px;
+      color: #999;
+      cursor: pointer;
+      padding: 0;
+      width: 20px;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+  `
+  
+  if (!document.querySelector('#safari-notification-styles')) {
+    style.id = 'safari-notification-styles'
+    document.head.appendChild(style)
+  }
+  
+  document.body.appendChild(notification)
+  
+  // 5초 후 자동 제거
+  setTimeout(() => {
+    if (notification.parentElement) {
+      notification.remove()
+    }
+  }, 5000)
+}
+
+// 알림 사운드 재생
+const playNotificationSound = () => {
+  try {
+    // 간단한 비프음 생성
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+    const oscillator = audioContext.createOscillator()
+    const gainNode = audioContext.createGain()
+    
+    oscillator.connect(gainNode)
+    gainNode.connect(audioContext.destination)
+    
+    oscillator.frequency.setValueAtTime(800, audioContext.currentTime)
+    gainNode.gain.setValueAtTime(0.1, audioContext.currentTime)
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1)
+    
+    oscillator.start(audioContext.currentTime)
+    oscillator.stop(audioContext.currentTime + 0.1)
+  } catch (error) {
+    console.log('사운드 재생 실패:', error)
+  }
+}
+
+// 브라우저 알림 표시 (기존 코드 수정)
 const showBrowserNotification = (message: WebSocketMessage) => {
+  // Safari PWA 모드에서는 대체 방법 사용
+  if (isSafari.value && isStandalone.value) {
+    showSafariNotification(message)
+    return
+  }
+  
   // 브라우저가 알림을 지원하지 않으면 리턴
   if (!('Notification' in window)) {
     console.log('이 브라우저는 알림을 지원하지 않습니다')
@@ -44,7 +208,7 @@ const showBrowserNotification = (message: WebSocketMessage) => {
   }
 }
 
-// 브라우저 알림 생성
+// 브라우저 알림 생성 (기존 코드)
 const createNotification = (message: WebSocketMessage) => {
   try {
     // 채팅방 제목 찾기 (메시지에서 추출)
@@ -108,10 +272,16 @@ const urlBase64ToUint8Array = (base64String: string): Uint8Array => {
 
 const subscribeUser = async () => {
   try {
+    // Safari PWA에서는 푸시 알림 구독을 시도하지 않음
+    if (isSafari.value && isStandalone.value) {
+      console.log('Safari PWA 모드에서는 푸시 알림 구독을 건너뜁니다')
+      return
+    }
+    
     const registration = await navigator.serviceWorker.ready
 
     // VAPID 공개 키 (실제 프로덕션에서는 환경변수로 관리)
-    const vapidPublicKey = 'A_1w6x6QHVjq6CxM2j8WAySNo-PmnuMEw9iMg0PWrdKr'
+    const vapidPublicKey = 'YOUR_PUBLIC_VAPID_KEY'
     const convertedVapidKey = urlBase64ToUint8Array(vapidPublicKey)
 
     const subscription = await registration.pushManager.subscribe({
@@ -122,7 +292,7 @@ const subscribeUser = async () => {
     pushSubscription.value = subscription
 
     // 서버에 구독 정보 전송
-    await fetch('/push/subscribe', {
+    await fetch('/api/save-subscription', {
       method: 'POST',
       body: JSON.stringify(subscription),
       headers: { 'Content-Type': 'application/json' }
@@ -267,6 +437,9 @@ onMounted(() => {
   // 원본 타이틀 저장
   originalTitle.value = document.title
   
+  // Safari 감지
+  checkSafariPWASupport()
+  
   // 브라우저 알림 권한 확인
   if ('Notification' in window) {
     notificationPermission.value = Notification.permission
@@ -277,7 +450,7 @@ onMounted(() => {
   window.addEventListener('focus', handleFocus)
   window.addEventListener('blur', handleBlur)
   
-  // PWA 푸시 알림 구독
+  // PWA 푸시 알림 구독 (Safari PWA가 아닌 경우에만)
   if ('serviceWorker' in navigator && 'PushManager' in window) {
     subscribeUser()
   }
