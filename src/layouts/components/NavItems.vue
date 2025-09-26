@@ -20,7 +20,7 @@ const isManagerSpecified = computed(() => currentPermission.value === 'manager_s
 const isManagerGeneral = computed(() => currentPermission.value === 'manager_general');
 
 // 技能実習 관리자 권한 확인
-const isUser = computed(() => currentPermission.value === 'user');
+const isUser = computed(() => currentPermission.value === 'user' || currentPermission.value === 'mishima_user');
 
 // 채팅 알림 store
 const chatNotificationStore = useChatNotificationStore()

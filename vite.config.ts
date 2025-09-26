@@ -18,9 +18,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'robots.txt', 'apple-touch-icon.png'],
       manifest: {
-        name: '社内システム',
-        short_name: '社内システム',
-        description: '社内システム',
+        name: 'SOUSEI社内システム',
+        short_name: 'SOUSEI社内システム',
+        description: 'SOUSEI社内システム',
         theme_color: '#4DBA87',
         background_color: '#ffffff',
         display: 'standalone',

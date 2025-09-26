@@ -37,6 +37,10 @@ const PERMISSION_PAGES = {
     '/billing',
     '/unauthorized',
   ],
+  mishima_user: [
+    '/dashboard',
+    '/chat',
+  ],
 }
 
 // 특정 권한으로 특정 페이지에 접근 가능한지 확인
@@ -84,7 +88,8 @@ const getPermissionDisplayName = (permission: string): string => {
     manager_specified: '特定技能管理者',
     manager_general: '技能実習管理者',
     admin: 'システム管理者',
-    user: '一般ユーザー',
+    user: 'ユーザー',
+    mishima_user: 'ユーザー',
   }
 
   return names[permission as keyof typeof names] || permission

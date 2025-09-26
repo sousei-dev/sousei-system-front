@@ -16,8 +16,8 @@ interface Props {
   feature?: string
   // 학생 타입 접근 권한 체크
   studentType?: string
-  // 특정 권한만 허용
-  permission?: Permission
+  // 특정 권한만 허용 (단일 권한 또는 권한 배열)
+  permission?: Permission | Permission[]
   // 권한이 없을 때 대체 컨텐츠 표시 여부
   showFallback?: boolean
 }
@@ -31,6 +31,13 @@ const hasPermission = computed(() => {
   // 특정 권한이 지정된 경우
   if (props.permission) {
     const currentPermission = getCurrentUserPermission()
+    
+    // 배열인 경우 (여러 권한 중 하나라도 있으면 허용)
+    if (Array.isArray(props.permission)) {
+      return props.permission.includes(currentPermission) || currentPermission === 'admin'
+    }
+    
+    // 단일 권한인 경우
     return currentPermission === props.permission || currentPermission === 'admin'
   }
   

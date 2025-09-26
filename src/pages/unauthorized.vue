@@ -13,7 +13,7 @@ const currentPermission = computed(() => getCurrentUserPermission())
 // 필요한 권한 (URL 쿼리에서 가져옴)
 const requiredPermission = computed(() => {
   const permission = route.query.requiredPermission as string
-  if (permission && ['manager_specified', 'manager_general', 'admin', 'user'].includes(permission)) {
+  if (permission && ['manager_specified', 'manager_general', 'admin', 'user', 'mishima_user'].includes(permission)) {
     return permission as Permission
   }
   return null

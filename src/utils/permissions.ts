@@ -18,7 +18,7 @@ export const getCurrentUserPermission = (): Permission => {
 
 // 권한이 유효한지 확인하는 함수
 export const isValidPermission = (permission: string): permission is Permission => {
-  return ['manager_specified', 'manager_general', 'admin', 'user'].includes(permission)
+  return ['manager_specified', 'manager_general', 'admin', 'user', 'mishima_user'].includes(permission)
 }
 
 // 특정 페이지에 접근 가능한지 확인하는 함수
@@ -82,7 +82,8 @@ export const getPermissionDisplayName = (permission: Permission): string => {
     manager_specified: '特定技能管理者',
     manager_general: '技能実習管理者',
     admin: 'システム管理者',
-    user: '一般ユーザー'
+    user: 'ユーザー',
+    mishima_user: 'ユーザー'
   }
   
   return names[permission]

@@ -4,6 +4,7 @@ export type Permission =
   | 'manager_general'    // 技能実習 관련 권한
   | 'admin'              // 관리자 권한
   | 'user'               // 일반 사용자 권한
+  | 'mishima_user'       // 미시마 ユーザー 권한
 
 // 권한별 접근 가능한 페이지/기능 정의
 export interface PermissionConfig {
@@ -23,6 +24,11 @@ export interface PermissionConfig {
     studentTypes: string[]
   }
   user: {
+    pages: string[]
+    features: string[]
+    studentTypes: string[]
+  }
+  mishima_user: {
     pages: string[]
     features: string[]
     studentTypes: string[]
@@ -105,5 +111,14 @@ export const PERMISSION_CONFIG: PermissionConfig = {
       'billing_view'
     ],
     studentTypes: ['SPECIFIED', 'GENERAL']
+  },
+  mishima_user: {
+    pages: [
+      '/chat'
+    ],
+    features: [
+      'chat_management'
+    ],
+    studentTypes: []
   }
 } 
