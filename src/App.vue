@@ -292,7 +292,7 @@ const subscribeUser = async () => {
     pushSubscription.value = subscription
 
     // 서버에 구독 정보 전송
-    await fetch('/api/save-subscription', {
+    await fetch('/push/subscribe', {
       method: 'POST',
       body: JSON.stringify(subscription),
       headers: { 'Content-Type': 'application/json' }
