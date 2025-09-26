@@ -4,26 +4,6 @@ import type { NavLink } from '@layouts/types'
 defineProps<{
   item: NavLink
 }>()
-
-const isTouching = ref(false)
-
-const handleTouchStart = () => {
-  isTouching.value = true
-}
-
-const handleTouchEnd = (event: TouchEvent) => {
-  if (isTouching.value) {
-    isTouching.value = false
-  }
-}
-
-const handleClick = (event: MouseEvent) => {
-  // 터치 이벤트가 발생한 경우 클릭 이벤트 무시
-  if (isTouching.value) {
-    event.preventDefault()
-    return
-  }
-}
 </script>
 
 <template>
@@ -36,9 +16,7 @@ const handleClick = (event: MouseEvent) => {
       :to="item.to"
       :href="item.href"
       :target="item.target"
-      @touchstart="handleTouchStart"
-      @touchend="handleTouchEnd"
-      @click="handleClick"
+      class="nav-link-item"
     >
       <VIcon
         :icon="item.icon || 'ri-checkbox-blank-circle-line'"
@@ -58,14 +36,31 @@ const handleClick = (event: MouseEvent) => {
   </li>
 </template>
 
+<style lang="scss" scoped>
+.nav-link-item {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+</style>
+
 <style lang="scss">
-.layout-vertical-nav {
-  .nav-link a {
-    display: flex;
-    align-items: center;
-    cursor: pointer;
-    touch-action: manipulation; // 터치 지연 제거
-    -webkit-tap-highlight-color: transparent; // 터치 하이라이트 제거
+/* 전역 스타일로 모바일 hover 비활성화 */
+@media (hover: none) and (pointer: coarse) {
+  .layout-vertical-nav {
+    .nav-link a:hover,
+    .nav-link div:hover,
+    .nav-group-label:hover {
+      background-color: transparent !important;
+      color: inherit !important;
+      transform: none !important;
+      box-shadow: none !important;
+    }
   }
 }
 </style>

@@ -132,3 +132,25 @@ onUnmounted(() => {
     <RouterView />
   </VApp>
 </template>
+
+<style>
+/* 모바일 터치 최적화 */
+@media (hover: none) and (pointer: coarse) {
+  .layout-vertical-nav {
+    .nav-link a:hover,
+    .nav-link div:hover,
+    .nav-group-label:hover {
+      background-color: transparent !important;
+      color: inherit !important;
+      transform: none !important;
+      box-shadow: none !important;
+    }
+  }
+  
+  /* 모든 링크에 터치 최적화 */
+  a {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+</style>

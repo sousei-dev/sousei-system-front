@@ -469,14 +469,18 @@
             <VIcon>{{ showFileUpload ? 'ri-close-line' : 'ri-attachment-2' }}</VIcon>
           </VBtn>
             
-          <VTextField
+          <VTextarea
             v-model="newMessage"
-            placeholder="メッセージを入力してください"
+            placeholder="メッセージを入力してください (Ctrl+Enterで改行)"
             variant="outlined"
             density="comfortable"
             hide-details
             class="message-field"
-            @keydown.enter="handleEnterKey"
+            auto-grow
+            rows="1"
+            max-rows="4"
+            @keydown="handleKeyDown"
+            ref="messageTextarea"
           />
           
           <VBtn
@@ -1717,21 +1721,58 @@ const handleDrop = (event: DragEvent) => {
   }
 }
 
-const handleEnterKey = (event: KeyboardEvent) => {
+// 키보드 이벤트 핸들러 수정
+const handleKeyDown = (event: KeyboardEvent) => {
   // IME 변환 중인지 확인 (isComposing 속성으로 판단)
   if (event.isComposing || event.keyCode === 229) {
     // IME 변환 중이면 메시지 전송하지 않음
     return
   }
   
-  if (event.shiftKey) {
-    // Shift + Enter: 줄바꿈
+  // Ctrl + Enter: 줄바꿈 (직접 제어)
+  if (event.ctrlKey && event.key === 'Enter') {
+    event.preventDefault()
+    console.log('Ctrl+Enter: 줄바꿈 추가')
+    insertLineBreak()
+    return
+  }
+  
+  // Shift + Enter: 줄바꿈 (기본 동작 허용)
+  if (event.shiftKey && event.key === 'Enter') {
+    event.preventDefault()
     return
   }
   
   // Enter: 메시지 전송
-  event.preventDefault()
-  sendMessage()
+  if (event.key === 'Enter') {
+    console.log('Enter: 메시지 전송')
+    event.preventDefault()
+    sendMessage()
+  }
+}
+
+// 줄바꿈 삽입 함수
+const insertLineBreak = () => {
+  if (!messageTextarea.value) return
+  
+  const textarea = messageTextarea.value
+  const start = textarea.selectionStart
+  const end = textarea.selectionEnd
+  const text = newMessage.value
+  
+  // 현재 커서 위치에 줄바꿈 삽입
+  const newText = text.substring(0, start) + '\n' + text.substring(end)
+  
+  // 텍스트 업데이트
+  newMessage.value = newText
+  
+  // 커서 위치를 줄바꿈 뒤로 이동
+  nextTick(() => {
+    if (textarea) {
+      textarea.focus()
+      textarea.setSelectionRange(start + 1, start + 1)
+    }
+  })
 }
 
 // 모바일 사이드바 토글
@@ -2277,6 +2318,9 @@ const toggleDepartment = (department: string) => {
     expandedDepartments.value.add(department)
   }
 }
+
+// textarea ref 추가
+const messageTextarea = ref<HTMLTextAreaElement>()
 </script>
 
 <style scoped>
@@ -2621,11 +2665,15 @@ const toggleDepartment = (department: string) => {
   word-wrap: break-word;
   display: inline-block;
   max-width: 100%;
+  white-space: pre-wrap; /* 개행 문자 보존 */
+  word-break: break-word; /* 긴 단어 줄바꿈 */
 }
 
 .message-own .message-bubble {
   background-color: #7c3aed;
   color: white;
+  white-space: pre-wrap; /* 개행 문자 보존 */
+  word-break: break-word; /* 긴 단어 줄바꿈 */
 }
 
 .message-time {
@@ -2661,6 +2709,8 @@ const toggleDepartment = (department: string) => {
 .message.message-right .message-bubble {
   background-color: #7c3aed;
   color: white;
+  white-space: pre-wrap; /* 개행 문자 보존 */
+  word-break: break-word; /* 긴 단어 줄바꿈 */
 }
 
 .message.message-right .message-time {
@@ -2700,6 +2750,26 @@ const toggleDepartment = (department: string) => {
 .message-field {
   flex: 1;
   padding-right: 60px; /* 전송 버튼 공간 확보 */
+}
+
+.message-field .v-field__input {
+  resize: none;
+  min-height: 40px;
+  max-height: 120px;
+  overflow-y: auto;
+  white-space: pre-wrap; /* 개행 문자 보존 */
+  word-wrap: break-word; /* 긴 단어 줄바꿈 */
+}
+
+.message-field .v-field__input:focus {
+  outline: none;
+}
+
+/* VTextarea 내부 textarea 요소 스타일 */
+.message-field textarea {
+  white-space: pre-wrap !important;
+  word-wrap: break-word !important;
+  line-height: 1.4;
 }
 
 .send-button {
