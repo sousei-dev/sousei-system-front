@@ -42,9 +42,6 @@
       <!-- 사용자 프로필 및 검색 -->
       <div class="sidebar-header">
         <div class="user-profile">
-          <VAvatar size="40" class="me-3">
-            <VImg src="/src/assets/images/avatars/avatar-1.png" />
-          </VAvatar>
           <VTextField
             v-model="searchQuery"
             prepend-inner-icon="ri-search-line"
@@ -52,6 +49,7 @@
             variant="outlined"
             density="compact"
             hide-details
+            disabled
             class="search-field"
           />
         </div>
@@ -242,10 +240,26 @@
           </VAvatar>
           <div>
             <div class="partner-name">{{ selectedChat.name }}</div>
-            <div class="partner-title">{{ selectedChat.title }}</div>
+            <div class="partner-title">
+              {{ selectedChat.title }}
+              <span v-if="selectedChat.is_group" class="group-info">
+                ({{ selectedChat.member_count }}人)
+              </span>
+            </div>
           </div>
         </div>
         <div class="chat-actions">
+          <!-- 그룹채팅방인 경우 참여자 목록 버튼 -->
+          <VBtn 
+            v-if="selectedChat.is_group"
+            icon 
+            variant="text" 
+            size="small"
+            @click="showParticipantsDialog = true"
+            :title="`참여자 ${selectedChat.member_count}명`"
+          >
+            <VIcon>ri-group-line</VIcon>
+          </VBtn>
           <VBtn icon variant="text" size="small">
             <VIcon>ri-more-2-line</VIcon>
           </VBtn>
@@ -621,6 +635,82 @@
           :disabled="!groupChatName.trim()"
         >
           作成
+        </VBtn>
+      </VCardActions>
+    </VCard>
+  </VDialog>
+
+  <!-- 참여자 목록 다이얼로그 -->
+  <VDialog
+    v-model="showParticipantsDialog"
+    max-width="450"
+    persistent
+  >
+    <VCard class="participants-dialog-card">
+      <VCardTitle class="participants-header">
+        <div class="participants-title">
+          <VIcon class="me-2" color="primary">ri-group-line</VIcon>
+          <span>参加者一覧 ({{ selectedChat?.member_count }}人)</span>
+        </div>
+        <VBtn
+          icon
+          variant="text"
+          size="small"
+          @click="showParticipantsDialog = false"
+          class="close-btn"
+        >
+          <VIcon>ri-close-line</VIcon>
+        </VBtn>
+      </VCardTitle>
+      
+      <VCardText class="participants-content">
+        <div class="participants-list">
+          <div
+            v-for="participant in selectedChat?.participants || []"
+            :key="participant.id"
+            class="participant-item"
+          >
+            <div class="participant-avatar">
+              <VAvatar size="48" class="participant-avatar-img">
+                <VImg v-if="participant.avatar" :src="participant.avatar" />
+                <VAvatar v-else :color="getUserColor(participant.name)" size="48">
+                  <span class="text-white text-h6">{{ getUserInitials(participant.name) }}</span>
+                </VAvatar>
+              </VAvatar>
+              <div v-if="participant.online" class="online-indicator"></div>
+            </div>
+            
+            <div class="participant-info">
+              <div class="participant-name">{{ participant.name }}</div>
+              <div class="participant-details">
+                <span v-if="participant.position" class="participant-position">{{ participant.position }}</span>
+                <span v-if="participant.position && participant.department" class="separator">•</span>
+                <span v-if="participant.department" class="participant-department">{{ participant.department }}</span>
+              </div>
+              <div v-if="participant.online" class="participant-status">
+                <VIcon size="12" color="success" class="me-1">ri-circle-fill</VIcon>
+                <span>オンライン</span>
+              </div>
+            </div>
+            
+            <div v-if="participant.is_admin" class="admin-badge">
+              <VChip size="small" color="primary" variant="elevated" class="admin-chip">
+                <VIcon size="14" class="me-1">ri-admin-line</VIcon>
+                管理者
+              </VChip>
+            </div>
+          </div>
+        </div>
+      </VCardText>
+      
+      <VCardActions class="participants-actions">
+        <VSpacer />
+        <VBtn
+          variant="outlined"
+          @click="showParticipantsDialog = false"
+          class="close-action-btn"
+        >
+          閉じる
         </VBtn>
       </VCardActions>
     </VCard>
@@ -2321,6 +2411,34 @@ const toggleDepartment = (department: string) => {
 
 // textarea ref 추가
 const messageTextarea = ref<HTMLTextAreaElement>()
+
+// 참여자 목록 관련 상태
+const showParticipantsDialog = ref(false)
+const chatParticipants = ref<any[]>([])
+const isLoadingParticipants = ref(false)
+
+// 참여자 목록 가져오기
+const fetchChatParticipants = async (conversationId: string) => {
+  try {
+    isLoadingParticipants.value = true
+    const response = await chatService.getChatParticipants(conversationId)
+    chatParticipants.value = response.participants || []
+  } catch (error) {
+    console.error('참여자 목록 가져오기 오류:', error)
+    chatParticipants.value = []
+  } finally {
+    isLoadingParticipants.value = false
+  }
+}
+
+// 참여자 목록 다이얼로그 열기
+const openParticipantsDialog = async () => {
+  if (selectedChat.value?.is_group) {
+    showParticipantsDialog.value = true
+    // getConversations에서 받은 participants 데이터 사용
+    // 별도의 API 호출 불필요
+  }
+}
 </script>
 
 <style scoped>
@@ -3935,5 +4053,445 @@ const messageTextarea = ref<HTMLTextAreaElement>()
 
 .department-section:last-child {
   margin-bottom: 0;
+}
+
+.admin-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background-color: #7c3aed;
+  color: white;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.participant-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+}
+
+.participant-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.participant-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.participant-details {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 2px;
+}
+
+.participant-position {
+  font-weight: 500;
+  color: #495057;
+}
+
+.participant-department {
+  color: #6c757d;
+}
+
+.separator {
+  color: #adb5bd;
+}
+
+.participant-status {
+  display: flex;
+  align-items: center;
+  font-size: 11px;
+  color: #6c757d;
+}
+
+.loading-participants {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  color: #666;
+}
+
+.loading-participants .loading-icon {
+  font-size: 24px;
+  margin-bottom: 12px;
+  animation: spin 1s linear infinite;
+}
+
+.participants-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+/* 그룹 정보 스타일 */
+.group-info {
+  color: #666;
+  font-size: 12px;
+  font-weight: normal;
+}
+
+/* 참여자 목록 스타일 */
+.loading-participants {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  color: #666;
+}
+
+.loading-participants .loading-icon {
+  font-size: 24px;
+  margin-bottom: 12px;
+  animation: spin 1s linear infinite;
+}
+
+.participants-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.participant-item {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  border-radius: 8px;
+  background-color: #f8f9fa;
+  border: 1px solid #e0e0e0;
+  transition: all 0.2s;
+}
+
+.participant-item:hover {
+  background-color: #e9ecef;
+  border-color: #7c3aed;
+}
+
+.participant-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.participant-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.participant-details {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #666;
+}
+
+.participant-position {
+  font-weight: 500;
+  color: #495057;
+}
+
+.participant-department {
+  color: #6c757d;
+}
+
+.admin-badge {
+  margin-left: 8px;
+}
+
+/* 참여자 목록 스크롤바 */
+.participants-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.participants-list::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 2px;
+}
+
+.participants-list::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 2px;
+}
+
+.participants-list::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* 참여자 목록 다이얼로그 스타일 */
+.participants-dialog-card {
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+}
+
+.participants-header {
+  padding: 20px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: none;
+}
+
+.participants-title {
+  display: flex;
+  align-items: center;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.participants-title .VIcon {
+  font-size: 20px;
+}
+
+.close-btn {
+  color: rgba(255, 255, 255, 0.8);
+  transition: all 0.2s;
+}
+
+.close-btn:hover {
+  color: white;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.participants-content {
+  padding: 0;
+  background-color: #fafafa;
+}
+
+.participants-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 500px;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.participant-item {
+  display: flex;
+  align-items: center;
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.participant-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: linear-gradient(135deg, #7c3aed, #a855f7);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.participant-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(124, 58, 237, 0.15);
+  border-color: #7c3aed;
+}
+
+.participant-item:hover::before {
+  opacity: 1;
+}
+
+.participant-avatar {
+  position: relative;
+  margin-right: 16px;
+  flex-shrink: 0;
+}
+
+.participant-avatar-img {
+  border: 3px solid #f3f4f6;
+  transition: all 0.3s;
+}
+
+.participant-item:hover .participant-avatar-img {
+  border-color: #7c3aed;
+  transform: scale(1.05);
+}
+
+.online-indicator {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  width: 14px;
+  height: 14px;
+  background: linear-gradient(135deg, #10b981, #059669);
+  border: 3px solid white;
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+}
+
+.participant-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.participant-name {
+  font-weight: 600;
+  font-size: 16px;
+  color: #1f2937;
+  margin-bottom: 6px;
+  line-height: 1.2;
+}
+
+.participant-details {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #6b7280;
+  margin-bottom: 4px;
+  line-height: 1.3;
+}
+
+.participant-position {
+  font-weight: 500;
+  color: #374151;
+  background: #f3f4f6;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.participant-department {
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.separator {
+  color: #d1d5db;
+  font-weight: 300;
+}
+
+.participant-status {
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  color: #10b981;
+  font-weight: 500;
+  margin-top: 2px;
+}
+
+.admin-badge {
+  margin-left: 12px;
+  flex-shrink: 0;
+}
+
+.admin-chip {
+  background: linear-gradient(135deg, #7c3aed, #a855f7);
+  color: white;
+  font-weight: 600;
+  font-size: 12px;
+  height: 28px;
+  border-radius: 14px;
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.3);
+}
+
+.participants-actions {
+  padding: 16px 24px;
+  background: white;
+  border-top: 1px solid #e5e7eb;
+}
+
+.close-action-btn {
+  border-radius: 8px;
+  font-weight: 500;
+  text-transform: none;
+  padding: 8px 24px;
+}
+
+/* 참여자 목록 스크롤바 */
+.participants-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.participants-list::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 3px;
+}
+
+.participants-list::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, #7c3aed, #a855f7);
+  border-radius: 3px;
+}
+
+.participants-list::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, #6d28d9, #9333ea);
+}
+
+/* 그룹 정보 스타일 */
+.group-info {
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 500;
+  background: #f3f4f6;
+  padding: 2px 8px;
+  border-radius: 6px;
+  margin-left: 8px;
+}
+
+/* 모바일 반응형 */
+@media (max-width: 768px) {
+  .participants-dialog-card {
+    margin: 16px;
+    border-radius: 12px;
+  }
+  
+  .participants-header {
+    padding: 16px 20px;
+  }
+  
+  .participants-title {
+    font-size: 16px;
+  }
+  
+  .participants-list {
+    padding: 12px;
+    max-height: 400px;
+  }
+  
+  .participant-item {
+    padding: 12px;
+  }
+  
+  .participant-avatar {
+    margin-right: 12px;
+  }
+  
+  .participant-name {
+    font-size: 15px;
+  }
+  
+  .participant-details {
+    font-size: 12px;
+  }
 }
 </style> 

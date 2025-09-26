@@ -56,6 +56,7 @@ export interface Conversation {
   last_message?: Message
   unread_count: number
   messages?: Message[]
+  participants?: User[] // 참여자 목록 추가
 }
 
 export interface User {
@@ -66,6 +67,9 @@ export interface User {
   online: boolean
   status: string
   role: string
+  department?: string // 부서 정보 추가
+  position?: string   // 직책 정보 추가
+  is_admin?: boolean  // 관리자 여부 추가
   created_at: string
   updated_at: string
 }
