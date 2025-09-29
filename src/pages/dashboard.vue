@@ -229,16 +229,24 @@ const initializePushNotifications = async () => {
                   (window.navigator as any).standalone === true ||
                   document.referrer.includes('android-app://')
 
+    console.log('PWA로 열렸는지 확인:', isPWA)
+
     if (isPWA) {
       // PWA로 열린 경우에만 알림 권한 요청
       if (notificationPermission.value === 'default') {
         console.log('PWA로 열렸으므로 알림 권한을 요청합니다')
         const permission = await Notification.requestPermission()
         notificationPermission.value = permission
+        console.log('알림 권한 요청 결과:', permission)
         
         if (permission === 'granted' && !isPushSubscribed.value) {
+          console.log('PWA에서 푸시 구독을 시도합니다')
           await subscribeToPushNotifications()
         }
+      } else if (notificationPermission.value === 'granted' && !isPushSubscribed.value) {
+        // 권한이 이미 허용되었지만 구독이 안된 경우 자동 구독
+        console.log('PWA에서 권한이 이미 허용되어 푸시 구독을 시도합니다')
+        await subscribeToPushNotifications()
       }
     } else {
       // 일반 브라우저로 열린 경우 권한이 있으면 자동 구독
@@ -262,6 +270,7 @@ const subscribeToPushNotifications = async () => {
       return
     }
 
+    console.log('푸시 구독을 시작합니다. 사용자 ID:', userId)
     const result = await pushService.subscribeToPush(userId)
     
     if (result.success) {
