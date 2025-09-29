@@ -30,6 +30,7 @@ const processingContact = ref(false)
 const notificationPermission = ref<NotificationPermission>('default')
 const isPushSubscribed = ref(false)
 const pushSupported = ref(false)
+const isInitializingPush = ref(false)
 
 // 비자갱신 임박 학생 조회
 const fetchVisaRenewalStudents = async () => {
@@ -207,7 +208,14 @@ const openPhotoInNewTab = (url: string) => {
 
 // PWA 알림 권한 확인 및 푸시 구독 처리
 const initializePushNotifications = async () => {
+  // 이미 초기화 중이면 중복 실행 방지
+  if (isInitializingPush.value) {
+    return
+  }
+
   try {
+    isInitializingPush.value = true
+
     // 푸시 알림 지원 여부 확인
     pushSupported.value = pushService.isPushSupported()
     
@@ -224,40 +232,68 @@ const initializePushNotifications = async () => {
     isPushSubscribed.value = await pushService.getSubscriptionStatus()
     console.log('현재 푸시 구독 상태:', isPushSubscribed.value)
 
-    // PWA로 열렸는지 확인 (display-mode가 standalone인지 확인)
+    // 이미 구독되어 있으면 더 이상 처리하지 않음
+    if (isPushSubscribed.value) {
+      console.log('이미 푸시 구독이 되어 있습니다')
+      return
+    }
+
+    // PWA로 열렸는지 확인
     const isPWA = window.matchMedia('(display-mode: standalone)').matches || 
                   (window.navigator as any).standalone === true ||
                   document.referrer.includes('android-app://')
 
     console.log('PWA로 열렸는지 확인:', isPWA)
 
-    if (isPWA) {
-      // PWA로 열린 경우에만 알림 권한 요청
-      if (notificationPermission.value === 'default') {
-        console.log('PWA로 열렸으므로 알림 권한을 요청합니다')
-        const permission = await Notification.requestPermission()
-        notificationPermission.value = permission
-        console.log('알림 권한 요청 결과:', permission)
-        
-        if (permission === 'granted' && !isPushSubscribed.value) {
-          console.log('PWA에서 푸시 구독을 시도합니다')
-          await subscribeToPushNotifications()
+    // 권한이 이미 허용된 경우 바로 구독 시도
+    if (notificationPermission.value === 'granted') {
+      console.log('알림 권한이 이미 허용되어 푸시 구독을 시도합니다')
+      await subscribeToPushNotifications()
+      return
+    }
+
+    // PWA로 열린 경우에만 알림 권한 요청
+    if (isPWA && notificationPermission.value === 'default') {
+      console.log('PWA로 열렸으므로 알림 권한을 요청합니다')
+      
+      // 사용자 상호작용 후에 권한 요청 (PWA에서 권한 요청 시 새로고침 방지)
+      const requestPermission = async () => {
+        try {
+          const permission = await Notification.requestPermission()
+          notificationPermission.value = permission
+          console.log('알림 권한 요청 결과:', permission)
+          
+          if (permission === 'granted') {
+            // 권한이 허용되면 잠시 후 구독 시도 (PWA 안정화 대기)
+            setTimeout(async () => {
+              await subscribeToPushNotifications()
+            }, 1000)
+          }
+        } catch (error) {
+          console.error('알림 권한 요청 실패:', error)
         }
-      } else if (notificationPermission.value === 'granted' && !isPushSubscribed.value) {
-        // 권한이 이미 허용되었지만 구독이 안된 경우 자동 구독
-        console.log('PWA에서 권한이 이미 허용되어 푸시 구독을 시도합니다')
-        await subscribeToPushNotifications()
       }
-    } else {
-      // 일반 브라우저로 열린 경우 권한이 있으면 자동 구독
-      if (notificationPermission.value === 'granted' && !isPushSubscribed.value) {
-        console.log('일반 브라우저에서 자동으로 푸시 구독을 시도합니다')
-        await subscribeToPushNotifications()
+
+      // 사용자 상호작용이 있는 이벤트에서 권한 요청
+      if (document.visibilityState === 'visible') {
+        // 페이지가 보이는 상태에서만 권한 요청
+        await requestPermission()
+      } else {
+        // 페이지가 보이지 않으면 visibilitychange 이벤트에서 권한 요청
+        const handleVisibilityChange = async () => {
+          if (document.visibilityState === 'visible') {
+            await requestPermission()
+            document.removeEventListener('visibilitychange', handleVisibilityChange)
+          }
+        }
+        document.addEventListener('visibilitychange', handleVisibilityChange)
       }
     }
 
   } catch (error) {
     console.error('푸시 알림 초기화 실패:', error)
+  } finally {
+    isInitializingPush.value = false
   }
 }
 
@@ -271,6 +307,10 @@ const subscribeToPushNotifications = async () => {
     }
 
     console.log('푸시 구독을 시작합니다. 사용자 ID:', userId)
+    
+    // 구독 전에 잠시 대기 (PWA 안정화)
+    await new Promise(resolve => setTimeout(resolve, 500))
+    
     const result = await pushService.subscribeToPush(userId)
     
     if (result.success) {
@@ -287,7 +327,11 @@ const subscribeToPushNotifications = async () => {
 onMounted(() => {
   fetchVisaRenewalStudents()
   fetchContact()
-  initializePushNotifications()
+  
+  // PWA 초기화를 약간 지연시켜 페이지 로딩 완료 후 실행
+  setTimeout(() => {
+    initializePushNotifications()
+  }, 1000)
 })
 </script>
 
