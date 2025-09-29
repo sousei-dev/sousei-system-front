@@ -146,10 +146,17 @@ const subscribeToPushNotifications = async () => {
 const requestNotificationPermissionAndSubscribe = async () => {
   try {
     console.log('requestNotificationPermissionAndSubscribe 함수 시작')
+    console.log('현재 hasRequestedPermission:', hasRequestedPermission.value)
+    console.log('현재 isInitializingPush:', isInitializingPush.value)
     
     // 이미 권한을 요청했거나 처리 중이면 중단
-    if (hasRequestedPermission.value || isInitializingPush.value) {
-      console.log('이미 권한을 요청했거나 처리 중이므로 중단')
+    if (hasRequestedPermission.value) {
+      console.log('이미 권한을 요청했으므로 중단')
+      return
+    }
+    
+    if (isInitializingPush.value) {
+      console.log('처리 중이므로 중단')
       return
     }
     
@@ -257,6 +264,10 @@ const initializePushNotifications = async () => {
     // 구독이 안되어 있으면 권한 요청 및 구독
     if (notificationPermission.value === 'default') {
       console.log('PWA에서 구독이 안되어 있으므로 알림 권한을 요청합니다')
+      
+      // hasRequestedPermission 초기화
+      hasRequestedPermission.value = false
+      console.log('hasRequestedPermission을 false로 초기화')
       
       // 바로 권한 요청 (사용자 상호작용 기다리지 않음)
       await requestNotificationPermissionAndSubscribe()
