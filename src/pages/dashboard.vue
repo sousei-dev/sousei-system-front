@@ -147,16 +147,10 @@ const requestNotificationPermissionAndSubscribe = async () => {
   try {
     console.log('requestNotificationPermissionAndSubscribe 함수 시작')
     console.log('현재 hasRequestedPermission:', hasRequestedPermission.value)
-    console.log('현재 isInitializingPush:', isInitializingPush.value)
     
-    // 이미 권한을 요청했거나 처리 중이면 중단
+    // 이미 권한을 요청했으면 중단
     if (hasRequestedPermission.value) {
       console.log('이미 권한을 요청했으므로 중단')
-      return
-    }
-    
-    if (isInitializingPush.value) {
-      console.log('처리 중이므로 중단')
       return
     }
     
@@ -268,6 +262,10 @@ const initializePushNotifications = async () => {
       // hasRequestedPermission 초기화
       hasRequestedPermission.value = false
       console.log('hasRequestedPermission을 false로 초기화')
+      
+      // isInitializingPush를 false로 설정하여 권한 요청이 가능하도록 함
+      isInitializingPush.value = false
+      console.log('isInitializingPush를 false로 설정하여 권한 요청 허용')
       
       // 바로 권한 요청 (사용자 상호작용 기다리지 않음)
       await requestNotificationPermissionAndSubscribe()
