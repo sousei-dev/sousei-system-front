@@ -172,6 +172,7 @@ class PushService {
     try {
       const registration = await navigator.serviceWorker.ready
       const subscription = await registration.pushManager.getSubscription()
+      console.log('getSubscriptionStatus', subscription)
       return !!subscription
     } catch (error) {
       console.error('구독 상태 확인 실패:', error)
