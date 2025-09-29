@@ -191,7 +191,7 @@ const requestNotificationPermissionAndSubscribe = async () => {
   }
 }
 
-// PWA 알림 초기화 (구독 상태 확인 후 처리)
+// PWA 알림 초기화 (PWA 확인 후에만 등록)
 const initializePushNotifications = async () => {
   try {
     // 중복 실행 방지
@@ -209,6 +209,17 @@ const initializePushNotifications = async () => {
       return
     }
 
+    // PWA 감지 먼저 실행
+    const pwaDetected = detectPWA()
+    
+    // PWA가 아니면 구독하지 않음
+    if (!pwaDetected) {
+      console.log('PWA가 아니므로 푸시 알림 구독을 하지 않습니다')
+      return
+    }
+    
+    console.log('PWA로 감지되었으므로 푸시 알림 구독을 진행합니다')
+
     // 현재 알림 권한 상태 확인
     notificationPermission.value = Notification.permission
     console.log('현재 알림 권한:', notificationPermission.value)
@@ -217,9 +228,6 @@ const initializePushNotifications = async () => {
     isPushSubscribed.value = await pushService.getSubscriptionStatus()
     console.log('현재 푸시 구독 상태:', isPushSubscribed.value)
 
-    // PWA 감지
-    detectPWA()
-    
     // 이미 구독되어 있으면 새로고침 없이 종료
     if (isPushSubscribed.value) {
       console.log('이미 푸시 구독이 되어 있습니다. 새로고침하지 않습니다.')
@@ -228,7 +236,7 @@ const initializePushNotifications = async () => {
 
     // 구독이 안되어 있으면 권한 요청 및 구독
     if (notificationPermission.value === 'default') {
-      console.log('구독이 안되어 있으므로 알림 권한을 요청합니다')
+      console.log('PWA에서 구독이 안되어 있으므로 알림 권한을 요청합니다')
       
       // 사용자 상호작용이 있는 이벤트에서 권한 요청
       const handleUserInteraction = () => {
@@ -243,7 +251,7 @@ const initializePushNotifications = async () => {
       document.addEventListener('touchstart', handleUserInteraction, { once: true })
     } else if (notificationPermission.value === 'granted') {
       // 권한이 있지만 구독이 안되어 있으면 바로 구독
-      console.log('권한이 있지만 구독이 안되어 있으므로 바로 구독합니다')
+      console.log('PWA에서 권한이 있지만 구독이 안되어 있으므로 바로 구독합니다')
       const success = await subscribeToPushNotifications()
       if (success) {
         // 구독 성공 후 새로고침
