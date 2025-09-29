@@ -239,9 +239,6 @@ const initializePushNotifications = async () => {
         if (permission === 'granted' && !isPushSubscribed.value) {
           await subscribeToPushNotifications()
         }
-      } else if (notificationPermission.value === 'granted' && !isPushSubscribed.value) {
-        // 권한이 이미 허용되었지만 구독이 안된 경우 자동 구독
-        await subscribeToPushNotifications()
       }
     } else {
       // 일반 브라우저로 열린 경우 권한이 있으면 자동 구독
