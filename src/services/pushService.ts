@@ -53,7 +53,7 @@ class PushService {
   // 푸시 구독
   async subscribeToPush(userId: string): Promise<PushSubscriptionResponse> {
     if (!this.isSupported) {
-      return { success: false, message: '브라우저가 푸시를 지원하지 않습니다' }
+      return { success: false, message: '브라우저가 푸시를 지원하지 않습니다.' }
     }
 
     if (!this.vapidPublicKey) {
