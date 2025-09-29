@@ -1,4 +1,6 @@
 import { api } from '@/utils/api'
+import { pushService } from '@/services/pushService'
+import { useRouter } from 'vue-router'
 
 interface LoginResponse {
   access_token: string
@@ -18,7 +20,6 @@ interface LoginInput {
   remember: boolean
 }
 
-// 사용자 정보 인터페이스
 interface UserInfo {
   role: string | null
   name: string | null
@@ -27,6 +28,8 @@ interface UserInfo {
   position: string | null
   avatar: string | null
 }
+
+const router = useRouter()
 
 export const authService = {
   // 로그인
@@ -65,19 +68,47 @@ export const authService = {
         localStorage.removeItem('isRemember')
         localStorage.removeItem('rememberToken')
       }
+
+      // 로그인 성공 후 푸시 알림 구독 시도
+      try {
+        console.log('푸시 알림 구독을 시작합니다...')
+        const pushResult = await pushService.subscribeToPush(response.data.user_id)
+        
+        if (pushResult.success) {
+          console.log('푸시 알림 구독 성공:', pushResult.message)
+        } else {
+          console.warn('푸시 알림 구독 실패:', pushResult.message)
+        }
+      } catch (error) {
+        console.error('푸시 알림 구독 중 오류 발생:', error)
+      }
     }
 
     return response.data
   },
 
   // 로그아웃
-  logout: () => {
+  logout: async () => {
+    // 푸시 구독 해제
+    try {
+      await pushService.unsubscribeFromPush()
+      console.log('푸시 구독이 해제되었습니다')
+    } catch (error) {
+      console.error('푸시 구독 해제 중 오류 발생:', error)
+    }
+    console.log('로그아웃 후 로그인 페이지로 리다이렉트')
     // 로컬 스토리지의 모든 인증 관련 데이터 제거
     localStorage.removeItem('token')
+    localStorage.removeItem('refreshToken')
     localStorage.removeItem('rememberToken')
     localStorage.removeItem('userInfo')
     localStorage.removeItem('rememberId')
     localStorage.removeItem('isRemember')
+    localStorage.removeItem('user_id')
+
+    // 로그아웃 후 로그인 페이지로 리다이렉트
+
+    router.push('/login')
   },
 
   // 토큰 가져오기
@@ -148,5 +179,36 @@ export const authService = {
 
   updateUserAvatar: (avatar: string): void => {
     authService.updateUserInfo({ avatar })
+  },
+
+  // 푸시 알림 재구독 (설정 페이지에서 사용)
+  reSubscribeToPush: async (): Promise<boolean> => {
+    try {
+      const result = await pushService.subscribeToPush()
+      return result.success
+    } catch (error) {
+      console.error('푸시 알림 재구독 실패:', error)
+      return false
+    }
+  },
+
+  // 푸시 알림 구독 해제 (설정 페이지에서 사용)
+  unsubscribeFromPush: async (): Promise<boolean> => {
+    try {
+      return await pushService.unsubscribeFromPush()
+    } catch (error) {
+      console.error('푸시 알림 구독 해제 실패:', error)
+      return false
+    }
+  },
+
+  // 푸시 알림 구독 상태 확인
+  getPushSubscriptionStatus: async (): Promise<boolean> => {
+    try {
+      return await pushService.getSubscriptionStatus()
+    } catch (error) {
+      console.error('푸시 알림 구독 상태 확인 실패:', error)
+      return false
+    }
   }
-} 
+}
