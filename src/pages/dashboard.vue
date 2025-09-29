@@ -238,17 +238,9 @@ const initializePushNotifications = async () => {
     if (notificationPermission.value === 'default') {
       console.log('PWA에서 구독이 안되어 있으므로 알림 권한을 요청합니다')
       
-      // 사용자 상호작용이 있는 이벤트에서 권한 요청
-      const handleUserInteraction = () => {
-        requestNotificationPermissionAndSubscribe()
-        // 이벤트 리스너 제거
-        document.removeEventListener('click', handleUserInteraction)
-        document.removeEventListener('touchstart', handleUserInteraction)
-      }
+      // 바로 권한 요청 (사용자 상호작용 기다리지 않음)
+      await requestNotificationPermissionAndSubscribe()
       
-      // 사용자 상호작용 이벤트 리스너 등록
-      document.addEventListener('click', handleUserInteraction, { once: true })
-      document.addEventListener('touchstart', handleUserInteraction, { once: true })
     } else if (notificationPermission.value === 'granted') {
       // 권한이 있지만 구독이 안되어 있으면 바로 구독
       console.log('PWA에서 권한이 있지만 구독이 안되어 있으므로 바로 구독합니다')
