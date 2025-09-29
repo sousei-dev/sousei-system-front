@@ -114,6 +114,8 @@ const detectPWA = () => {
 // 푸시 알림 구독
 const subscribeToPushNotifications = async () => {
   try {
+    console.log('subscribeToPushNotifications 함수 시작')
+    
     const userId = localStorage.getItem('user_id')
     if (!userId) {
       console.error('사용자 ID를 찾을 수 없습니다')
@@ -122,7 +124,9 @@ const subscribeToPushNotifications = async () => {
 
     console.log('푸시 구독을 시작합니다. 사용자 ID:', userId)
     
+    console.log('pushService.subscribeToPush 호출 전')
     const result = await pushService.subscribeToPush(userId)
+    console.log('pushService.subscribeToPush 호출 완료, 결과:', result)
     
     if (result.success) {
       isPushSubscribed.value = true
@@ -141,18 +145,23 @@ const subscribeToPushNotifications = async () => {
 // 안전한 알림 권한 요청 및 구독
 const requestNotificationPermissionAndSubscribe = async () => {
   try {
+    console.log('requestNotificationPermissionAndSubscribe 함수 시작')
+    
     // 이미 권한을 요청했거나 처리 중이면 중단
     if (hasRequestedPermission.value || isInitializingPush.value) {
+      console.log('이미 권한을 요청했거나 처리 중이므로 중단')
       return
     }
     
     hasRequestedPermission.value = true
+    console.log('hasRequestedPermission을 true로 설정')
     
     // 현재 권한 상태 확인
     const currentPermission = Notification.permission
     console.log('현재 알림 권한 상태:', currentPermission)
     
     if (currentPermission === 'granted') {
+      console.log('이미 권한이 허용되어 있음')
       // 이미 권한이 있으면 바로 구독
       const success = await subscribeToPushNotifications()
       if (success) {
@@ -169,20 +178,31 @@ const requestNotificationPermissionAndSubscribe = async () => {
     }
     
     // 권한 요청
-    console.log('알림 권한을 요청합니다')
-    const permission = await Notification.requestPermission()
-    notificationPermission.value = permission
+    console.log('알림 권한을 요청합니다 - Notification.requestPermission() 호출 전')
     
-    console.log('알림 권한 요청 결과:', permission)
-    
-    if (permission === 'granted') {
-      // 권한이 허용되면 구독 시도
-      const success = await subscribeToPushNotifications()
-      if (success) {
-        // 구독 성공 후 새로고침
-        console.log('구독 성공 후 페이지를 새로고침합니다')
-        window.location.reload()
+    try {
+      const permission = await Notification.requestPermission()
+      console.log('Notification.requestPermission() 완료, 결과:', permission)
+      notificationPermission.value = permission
+      
+      console.log('알림 권한 요청 결과:', permission)
+      
+      if (permission === 'granted') {
+        console.log('권한이 허용됨, 구독을 시도합니다')
+        // 권한이 허용되면 구독 시도
+        const success = await subscribeToPushNotifications()
+        console.log('구독 시도 결과:', success)
+        if (success) {
+          // 구독 성공 후 새로고침
+          console.log('구독 성공 후 페이지를 새로고침합니다')
+          window.location.reload()
+        }
+      } else {
+        console.log('권한이 거부됨:', permission)
       }
+    } catch (permissionError) {
+      console.error('Notification.requestPermission() 에러:', permissionError)
+      throw permissionError
     }
     
   } catch (error) {
