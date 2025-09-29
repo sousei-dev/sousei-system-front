@@ -166,9 +166,10 @@ const requestNotificationPermissionAndSubscribe = async () => {
       // 이미 권한이 있으면 바로 구독
       const success = await subscribeToPushNotifications()
       if (success) {
-        // 구독 성공 후 새로고침
-        console.log('구독 성공 후 페이지를 새로고침합니다')
-        window.location.reload()
+        // 구독 성공 후 localStorage에 완료 상태 저장
+        localStorage.setItem('push_subscription_completed', 'true')
+        console.log('구독 성공 후 localStorage에 완료 상태를 저장했습니다.')
+        // 새로고침하지 않음
       }
       return
     }
@@ -194,9 +195,10 @@ const requestNotificationPermissionAndSubscribe = async () => {
         const success = await subscribeToPushNotifications()
         console.log('구독 시도 결과:', success)
         if (success) {
-          // 구독 성공 후 새로고침
-          console.log('구독 성공 후 페이지를 새로고침합니다')
-          window.location.reload()
+          // 구독 성공 후 localStorage에 완료 상태 저장
+          localStorage.setItem('push_subscription_completed', 'true')
+          console.log('구독 성공 후 localStorage에 완료 상태를 저장했습니다.')
+          // 새로고침하지 않음
         }
       } else {
         console.log('권한이 거부됨:', permission)
@@ -245,13 +247,21 @@ const initializePushNotifications = async () => {
     notificationPermission.value = Notification.permission
     console.log('현재 알림 권한:', notificationPermission.value)
 
+    // localStorage에서 구독 완료 상태 확인
+    const subscriptionCompleted = localStorage.getItem('push_subscription_completed')
+    if (subscriptionCompleted === 'true') {
+      console.log('이미 구독이 완료되었습니다. 새로고침하지 않습니다.')
+      return
+    }
+
     // 현재 푸시 구독 상태 확인
     isPushSubscribed.value = await pushService.getSubscriptionStatus()
     console.log('현재 푸시 구독 상태:', isPushSubscribed.value)
 
-    // 이미 구독되어 있으면 새로고침 없이 종료
+    // 이미 구독되어 있으면 localStorage에 완료 상태 저장
     if (isPushSubscribed.value) {
-      console.log('이미 푸시 구독이 되어 있습니다. 새로고침하지 않습니다.')
+      console.log('이미 푸시 구독이 되어 있습니다. localStorage에 완료 상태를 저장합니다.')
+      localStorage.setItem('push_subscription_completed', 'true')
       return
     }
 
@@ -275,9 +285,10 @@ const initializePushNotifications = async () => {
       console.log('PWA에서 권한이 있지만 구독이 안되어 있으므로 바로 구독합니다')
       const success = await subscribeToPushNotifications()
       if (success) {
-        // 구독 성공 후 새로고침
-        console.log('구독 성공 후 페이지를 새로고침합니다')
-        window.location.reload()
+        // 구독 성공 후 localStorage에 완료 상태 저장
+        localStorage.setItem('push_subscription_completed', 'true')
+        console.log('구독 성공 후 localStorage에 완료 상태를 저장했습니다.')
+        // 새로고침하지 않음
       }
     }
 
