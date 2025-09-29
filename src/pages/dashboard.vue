@@ -425,10 +425,7 @@ onMounted(() => {
   fetchVisaRenewalStudents()
   fetchContact()
   
-  // PWA 초기화를 지연시켜 페이지 로딩 완료 후 실행
-  setTimeout(() => {
-    initializePushNotifications()
-  }, 2000)
+  initializePushNotifications()
 })
 </script>
 
