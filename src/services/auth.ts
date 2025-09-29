@@ -68,20 +68,6 @@ export const authService = {
         localStorage.removeItem('isRemember')
         localStorage.removeItem('rememberToken')
       }
-
-      // 로그인 성공 후 푸시 알림 구독 시도
-      try {
-        console.log('푸시 알림 구독을 시작합니다...')
-        const pushResult = await pushService.subscribeToPush(response.data.user_id)
-        
-        if (pushResult.success) {
-          console.log('푸시 알림 구독 성공:', pushResult.message)
-        } else {
-          console.warn('푸시 알림 구독 실패:', pushResult.message)
-        }
-      } catch (error) {
-        console.error('푸시 알림 구독 중 오류 발생:', error)
-      }
     }
 
     return response.data

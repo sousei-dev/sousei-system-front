@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { studentService, type VisaRenewalStudent } from '@/services/student'
 import { contactService, type ContactResponse } from '@/services/contact'
 import { getCurrentUserPermission } from '@/utils/permissions';
+import { pushService } from '@/services/pushService'
 
 const router = useRouter()
 
@@ -24,6 +25,11 @@ const showCommentInput = ref(false)
 const commentType = ref<'completed' | 'rejected' | 'pending' | 'cancel' | null>(null)
 const commentText = ref('')
 const processingContact = ref(false)
+
+// PWA 알림 관련 상태
+const notificationPermission = ref<NotificationPermission>('default')
+const isPushSubscribed = ref(false)
+const pushSupported = ref(false)
 
 // 비자갱신 임박 학생 조회
 const fetchVisaRenewalStudents = async () => {
@@ -199,13 +205,88 @@ const openPhotoInNewTab = (url: string) => {
   window.open(url, '_blank')
 }
 
+// PWA 알림 권한 확인 및 푸시 구독 처리
+const initializePushNotifications = async () => {
+  try {
+    // 푸시 알림 지원 여부 확인
+    pushSupported.value = pushService.isPushSupported()
+    
+    if (!pushSupported.value) {
+      console.log('이 브라우저는 푸시 알림을 지원하지 않습니다')
+      return
+    }
+
+    // 현재 알림 권한 상태 확인
+    notificationPermission.value = Notification.permission
+    console.log('현재 알림 권한:', notificationPermission.value)
+
+    // 현재 푸시 구독 상태 확인
+    isPushSubscribed.value = await pushService.getSubscriptionStatus()
+    console.log('현재 푸시 구독 상태:', isPushSubscribed.value)
+
+    // PWA로 열렸는지 확인 (display-mode가 standalone인지 확인)
+    const isPWA = window.matchMedia('(display-mode: standalone)').matches || 
+                  (window.navigator as any).standalone === true ||
+                  document.referrer.includes('android-app://')
+
+    if (isPWA) {
+      // PWA로 열린 경우에만 알림 권한 요청
+      if (notificationPermission.value === 'default') {
+        console.log('PWA로 열렸으므로 알림 권한을 요청합니다')
+        const permission = await Notification.requestPermission()
+        notificationPermission.value = permission
+        
+        if (permission === 'granted' && !isPushSubscribed.value) {
+          await subscribeToPushNotifications()
+        }
+      } else if (notificationPermission.value === 'granted' && !isPushSubscribed.value) {
+        // 권한이 이미 허용되었지만 구독이 안된 경우 자동 구독
+        await subscribeToPushNotifications()
+      }
+    } else {
+      // 일반 브라우저로 열린 경우 권한이 있으면 자동 구독
+      if (notificationPermission.value === 'granted' && !isPushSubscribed.value) {
+        console.log('일반 브라우저에서 자동으로 푸시 구독을 시도합니다')
+        await subscribeToPushNotifications()
+      }
+    }
+
+  } catch (error) {
+    console.error('푸시 알림 초기화 실패:', error)
+  }
+}
+
+// 푸시 알림 구독
+const subscribeToPushNotifications = async () => {
+  try {
+    const userId = localStorage.getItem('user_id')
+    if (!userId) {
+      console.error('사용자 ID를 찾을 수 없습니다')
+      return
+    }
+
+    const result = await pushService.subscribeToPush(userId)
+    
+    if (result.success) {
+      isPushSubscribed.value = true
+      console.log('푸시 알림 구독 성공:', result.message)
+    } else {
+      console.error('푸시 알림 구독 실패:', result.message)
+    }
+  } catch (error) {
+    console.error('푸시 알림 구독 중 오류:', error)
+  }
+}
+
 onMounted(() => {
   fetchVisaRenewalStudents()
   fetchContact()
+  initializePushNotifications()
 })
 </script>
 
 <template>
+  <!-- 기존 대시보드 내용만 유지 -->
   <VRow class="match-height">
     <!-- 비자갱신 임박 학생 리스트 -->
     <VCol cols="12" md="6">
