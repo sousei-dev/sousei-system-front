@@ -1,4 +1,4 @@
-// Service Worker for PWA Notifications
+// Service Worker for PWA Notifications (iOS Safari PWA Optimized)
 const CACHE_NAME = 'sousei-system-v1'
 
 // Install event
@@ -36,16 +36,7 @@ self.addEventListener('push', event => {
   console.log('🔔 PUSH EVENT RECEIVED!', event)
   console.log('Push data:', event.data)
   
-  // 모든 클라이언트에게 푸시 수신 알림
-  self.clients.matchAll().then(clients => {
-    clients.forEach(client => {
-      client.postMessage({
-        type: 'PUSH_RECEIVED',
-        data: event.data ? event.data.json() : null
-      })
-    })
-  })
-  
+  // 아이폰 사파리 PWA에서의 푸시 데이터 처리 개선
   let data = {}
   if (event.data) {
     try {
@@ -53,13 +44,36 @@ self.addEventListener('push', event => {
       console.log('Parsed push data:', data)
     } catch (e) {
       console.error('Push data parsing error:', e)
-      data = { 
-        title: '새 메시지', 
-        body: event.data.text() || '새 메시지가 도착했습니다'
+      try {
+        data = JSON.parse(event.data.text())
+        console.log('Text parsed push data:', data)
+      } catch (e2) {
+        console.error('Text parsing also failed:', e2)
+        data = { 
+          title: '새 메시지', 
+          body: event.data.text() || '새 메시지가 도착했습니다'
+        }
       }
+    }
+  } else {
+    console.log('No push data received')
+    data = {
+      title: 'SOUSEI 시스템',
+      body: '새 메시지가 도착했습니다'
     }
   }
 
+  // 모든 클라이언트에게 푸시 수신 알림
+  self.clients.matchAll().then(clients => {
+    console.log('Notifying clients:', clients.length)
+    clients.forEach(client => {
+      client.postMessage({
+        type: 'PUSH_RECEIVED',
+        data: data
+      })
+    })
+  })
+  
   // 백엔드에서 보낸 데이터 구조에 맞게 처리
   const notificationData = {
     title: data.notification?.title || data.title || 'SOUSEI 시스템',
@@ -74,29 +88,38 @@ self.addEventListener('push', event => {
 
   console.log('Showing notification with data:', notificationData)
 
+  // 아이폰 사파리 PWA에서의 알림 표시 최적화
+  const notificationOptions = {
+    body: notificationData.body,
+    icon: notificationData.icon,
+    badge: notificationData.badge,
+    tag: notificationData.tag,
+    requireInteraction: notificationData.requireInteraction,
+    silent: false,
+    vibrate: notificationData.vibrate,
+    data: notificationData.data,
+    actions: [
+      {
+        action: 'open',
+        title: '열기',
+        icon: '/pwa-192x192.png'
+      },
+      {
+        action: 'close',
+        title: '닫기',
+        icon: '/pwa-192x192.png'
+      }
+    ]
+  }
+
   event.waitUntil(
-    self.registration.showNotification(notificationData.title, {
-      body: notificationData.body,
-      icon: notificationData.icon,
-      badge: notificationData.badge,
-      tag: notificationData.tag,
-      requireInteraction: notificationData.requireInteraction,
-      silent: false,
-      vibrate: notificationData.vibrate,
-      data: notificationData.data,
-      actions: [
-        {
-          action: 'open',
-          title: '열기',
-          icon: '/pwa-192x192.png'
-        },
-        {
-          action: 'close',
-          title: '닫기',
-          icon: '/pwa-192x192.png'
-        }
-      ]
-    })
+    self.registration.showNotification(notificationData.title, notificationOptions)
+      .then(() => {
+        console.log('Notification shown successfully')
+      })
+      .catch(error => {
+        console.error('Failed to show notification:', error)
+      })
   )
 })
 
@@ -141,6 +164,15 @@ self.addEventListener('message', event => {
       break
     case 'CLOSE_ALL_NOTIFICATIONS':
       closeAllNotifications()
+      break
+    case 'TEST_PUSH':
+      // 테스트용 푸시 알림
+      self.registration.showNotification('테스트 알림', {
+        body: '아이폰 사파리 PWA에서 푸시 알림이 작동합니다!',
+        icon: '/pwa-192x192.png',
+        badge: '/pwa-192x192.png',
+        tag: 'test-notification'
+      })
       break
     default:
       console.log('Unknown message type:', type)

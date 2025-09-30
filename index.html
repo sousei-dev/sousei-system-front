@@ -1,24 +1,46 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ja">
   <head>
     <meta charset="UTF-8" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/pwa-192x192.png" />
+    
+    <!-- PWA 기본 설정 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <link
-      rel="icon"
-      href="/favicon.ico"
-    />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0"
-    />
-    <title>社内システム -  SOUSEI</title>
-    <link
-      rel="stylesheet"
-      type="text/css"
-      href="/loader.css"
-    />
+    <meta name="apple-mobile-web-app-title" content="SOUSEI社内システム" />
+    
+    <!-- 아이콘 설정 -->
+    <link rel="apple-touch-icon" sizes="180x180" href="/pwa-192x192.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/pwa-512x512.png" />
+    <link rel="icon" href="/favicon.ico" />
+    
+    <!-- PWA 매니페스트 -->
+    <link rel="manifest" href="/manifest.json" />
+    
+    <!-- 테마 색상 -->
+    <meta name="theme-color" content="#4DBA87" />
+    <meta name="msapplication-TileColor" content="#4DBA87" />
+    
+    <!-- SEO 및 소셜 미디어 -->
+    <meta name="description" content="SOUSEI社内システム - 技能実習生管理システム" />
+    <meta name="keywords" content="技能実習生,管理システム,SOUSEI" />
+    
+    <!-- Open Graph -->
+    <meta property="og:title" content="SOUSEI社内システム" />
+    <meta property="og:description" content="技能実習生管理システム" />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="/pwa-512x512.png" />
+    
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="SOUSEI社内システム" />
+    <meta name="twitter:description" content="技能実習生管理システム" />
+    <meta name="twitter:image" content="/pwa-512x512.png" />
+    
+    <title>社内システム - SOUSEI</title>
+    <link rel="stylesheet" type="text/css" href="/loader.css" />
   </head>
 
   <body>

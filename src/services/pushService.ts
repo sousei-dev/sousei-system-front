@@ -22,7 +22,36 @@ class PushService {
 
   constructor() {
     this.vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY
-    this.isSupported = 'serviceWorker' in navigator && 'PushManager' in window
+    // 아이폰 사파리 PWA 지원 확인 개선
+    this.isSupported = this.checkPushSupport()
+  }
+
+  // 푸시 지원 여부 확인 (아이폰 사파리 PWA 고려)
+  private checkPushSupport(): boolean {
+    // 기본 지원 확인
+    const basicSupport = 'serviceWorker' in navigator && 'PushManager' in window
+    
+    // 아이폰 사파리 PWA 감지
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+    const isSafari = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent)
+    const isPWA = window.matchMedia('(display-mode: standalone)').matches || 
+                  (window.navigator as any).standalone === true
+    
+    console.log('푸시 지원 확인:', {
+      basicSupport,
+      isIOS,
+      isSafari,
+      isPWA,
+      userAgent: navigator.userAgent
+    })
+    
+    // 아이폰 사파리 PWA에서는 제한적 지원
+    if (isIOS && isSafari && isPWA) {
+      console.log('아이폰 사파리 PWA 감지 - 제한적 푸시 지원')
+      return basicSupport
+    }
+    
+    return basicSupport
   }
 
   // 서비스워커 등록 (한 번만)
@@ -38,6 +67,7 @@ class PushService {
       const registrations = await navigator.serviceWorker.getRegistrations()
       if (registrations.length > 0) {
         this.swRegistration = registrations[0]
+        console.log('기존 서비스워커 사용:', this.swRegistration)
         return this.swRegistration
       }
 
@@ -50,10 +80,10 @@ class PushService {
     }
   }
 
-  // 푸시 구독
+  // 푸시 구독 (아이폰 사파리 PWA 최적화)
   async subscribeToPush(userId: string): Promise<PushSubscriptionResponse> {
     if (!this.isSupported) {
-      return { success: false, message: '브라우저가 푸시를 지원하지 않습니다.' }
+      return { success: false, message: '브라우저가 푸시를 지원하지 않습니다' }
     }
 
     if (!this.vapidPublicKey) {
@@ -64,16 +94,22 @@ class PushService {
       const registration = await this.registerServiceWorker()
       if (!registration) return { success: false, message: 'Service Worker 등록 실패' }
 
-      // ⚡ 권한 요청은 버튼 클릭 등 사용자 액션 안에서만
+      // 아이폰 사파리 PWA에서의 권한 요청
       const permission = await Notification.requestPermission()
+      console.log('알림 권한 요청 결과:', permission)
+      
       if (permission !== 'granted') {
         return { success: false, message: '알림 권한이 필요합니다' }
       }
 
       // 기존 구독 확인
       let subscription = await registration.pushManager.getSubscription()
+      console.log('기존 구독 확인:', subscription)
+      
       if (!subscription) {
         const applicationServerKey = this.urlBase64ToUint8Array(this.vapidPublicKey)
+        console.log('VAPID 키 변환 완료:', applicationServerKey)
+        
         subscription = await registration.pushManager.subscribe({
           userVisibleOnly: true,
           applicationServerKey
@@ -83,8 +119,16 @@ class PushService {
         console.log('기존 구독 있음')
       }
 
+      // 구독 정보 로깅 (디버깅용)
+      console.log('구독 정보:', {
+        endpoint: subscription.endpoint,
+        keys: subscription.getKey('p256dh') ? '있음' : '없음',
+        auth: subscription.getKey('auth') ? '있음' : '없음'
+      })
+
       // 서버 전송
       const result = await this.sendSubscriptionToServer(userId, subscription)
+      console.log('서버 전송 결과:', result)
       return result
 
     } catch (error: any) {
@@ -113,10 +157,24 @@ class PushService {
     }
   }
 
-  // 서버 전송
+  // 서버 전송 (아이폰 사파리 PWA 최적화)
   private async sendSubscriptionToServer(userId: string, subscription: PushSubscription): Promise<PushSubscriptionResponse> {
     try {
-      const response = await api.post('/push/save-subscription', { userId, subscription })
+      const subscriptionData = {
+        userId,
+        endpoint: subscription.endpoint,
+        keys: {
+          p256dh: subscription.getKey('p256dh') ? 
+            this.arrayBufferToBase64(subscription.getKey('p256dh')) : null,
+          auth: subscription.getKey('auth') ? 
+            this.arrayBufferToBase64(subscription.getKey('auth')) : null
+        }
+      }
+      
+      console.log('서버 전송 데이터:', subscriptionData)
+      
+      const response = await api.post('/push/save-subscription', subscriptionData)
+      console.log('서버 응답:', response.data)
       return response.data
     } catch (error: any) {
       console.error('서버 전송 실패:', error)
@@ -139,6 +197,15 @@ class PushService {
     const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
     const rawData = window.atob(base64)
     return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)))
+  }
+
+  private arrayBufferToBase64(buffer: ArrayBuffer): string {
+    const bytes = new Uint8Array(buffer)
+    let binary = ''
+    for (let i = 0; i < bytes.byteLength; i++) {
+      binary += String.fromCharCode(bytes[i])
+    }
+    return window.btoa(binary)
   }
 
   // 현재 구독 상태
