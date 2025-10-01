@@ -184,6 +184,37 @@ const handleGlobalWebSocketMessage = (message: WebSocketMessage) => {
   }
 }
 
+// 서비스 워커 푸시 메시지 처리 (사용자가 웹사이트를 보고 있을 때)
+const handleServiceWorkerPushMessage = (event: MessageEvent) => {
+  console.log('서비스 워커로부터 푸시 메시지 수신:', event.data)
+  
+  if (event.data && event.data.type === 'PUSH_RECEIVED') {
+    const pushData = event.data.data
+    console.log('푸시 데이터:', pushData)
+    
+    // 사용자가 웹사이트를 보고 있을 때는 시스템 알림 대신
+    // 필요한 경우 데이터 새로고침이나 앱 내 알림 표시
+    // 예: 채팅 알림 카운트 업데이트, 리스트 새로고침 등
+    
+    // 채팅 관련 푸시인 경우
+    if (pushData.data && pushData.data.type === 'chat') {
+      chatNotificationStore.incrementUnreadCount()
+      chatNotificationStore.setNewMessageNotification(true)
+      console.log('채팅 푸시 수신: 알림 카운트 업데이트')
+      
+      // 채팅 페이지에 이벤트 전달
+      if (window.location.pathname === '/chat') {
+        window.dispatchEvent(new CustomEvent('chat_list_update', {
+          detail: pushData.data
+        }))
+      }
+    }
+    
+    // 다른 타입의 푸시 처리 (비자 갱신, 연락 등)
+    console.log('푸시 알림을 받았지만 사용자가 웹사이트를 보고 있어 시스템 알림은 표시하지 않습니다.')
+  }
+}
+
 // 전역 웹소켓 연결
 const connectGlobalWebSocket = () => {
   const token = localStorage.getItem('token')
@@ -235,6 +266,12 @@ onMounted(() => {
   window.addEventListener('focus', handleFocus)
   window.addEventListener('blur', handleBlur)
   
+  // 서비스 워커 메시지 리스너 등록 (푸시 알림용)
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', handleServiceWorkerPushMessage)
+    console.log('서비스 워커 메시지 리스너 등록 완료')
+  }
+  
   // 웹소켓 연결
   connectGlobalWebSocket()
 })
@@ -245,6 +282,11 @@ onUnmounted(() => {
   document.removeEventListener('visibilitychange', handleVisibilityChange)
   window.removeEventListener('focus', handleFocus)
   window.removeEventListener('blur', handleBlur)
+  
+  // 서비스 워커 메시지 리스너 제거
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.removeEventListener('message', handleServiceWorkerPushMessage)
+  }
   
   // 웹소켓 연결 해제
   websocketService.disconnect()

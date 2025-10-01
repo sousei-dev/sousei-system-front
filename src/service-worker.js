@@ -62,17 +62,6 @@ self.addEventListener('push', event => {
     }
   }
 
-  // 모든 클라이언트에게 푸시 수신 알림
-  self.clients.matchAll().then(clients => {
-    console.log('Notifying clients:', clients.length)
-    clients.forEach(client => {
-      client.postMessage({
-        type: 'PUSH_RECEIVED',
-        data: data
-      })
-    })
-  })
-  
   // 백엔드에서 보낸 데이터 구조에 맞게 처리
   const notificationData = {
     title: data.notification?.title || data.title || 'SOUSEI 시스템',
@@ -85,40 +74,64 @@ self.addEventListener('push', event => {
     requireInteraction: data.notification?.requireInteraction || false
   }
 
-  console.log('Showing notification with data:', notificationData)
-
-  // 아이폰 사파리 PWA에서의 알림 표시 최적화
-  const notificationOptions = {
-    body: notificationData.body,
-    icon: notificationData.icon,
-    badge: notificationData.badge,
-    tag: notificationData.tag,
-    requireInteraction: notificationData.requireInteraction,
-    silent: false,
-    vibrate: notificationData.vibrate,
-    data: notificationData.data,
-    actions: [
-      {
-        action: 'open',
-        title: '열기',
-        icon: '/pwa-192x192.png'
-      },
-      {
-        action: 'close',
-        title: '닫기',
-        icon: '/pwa-192x192.png'
-      }
-    ]
-  }
-
+  // 사용자가 웹사이트를 보고 있는지 확인
   event.waitUntil(
-    self.registration.showNotification(notificationData.title, notificationOptions)
-      .then(() => {
-        console.log('Notification shown successfully')
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
+      console.log('Active clients:', clients.length)
+      
+      // 포커스된 클라이언트가 있는지 확인
+      const focusedClient = clients.find(client => client.focused)
+      
+      if (focusedClient) {
+        console.log('사용자가 웹사이트를 보고 있습니다. 알림을 표시하지 않고 메시지만 전송합니다.')
+        // 포커스된 클라이언트에게만 메시지 전송
+        return focusedClient.postMessage({
+          type: 'PUSH_RECEIVED',
+          data: notificationData
+        })
+      }
+      
+      // 포커스된 클라이언트가 없으면 모든 클라이언트에게 알림
+      console.log('사용자가 웹사이트를 보고 있지 않습니다. 푸시 알림을 표시합니다.')
+      clients.forEach(client => {
+        client.postMessage({
+          type: 'PUSH_RECEIVED',
+          data: notificationData
+        })
       })
-      .catch(error => {
-        console.error('Failed to show notification:', error)
-      })
+      
+      // 아이폰 사파리 PWA에서의 알림 표시 최적화
+      const notificationOptions = {
+        body: notificationData.body,
+        icon: notificationData.icon,
+        badge: notificationData.badge,
+        tag: notificationData.tag,
+        requireInteraction: notificationData.requireInteraction,
+        silent: false,
+        vibrate: notificationData.vibrate,
+        data: notificationData.data,
+        actions: [
+          {
+            action: 'open',
+            title: '열기',
+            icon: '/pwa-192x192.png'
+          },
+          {
+            action: 'close',
+            title: '닫기',
+            icon: '/pwa-192x192.png'
+          }
+        ]
+      }
+
+      return self.registration.showNotification(notificationData.title, notificationOptions)
+        .then(() => {
+          console.log('Notification shown successfully')
+        })
+        .catch(error => {
+          console.error('Failed to show notification:', error)
+        })
+    })
   )
 })
 

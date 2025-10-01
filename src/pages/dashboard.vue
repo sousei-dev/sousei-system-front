@@ -729,7 +729,7 @@ onMounted(() => {
         </div>
       </VCardTitle>
       
-      <VCardText class="pt-6">
+      <VCardText class="pt-6 mx-2">
         <div class="text-center mb-4">
           <VIcon size="64" color="primary">ri-notification-badge-line</VIcon>
         </div>
@@ -748,14 +748,12 @@ onMounted(() => {
           color="grey"
           variant="outlined"
           @click="handleDismissNotificationPrompt"
-          block
         >
           後で
         </VBtn>
         <VBtn
           color="primary"
           @click="handleEnableNotifications"
-          block
         >
           通知を有効にする
         </VBtn>
