@@ -123,7 +123,8 @@ class PushService {
       console.log('구독 정보:', {
         endpoint: subscription.endpoint,
         keys: subscription.getKey('p256dh') ? '있음' : '없음',
-        auth: subscription.getKey('auth') ? '있음' : '없음'
+        auth: subscription.getKey('auth') ? '있음' : '없음',
+        expirationTime: subscription.expirationTime
       })
 
       // 서버 전송
@@ -162,12 +163,15 @@ class PushService {
     try {
       const subscriptionData = {
         userId,
-        endpoint: subscription.endpoint,
-        keys: {
-          p256dh: subscription.getKey('p256dh') ? 
-            this.arrayBufferToBase64(subscription.getKey('p256dh')) : null,
-          auth: subscription.getKey('auth') ? 
-            this.arrayBufferToBase64(subscription.getKey('auth')) : null
+        subscription_data: {
+          endpoint: subscription.endpoint,
+          keys: {
+            p256dh: subscription.getKey('p256dh') ? 
+              this.arrayBufferToBase64(subscription.getKey('p256dh')) : null,
+            auth: subscription.getKey('auth') ? 
+              this.arrayBufferToBase64(subscription.getKey('auth')) : null
+          },
+          expirationTime: subscription.expirationTime
         }
       }
       
