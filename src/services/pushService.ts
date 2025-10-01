@@ -163,7 +163,7 @@ class PushService {
     try {
       const subscriptionData = {
         userId,
-        subscription_data: {
+        subscription: {
           endpoint: subscription.endpoint,
           keys: {
             p256dh: subscription.getKey('p256dh') ? 
