@@ -13,7 +13,6 @@ declare module 'vue' {
     ConfirmDialog: typeof import('./src/components/ConfirmDialog.vue')['default']
     ErrorHeader: typeof import('./src/components/ErrorHeader.vue')['default']
     FileUpload: typeof import('./src/components/FileUpload.vue')['default']
-    ImageModal: typeof import('./src/components/ImageModal.vue')['default']
     InvoiceDetailDialog: typeof import('./src/components/InvoiceDetailDialog.vue')['default']
     MoreBtn: typeof import('./src/@core/components/MoreBtn.vue')['default']
     PermissionGuard: typeof import('./src/components/PermissionGuard.vue')['default']
@@ -21,6 +20,5 @@ declare module 'vue' {
     RouterView: typeof import('vue-router')['RouterView']
     ThemeSwitcher: typeof import('./src/@core/components/ThemeSwitcher.vue')['default']
     UpgradeToPro: typeof import('./src/components/UpgradeToPro.vue')['default']
-    VueApexCharts: typeof import('vue3-apexcharts')['default']
   }
 }
