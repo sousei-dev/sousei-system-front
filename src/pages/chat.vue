@@ -88,7 +88,12 @@
             @click="selectChat(chat)"
           >
             <VAvatar size="40" class="me-3">
-              <VImg v-if="chat.participants[0].avatar" :src="chat.participants[0].avatar" />
+              <!-- 그룹 채팅인 경우 그룹 아이콘 표시 -->
+              <VAvatar v-if="chat.is_group" color="primary" size="40">
+                <VIcon color="white" size="24">ri-group-line</VIcon>
+              </VAvatar>
+              <!-- 일반 채팅인 경우 사용자 아바타 또는 이니셜 -->
+              <VImg v-else-if="chat.participants && chat.participants[0]?.avatar" :src="chat.participants[0].avatar" />
               <VAvatar v-else :color="getUserColor(chat.title)" size="40">
                 <span class="text-white text-h6">{{ getUserInitials(chat.title) }}</span>
               </VAvatar>
@@ -232,7 +237,12 @@
       <div class="chat-header" v-if="selectedChat && !isMobile">
         <div class="chat-partner-info">
           <VAvatar size="40" class="me-3">
-            <VImg v-if="getUserAvatar(selectedChat.title)" :src="getUserAvatar(selectedChat.title)" />
+            <!-- 그룹 채팅인 경우 그룹 아이콘 표시 -->
+            <VAvatar v-if="selectedChat.is_group" color="primary" size="40">
+              <VIcon color="white" size="24">ri-group-line</VIcon>
+            </VAvatar>
+            <!-- 일반 채팅인 경우 사용자 아바타 또는 이니셜 -->
+            <VImg v-else-if="selectedChat.participants && selectedChat.participants[0]?.avatar" :src="selectedChat.participants[0].avatar" />
             <VAvatar v-else :color="getUserColor(selectedChat.title)" size="40">
               <span class="text-white text-h6">{{ getUserInitials(selectedChat.title) }}</span>
             </VAvatar>
@@ -367,9 +377,7 @@
             </div>
             
             <!-- 메시지 텍스트 -->
-            <div v-if="message.body && message.body.trim()" class="message-bubble">
-              {{ message.body }}
-            </div>
+            <div v-if="message.body && message.body.trim()" class="message-bubble" v-html="linkifyMessage(message.body)"></div>
             
             <div class="message-time">
               {{ formatMessageTime(message.created_at) }}
@@ -479,13 +487,14 @@
             @click="toggleFileUpload"
             class="attach-btn"
             :title="showFileUpload ? 'ファイル添付を閉じる' : 'ファイル添付'"
+            :disabled="isLoadingMessages"
           >
             <VIcon>{{ showFileUpload ? 'ri-close-line' : 'ri-attachment-2' }}</VIcon>
           </VBtn>
             
           <VTextarea
             v-model="newMessage"
-            placeholder="メッセージを入力してください (Ctrl+Enterで改行)"
+            :placeholder="isMobile ? 'メッセージを入力してください' : 'メッセージを入力してください (Ctrl+Enterで改行)'"
             variant="outlined"
             density="comfortable"
             hide-details
@@ -495,6 +504,7 @@
             max-rows="4"
             @keydown="handleKeyDown"
             ref="messageTextarea"
+            :disabled="isLoadingMessages"
           />
           
           <VBtn
@@ -503,7 +513,7 @@
             size="small"
             class="send-button"
             @click="sendMessage"
-            :disabled="!canSendMessage"
+            :disabled="!canSendMessage || isLoadingMessages"
           >
             <VIcon>ri-send-plane-line</VIcon>
           </VBtn>
@@ -704,6 +714,24 @@
       </VCardText>
       
       <VCardActions class="participants-actions">
+        <VBtn
+          variant="elevated"
+          color="primary"
+          @click="openInviteMembersDialog"
+          class="invite-btn"
+        >
+          <VIcon class="me-2">ri-user-add-line</VIcon>
+          メンバー招待
+        </VBtn>
+        <VBtn
+          variant="elevated"
+          color="error"
+          @click="leaveGroupChat"
+          class="leave-btn"
+        >
+          <VIcon class="me-2">ri-logout-box-line</VIcon>
+          退出
+        </VBtn>
         <VSpacer />
         <VBtn
           variant="outlined"
@@ -711,6 +739,136 @@
           class="close-action-btn"
         >
           閉じる
+        </VBtn>
+      </VCardActions>
+    </VCard>
+  </VDialog>
+
+  <!-- 멤버 초대 다이얼로그 -->
+  <VDialog
+    v-model="showInviteMembersDialog"
+    max-width="500"
+    persistent
+  >
+    <VCard class="invite-members-dialog-card">
+      <VCardTitle class="invite-members-header">
+        <div class="invite-members-title">
+          <VIcon class="me-2" color="primary">ri-user-add-line</VIcon>
+          <span>メンバー招待</span>
+        </div>
+        <VBtn
+          icon
+          variant="text"
+          size="small"
+          @click="closeInviteMembersDialog"
+          class="close-btn"
+        >
+          <VIcon>ri-close-line</VIcon>
+        </VBtn>
+      </VCardTitle>
+      
+      <VCardText class="invite-members-content">
+        <p class="mb-4 text-body-2 text-medium-emphasis">
+          招待するメンバーを選択してください ({{ selectedMembersToInvite.length }}人選択中)
+        </p>
+        
+        <div v-if="isLoadingUsers" class="loading-users">
+          <VIcon class="loading-icon">ri-loader-4-line</VIcon>
+          <span>ユーザーリストを読み込んでいます...</span>
+        </div>
+        
+        <div v-else class="invite-user-list">
+          <div 
+            v-for="(deptData, department) in usersByDepartment" 
+            :key="department"
+            class="department-section"
+          >
+            <div 
+              class="department-header"
+              @click="toggleDepartment(department)"
+            >
+              <VIcon class="department-icon">ri-building-line</VIcon>
+              <span class="department-name">{{ department }}</span>
+              <span class="department-count">({{ deptData.count }}人)</span>
+              <VIcon 
+                class="dropdown-icon"
+                :class="{ 'expanded': expandedDepartments.has(department) }"
+              >
+                {{ expandedDepartments.has(department) ? 'ri-arrow-up-s-line' : 'ri-arrow-right-s-line' }}
+              </VIcon>
+            </div>
+            
+            <div 
+              v-show="expandedDepartments.has(department)"
+              class="department-users"
+              :class="{ 'show': expandedDepartments.has(department) }"
+            >
+              <div
+                v-for="user in deptData.users"
+                :key="user.id"
+                :class="['invite-user-item', { 
+                  'selected': selectedMembersToInvite.includes(user.id),
+                  'disabled': isAlreadyMember(user.id)
+                }]"
+                @click="!isAlreadyMember(user.id) && toggleMemberSelection(user.id)"
+              >
+                <VCheckbox
+                  v-model="selectedMembersToInvite"
+                  :value="user.id"
+                  :disabled="isAlreadyMember(user.id)"
+                  class="user-checkbox"
+                  @click.stop
+                />
+                
+                <VAvatar size="36" class="me-3">
+                  <VImg v-if="user.avatar" :src="user.avatar" />
+                  <VAvatar v-else :color="getUserColor(user.name)" size="36">
+                    <span class="text-white text-body-2">{{ getUserInitials(user.name) }}</span>
+                  </VAvatar>
+                </VAvatar>
+                
+                <div class="invite-user-info">
+                  <div class="invite-user-name">
+                    {{ user.name }}
+                    <VChip 
+                      v-if="isAlreadyMember(user.id)"
+                      size="x-small"
+                      color="success"
+                      variant="flat"
+                      class="ms-2"
+                    >
+                      参加中
+                    </VChip>
+                  </div>
+                  <div class="invite-user-details">
+                    <span v-if="user.position" class="user-position">{{ user.position }}</span>
+                    <span v-if="user.position && user.department" class="separator">•</span>
+                    <span v-if="user.department" class="user-department">{{ user.department }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </VCardText>
+      
+      <VCardActions class="invite-members-actions">
+        <VSpacer />
+        <VBtn
+          variant="outlined"
+          @click="closeInviteMembersDialog"
+        >
+          キャンセル
+        </VBtn>
+        <VBtn
+          color="primary"
+          variant="elevated"
+          @click="inviteMembers"
+          :disabled="selectedMembersToInvite.length === 0 || isInviting"
+          :loading="isInviting"
+        >
+          <VIcon class="me-2">ri-user-add-line</VIcon>
+          招待 ({{ selectedMembersToInvite.length }})
         </VBtn>
       </VCardActions>
     </VCard>
@@ -930,6 +1088,25 @@ const formatFileSize = (bytes: number): string => {
   const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB']
   const i = Math.floor(Math.log(bytes) / Math.log(k))
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+}
+
+// 메시지 내 URL을 링크로 변환
+const linkifyMessage = (text: string): string => {
+  if (!text) return ''
+  
+  // URL 정규식 (http, https, www 등을 감지)
+  const urlRegex = /(https?:\/\/[^\s]+)|(www\.[^\s]+)|([a-zA-Z0-9.-]+\.[a-zA-Z]{2,}[^\s]*)/g
+  
+  return text.replace(urlRegex, (url) => {
+    let href = url
+    
+    // http/https가 없으면 추가
+    if (!url.match(/^https?:\/\//)) {
+      href = 'https://' + url
+    }
+    
+    return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="message-link">${url}</a>`
+  })
 }
 
 // 파일 타입이 이미지인지 확인
@@ -1159,10 +1336,11 @@ const findExistingChat = async (userId: number) => {
 // チャット選択
 const selectChat = async (chat: any) => {
   
-  // 파일 선택창 닫기
+  // 파일 선택창 닫기 및 입력창 초기화
   showFileUpload.value = false
   selectedFiles.value = []
   isDragOver.value = false
+  newMessage.value = ''
   
   // 이전 채팅방 웹소켓 연결 해제
   if (selectedChat.value && selectedChat.value.id !== chat.id) {
@@ -1251,7 +1429,7 @@ const selectUser = async (user: any) => {
       try {
         // 서버에서 채팅방 생성
         const conversationData: ConversationCreate = {
-          title: null,
+          title: undefined,
           is_group: false,
           member_ids: [user.id],
         }
@@ -1695,6 +1873,19 @@ const getWebSocketStatus = () => {
 // 전역 웹소켓에서 오는 chat_list_update 이벤트 리스너 등록
 const handleGlobalChatListUpdate = (event: CustomEvent) => {
   const message = event.detail
+  
+  // conversation_invited 메시지 처리 (그룹 초대)
+  if (message.type === 'conversation_invited') {
+    console.log('그룹 채팅방 초대 알림:', message)
+    
+    // 채팅방 목록 새로고침
+    refreshChatList()
+    
+    // 알림 카운트 업데이트
+    chatNotificationStore.setNewMessageNotification(true)
+    
+    return
+  }
   
   // chat_list_update 메시지 처리
   if (message.type === 'chat_list_update') {
@@ -2417,6 +2608,11 @@ const showParticipantsDialog = ref(false)
 const chatParticipants = ref<any[]>([])
 const isLoadingParticipants = ref(false)
 
+// 멤버 초대 관련 상태
+const showInviteMembersDialog = ref(false)
+const selectedMembersToInvite = ref<number[]>([])
+const isInviting = ref(false)
+
 // 참여자 목록 가져오기
 const fetchChatParticipants = async (conversationId: string) => {
   try {
@@ -2438,6 +2634,92 @@ const openParticipantsDialog = async () => {
     // getConversations에서 받은 participants 데이터 사용
     // 별도의 API 호출 불필요
   }
+}
+
+// 멤버 초대 다이얼로그 열기
+const openInviteMembersDialog = () => {
+  selectedMembersToInvite.value = []
+  showInviteMembersDialog.value = true
+}
+
+// 멤버 초대 다이얼로그 닫기
+const closeInviteMembersDialog = () => {
+  showInviteMembersDialog.value = false
+  selectedMembersToInvite.value = []
+}
+
+// 멤버 초대
+const inviteMembers = async () => {
+  if (!selectedChat.value || selectedMembersToInvite.value.length === 0) return
+  
+  try {
+    isInviting.value = true
+    await chatService.inviteMembers(selectedChat.value.id, selectedMembersToInvite.value)
+    
+    // 기존 메시지 백업
+    const currentMessages = selectedChat.value.messages
+    
+    // 채팅방 목록 새로고침
+    await fetchChats()
+    
+    // 현재 채팅방 정보 업데이트 (메시지 유지)
+    const updatedChat = chats.value.find(c => c.id === selectedChat.value.id)
+    if (updatedChat) {
+      // 메시지는 기존 것을 유지
+      updatedChat.messages = currentMessages
+      selectedChat.value = updatedChat
+    }
+    
+    alert('メンバーを招待しました！')
+    closeInviteMembersDialog()
+  } catch (error) {
+    console.error('멤버 초대 오류:', error)
+    alert('メンバーの招待に失敗しました。')
+  } finally {
+    isInviting.value = false
+  }
+}
+
+// 그룹 채팅 나가기
+const leaveGroupChat = async () => {
+  if (!selectedChat.value) return
+  
+  const confirmed = confirm('このグループチャットから退出しますか？')
+  if (!confirmed) return
+  
+  try {
+    await chatService.leaveConversation(selectedChat.value.id)
+    
+    // 채팅방 목록에서 제거
+    chats.value = chats.value.filter(c => c.id !== selectedChat.value.id)
+    
+    // 선택된 채팅방 초기화
+    selectedChat.value = null
+    
+    // 다이얼로그 닫기
+    showParticipantsDialog.value = false
+    
+    alert('グループチャットから退出しました。')
+  } catch (error) {
+    console.error('그룹 채팅 나가기 오류:', error)
+    alert('グループチャットから退出できませんでした。')
+  }
+}
+
+// 초대할 멤버 토글
+const toggleMemberSelection = (userId: number) => {
+  const index = selectedMembersToInvite.value.indexOf(userId)
+  if (index > -1) {
+    selectedMembersToInvite.value.splice(index, 1)
+  } else {
+    selectedMembersToInvite.value.push(userId)
+  }
+}
+
+// 이미 참여중인 멤버인지 확인
+const isAlreadyMember = (userId: number): boolean => {
+  if (!selectedChat.value?.participants) return false
+  return selectedChat.value.participants.some((p: any) => p.id === userId)
 }
 </script>
 
@@ -2787,11 +3069,35 @@ const openParticipantsDialog = async () => {
   word-break: break-word; /* 긴 단어 줄바꿈 */
 }
 
+/* 메시지 내 링크 스타일 */
+.message-bubble :deep(.message-link) {
+  color: #1976d2;
+  text-decoration: underline;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.message-bubble :deep(.message-link):hover {
+  color: #1565c0;
+  text-decoration: underline;
+}
+
 .message-own .message-bubble {
   background-color: #7c3aed;
   color: white;
   white-space: pre-wrap; /* 개행 문자 보존 */
   word-break: break-word; /* 긴 단어 줄바꿈 */
+}
+
+/* 본인 메시지의 링크 스타일 (흰색) */
+.message-own .message-bubble :deep(.message-link) {
+  color: #ffffff;
+  text-decoration: underline;
+}
+
+.message-own .message-bubble :deep(.message-link):hover {
+  color: #e0e0e0;
+  text-decoration: underline;
 }
 
 .message-time {
@@ -4458,6 +4764,119 @@ const openParticipantsDialog = async () => {
   margin-left: 8px;
 }
 
+/* 멤버 초대 다이얼로그 스타일 */
+.invite-members-dialog-card {
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.12);
+}
+
+.invite-members-header {
+  padding: 20px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.invite-members-title {
+  display: flex;
+  align-items: center;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.invite-members-content {
+  padding: 20px 24px;
+  background-color: #fafafa;
+}
+
+.invite-user-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.invite-user-item {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  border-radius: 8px;
+  background-color: white;
+  border: 1px solid #e0e0e0;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.invite-user-item:hover:not(.disabled) {
+  background-color: #f5f5f5;
+  border-color: #7c3aed;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.1);
+}
+
+.invite-user-item.selected {
+  background-color: #f3e8ff;
+  border-color: #7c3aed;
+}
+
+.invite-user-item.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background-color: #f5f5f5;
+}
+
+.invite-user-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.invite-user-name {
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+  font-size: 14px;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.invite-user-details {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #666;
+}
+
+.invite-members-actions {
+  padding: 16px 24px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.invite-btn,
+.leave-btn {
+  border-radius: 8px;
+  font-weight: 500;
+  text-transform: none;
+}
+
+.invite-user-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.invite-user-list::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 3px;
+}
+
+.invite-user-list::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, #7c3aed, #a855f7);
+  border-radius: 3px;
+}
+
+.invite-user-list::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, #6d28d9, #9333ea);
+}
+
 /* 모바일 반응형 */
 @media (max-width: 768px) {
   .participants-dialog-card {
@@ -4492,6 +4911,49 @@ const openParticipantsDialog = async () => {
   
   .participant-details {
     font-size: 12px;
+  }
+  
+  .participants-actions {
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .participants-actions .VBtn {
+    width: 100%;
+  }
+  
+  .invite-members-dialog-card {
+    margin: 16px;
+    border-radius: 12px;
+  }
+  
+  .invite-members-header {
+    padding: 16px 20px;
+  }
+  
+  .invite-members-title {
+    font-size: 16px;
+  }
+  
+  .invite-members-content {
+    padding: 16px 20px;
+  }
+  
+  .invite-user-list {
+    max-height: 300px;
+  }
+  
+  .invite-user-item {
+    padding: 10px;
+  }
+  
+  .invite-members-actions {
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .invite-members-actions .VBtn {
+    width: 100%;
   }
 }
 </style> 

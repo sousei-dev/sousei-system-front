@@ -254,10 +254,22 @@ export const chatService = {
   // 대화방 나가기
   leaveConversation: async (conversationId: string): Promise<void> => {
     try {
-      await api.delete(`/chat/conversations/${conversationId}/leave`)
+      await api.post(`/chat/conversations/${conversationId}/leave`)
     } catch (error) {
       console.error('대화방 나가기 오류:', error)
       throw new Error('대화방을 나갈 수 없습니다.')
+    }
+  },
+
+  // 그룹 채팅에 멤버 초대
+  inviteMembers: async (conversationId: string, memberIds: number[]): Promise<void> => {
+    try {
+      await api.post(`/chat/conversations/${conversationId}/invite`, {
+        member_ids: memberIds
+      })
+    } catch (error) {
+      console.error('멤버 초대 오류:', error)
+      throw new Error('멤버를 초대할 수 없습니다.')
     }
   },
 

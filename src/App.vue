@@ -11,6 +11,12 @@ const originalTitle = ref('')
 const isTabFocused = ref(true)
 const notificationPermission = ref<NotificationPermission>('default')
 
+// 앱 내 알림 (웹사이트를 보고 있을 때 표시)
+const showInAppNotification = ref(false)
+const inAppNotificationTitle = ref('')
+const inAppNotificationBody = ref('')
+const inAppNotificationColor = ref('primary')
+
 // 브라우저 탭 제목 업데이트
 const updateTabTitle = (unreadCount: number) => {
   if (unreadCount > 0) {
@@ -168,6 +174,32 @@ const handleGlobalWebSocketMessage = (message: WebSocketMessage) => {
       
       break
       
+    case 'conversation_invited':
+      // 그룹 채팅방 초대 알림
+      console.log('전역 웹소켓: 그룹 채팅방 초대:', message)
+      
+      // 알림 카운트 업데이트
+      chatNotificationStore.setNewMessageNotification(true)
+      
+      // 탭이 포커스되지 않았을 때만 브라우저 알림 표시
+      if (!isTabFocused.value) {
+        showBrowserNotification(message)
+      }
+      
+      // 채팅 페이지가 활성화되어 있으면 해당 페이지에 이벤트 전달
+      if (window.location.pathname === '/chat') {
+        console.log('채팅 페이지에 conversation_invited 이벤트 전달')
+        
+        // 커스텀 이벤트를 통해 채팅 페이지에 알림
+        window.dispatchEvent(new CustomEvent('chat_list_update', {
+          detail: message,
+        }))
+      } else {
+        console.log('채팅 페이지가 활성화되지 않음, 이벤트 전달 생략')
+      }
+      
+      break
+      
     case 'message_read':
       // 메시지 읽음 처리 (필요시)
       console.log('전역 웹소켓: 메시지 읽음:', message)
@@ -192,9 +224,12 @@ const handleServiceWorkerPushMessage = (event: MessageEvent) => {
     const pushData = event.data.data
     console.log('푸시 데이터:', pushData)
     
-    // 사용자가 웹사이트를 보고 있을 때는 시스템 알림 대신
-    // 필요한 경우 데이터 새로고침이나 앱 내 알림 표시
-    // 예: 채팅 알림 카운트 업데이트, 리스트 새로고침 등
+    // 사용자가 웹사이트를 보고 있을 때는 시스템 알림 대신 앱 내 알림 표시
+    inAppNotificationTitle.value = pushData.title || 'SOUSEI 시스템'
+    inAppNotificationBody.value = pushData.body || '새 메시지가 도착했습니다'
+    inAppNotificationColor.value = 'info'
+    showInAppNotification.value = true
+    console.log('앱 내 알림 표시:', inAppNotificationTitle.value)
     
     // 채팅 관련 푸시인 경우
     if (pushData.data && pushData.data.type === 'chat') {
@@ -211,7 +246,7 @@ const handleServiceWorkerPushMessage = (event: MessageEvent) => {
     }
     
     // 다른 타입의 푸시 처리 (비자 갱신, 연락 등)
-    console.log('푸시 알림을 받았지만 사용자가 웹사이트를 보고 있어 시스템 알림은 표시하지 않습니다.')
+    console.log('사용자가 웹사이트를 보고 있어 앱 내 알림으로 표시합니다.')
   }
 }
 
