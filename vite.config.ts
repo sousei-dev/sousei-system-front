@@ -23,6 +23,7 @@ export default defineConfig({
         swDest: 'dist/service-worker.js'
       },
       registerType: 'autoUpdate',
+      manifestFilename: 'manifest.json',
       includeAssets: ['favicon.ico', 'robots.txt', 'apple-touch-icon.png'],
       manifest: {
         name: 'SOUSEI社内システム',
