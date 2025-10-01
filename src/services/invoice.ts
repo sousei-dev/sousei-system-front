@@ -113,9 +113,9 @@ export const invoiceService = {
   updateMonthlyItemsSortOrder: async (payload: MonthlyItemSortOrderUpdate) => {
     return api.put('/students/monthly-items/sort-order/update', payload)
   },
-  getCompanyInvoicePdfV2: async (companyId: string, year: number, month: number, memo: string, studentType: string) => {
+  getCompanyInvoicePdfV2: async (departmentId: string, year: number, month: number, memo: string, studentType: string) => {
     const params = new URLSearchParams()
-    params.append('company_id', companyId)
+    params.append('department_id', departmentId)
     params.append('year', year.toString())
     params.append('month', month.toString())
     params.append('student_type', studentType)
@@ -123,9 +123,9 @@ export const invoiceService = {
     
     return api.post(`/billing/billing-invoices/generate?${params.toString()}`, {}, { responseType: 'blob' })
   },
-  getCompanyInvoiceExcel: async (year: number, month: number, companyId: string, studentType: string) => {
+  getCompanyInvoiceExcel: async (year: number, month: number, departmentId: string, studentType: string) => {
     const params = new URLSearchParams()
-    params.append('company_id', companyId)
+    params.append('department_id', departmentId)
     params.append('year', year.toString())
     params.append('month', month.toString())
     params.append('student_type', studentType)
