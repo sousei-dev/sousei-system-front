@@ -16,11 +16,11 @@ export default defineConfig({
     vueJsx(),
     VitePWA({
       strategies: 'injectManifest',
-      srcDir: 'src', // ✅ swSrc 경로를 명확히 src 쪽으로
-      filename: 'sw.js', // ✅ 빌드 결과 파일명 (dist/sw.js)
+      srcDir: 'src',
+      filename: 'service-worker.js',
       injectManifest: {
-        swSrc: 'src/service-worker.js', // 원본 SW
-        swDest: 'dist/sw.js' // 빌드 후 결과
+        swSrc: 'src/service-worker.js',
+        swDest: 'dist/service-worker.js'
       },
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'robots.txt', 'apple-touch-icon.png'],
