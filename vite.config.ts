@@ -17,25 +17,6 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'robots.txt', 'apple-touch-icon.png'],
-      workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'google-fonts-cache',
-              expiration: {
-                maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 * 365 // 1년
-              },
-              cacheKeyWillBeUsed: async ({ request }) => {
-                return `${request.url}?v=1`
-              }
-            }
-          }
-        ]
-      },
       manifest: {
         name: 'SOUSEI社内システム',
         short_name: 'SOUSEI社内システム',
@@ -45,27 +26,22 @@ export default defineConfig({
         display: 'standalone',
         scope: '/',
         start_url: '/',
-        orientation: 'portrait',
-        categories: ['business', 'productivity'],
-        lang: 'ja',
         icons: [
           {
             src: '/pwa-192x192.png',
             sizes: '192x192',
-            type: 'image/png',
-            purpose: 'any'
+            type: 'image/png'
+          },
+          {
+            src: '/pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png'
           },
           {
             src: '/pwa-512x512.png',
             sizes: '512x512',
             type: 'image/png',
-            purpose: 'any'
-          },
-          {
-            src: '/pwa-512x512.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'maskable'
+            purpose: 'any maskable'
           }
         ]
       }
