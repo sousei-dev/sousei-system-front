@@ -481,7 +481,7 @@ onMounted(() => {
   <VRow class="match-height">
     <!-- 비자갱신 임박 학생 리스트 -->
     <VCol cols="12" md="6">
-      <PermissionGuard permission="manager_general || manager_specified">
+      <PermissionGuard :permission="[ 'manager_general', 'manager_specified' ]>
         <VCard :class="isVisaCardExpanded ? 'h-400' : 'h-auto'">
           <VCardTitle class="d-flex align-center justify-space-between">
             <div class="d-flex align-center">
