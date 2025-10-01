@@ -15,6 +15,9 @@ export default defineConfig({
     vue(),
     vueJsx(),
     VitePWA({
+      strategies: 'injectManifest',  // 이것만 추가!
+      srcDir: 'public',
+      filename: 'service-worker.js',
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'robots.txt', 'apple-touch-icon.png'],
       manifest: {
