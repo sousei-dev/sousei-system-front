@@ -2063,9 +2063,16 @@ const toggleSidebar = () => {
 
 // 화면 크기 감지
 const checkMobile = () => {
+  const wasMobile = isMobile.value
   isMobile.value = window.innerWidth <= 768
+  
+  // 데스크톱으로 전환되면 사이드바 닫기
   if (!isMobile.value) {
     showSidebar.value = false
+  }
+  // 모바일로 전환되고 채팅방이 선택되지 않았으면 사이드바 열기
+  else if (isMobile.value && !wasMobile && !selectedChat.value) {
+    showSidebar.value = true
   }
 }
 
@@ -2076,6 +2083,11 @@ onMounted(async () => {
   // 모바일 감지 초기화
   checkMobile()
   window.addEventListener('resize', checkMobile)
+  
+  // 모바일이고 채팅방이 선택되지 않았으면 사이드바 열기
+  if (isMobile.value && !selectedChat.value) {
+    showSidebar.value = true
+  }
   
   // 사용자 목록과 채팅방 목록 가져오기
   await Promise.all([fetchUsers(), fetchChats()])
