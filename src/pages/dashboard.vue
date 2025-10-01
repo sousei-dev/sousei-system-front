@@ -33,6 +33,8 @@ const pushSupported = ref(false)
 const isInitializingPush = ref(false)
 const hasRequestedPermission = ref(false)
 const isPWA = ref(false)
+const isIOS = ref(false)
+const showNotificationPrompt = ref(false)
 
 // 비자갱신 임박 학생 조회
 const fetchVisaRenewalStudents = async () => {
@@ -78,6 +80,9 @@ const fetchContact = async () => {
 // PWA 감지 함수
 const detectPWA = () => {
   try {
+    // iOS 감지
+    isIOS.value = /iPad|iPhone|iPod/.test(navigator.userAgent)
+    
     // PWA 감지 방법들
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches
     const isIOSStandalone = (window.navigator as any).standalone === true
@@ -96,6 +101,7 @@ const detectPWA = () => {
     isPWA.value = pwaConditions.some(condition => condition)
     
     console.log('PWA 감지 결과:', {
+      isIOS: isIOS.value,
       isStandalone,
       isIOSStandalone,
       isAndroidApp,
@@ -265,7 +271,14 @@ const initializePushNotifications = async () => {
       return
     }
 
-    // 구독이 안되어 있으면 권한 요청 및 구독
+    // iOS Safari PWA인 경우 자동으로 권한 요청하지 않음
+    if (isIOS.value && notificationPermission.value === 'default') {
+      console.log('iOS Safari PWA - 사용자 제스처가 필요합니다. 알림 프롬프트를 표시합니다.')
+      showNotificationPrompt.value = true
+      return
+    }
+
+    // 구독이 안되어 있으면 권한 요청 및 구독 (Android PWA 또는 이미 권한이 있는 경우)
     if (notificationPermission.value === 'default') {
       console.log('PWA에서 구독이 안되어 있으므로 알림 권한을 요청합니다')
       
@@ -277,7 +290,7 @@ const initializePushNotifications = async () => {
       isInitializingPush.value = false
       console.log('isInitializingPush를 false로 설정하여 권한 요청 허용')
       
-      // 바로 권한 요청 (사용자 상호작용 기다리지 않음)
+      // 바로 권한 요청 (Android PWA에서만 자동 실행)
       await requestNotificationPermissionAndSubscribe()
       
     } else if (notificationPermission.value === 'granted') {
@@ -430,6 +443,29 @@ const getContactStatusColor = (status: string) => {
 // 사진 클릭 시 새 창에서 열기
 const openPhotoInNewTab = (url: string) => {
   window.open(url, '_blank')
+}
+
+// iOS에서 사용자 클릭으로 알림 권한 요청
+const handleEnableNotifications = async () => {
+  try {
+    console.log('사용자가 알림 활성화 버튼을 클릭했습니다')
+    showNotificationPrompt.value = false
+    
+    // hasRequestedPermission 초기화
+    hasRequestedPermission.value = false
+    
+    // 권한 요청
+    await requestNotificationPermissionAndSubscribe()
+    
+  } catch (error) {
+    console.error('알림 활성화 실패:', error)
+  }
+}
+
+// 알림 프롬프트 닫기
+const handleDismissNotificationPrompt = () => {
+  showNotificationPrompt.value = false
+  console.log('사용자가 알림 프롬프트를 닫았습니다')
 }
 
 onMounted(() => {
@@ -682,6 +718,50 @@ onMounted(() => {
       </PermissionGuard>
     </VCol>
   </VRow>
+
+  <!-- iOS 알림 권한 프롬프트 -->
+  <VDialog v-model="showNotificationPrompt" max-width="500px" persistent>
+    <VCard>
+      <VCardTitle class="d-flex align-center justify-space-between bg-primary text-white">
+        <div class="d-flex align-center">
+          <VIcon class="me-2" color="white">ri-notification-line</VIcon>
+          <span>プッシュ通知を有効にする</span>
+        </div>
+      </VCardTitle>
+      
+      <VCardText class="pt-6">
+        <div class="text-center mb-4">
+          <VIcon size="64" color="primary">ri-notification-badge-line</VIcon>
+        </div>
+        <p class="text-body-1 text-center mb-4">
+          重要な情報をリアルタイムで受け取るために、プッシュ通知を有効にしてください。
+        </p>
+        <ul class="text-body-2 mb-4">
+          <li>ビザ更新のリマインダー</li>
+          <li>新しい連絡の通知</li>
+          <li>システムからの重要なお知らせ</li>
+        </ul>
+      </VCardText>
+      
+      <VCardActions class="pa-4">
+        <VBtn
+          color="grey"
+          variant="outlined"
+          @click="handleDismissNotificationPrompt"
+          block
+        >
+          後で
+        </VBtn>
+        <VBtn
+          color="primary"
+          @click="handleEnableNotifications"
+          block
+        >
+          通知を有効にする
+        </VBtn>
+      </VCardActions>
+    </VCard>
+  </VDialog>
 
   <!-- 연락 상세 팝업 (Admin만 접근 가능) -->
   <PermissionGuard permission="admin">

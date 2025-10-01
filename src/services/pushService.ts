@@ -94,9 +94,27 @@ class PushService {
       const registration = await this.registerServiceWorker()
       if (!registration) return { success: false, message: 'Service Worker 등록 실패' }
 
-      // 아이폰 사파리 PWA에서의 권한 요청
-      const permission = await Notification.requestPermission()
-      console.log('알림 권한 요청 결과:', permission)
+      // 현재 권한 상태 확인
+      let permission = Notification.permission
+      console.log('현재 알림 권한 상태:', permission)
+      
+      // 권한이 없으면 요청 (사용자 제스처 컨텍스트에서만 호출되어야 함)
+      if (permission === 'default') {
+        try {
+          permission = await Notification.requestPermission()
+          console.log('알림 권한 요청 결과:', permission)
+        } catch (error: any) {
+          console.error('알림 권한 요청 에러:', error)
+          // iOS Safari에서 사용자 제스처 없이 호출된 경우
+          if (error.message && error.message.includes('user gesture')) {
+            return { 
+              success: false, 
+              message: '알림 권한은 사용자의 클릭 등의 제스처에서만 요청할 수 있습니다' 
+            }
+          }
+          return { success: false, message: `알림 권한 요청 실패: ${error.message}` }
+        }
+      }
       
       if (permission !== 'granted') {
         return { success: false, message: '알림 권한이 필요합니다' }
@@ -161,15 +179,16 @@ class PushService {
   // 서버 전송 (아이폰 사파리 PWA 최적화)
   private async sendSubscriptionToServer(userId: string, subscription: PushSubscription): Promise<PushSubscriptionResponse> {
     try {
+      const p256dhKey = subscription.getKey('p256dh')
+      const authKey = subscription.getKey('auth')
+      
       const subscriptionData = {
         userId,
         subscription: {
           endpoint: subscription.endpoint,
           keys: {
-            p256dh: subscription.getKey('p256dh') ? 
-              this.arrayBufferToBase64(subscription.getKey('p256dh')) : null,
-            auth: subscription.getKey('auth') ? 
-              this.arrayBufferToBase64(subscription.getKey('auth')) : null
+            p256dh: p256dhKey ? this.arrayBufferToBase64(p256dhKey) : null,
+            auth: authKey ? this.arrayBufferToBase64(authKey) : null
           },
           expirationTime: subscription.expirationTime
         }
