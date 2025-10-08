@@ -158,12 +158,18 @@ export const chatService = {
   },
 
   // 메시지 전송
-  sendMessage: async (conversationId: string, body: string): Promise<Message> => {
+  sendMessage: async (conversationId: string, body: string, parentId?: string): Promise<Message> => {
     try {
       const formData = new FormData()
       
       // 메시지 본문 추가
       formData.append('body', body)
+      
+      // 답변인 경우 parent_id 추가
+      if (parentId) {
+        formData.append('parent_id', parentId)
+      }
+      
       const response = await api.post<Message>(`/chat/conversations/${conversationId}/messages`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',

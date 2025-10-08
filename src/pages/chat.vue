@@ -326,6 +326,7 @@
           v-for="message in selectedChat?.messages || []"
           :key="message.id"
           :class="['message', message.css_class]"
+          :data-message-id="message.id"
         >          
           <!-- 상대방 메시지: 왼쪽에 아바타와 이름 -->
           <div v-if="!message.is_own_message" class="message-left-content">
@@ -402,11 +403,37 @@
             <!-- 메시지 텍스트와 리액션 트리거 버튼 -->
             <div class="message-bubble-with-reaction">
               <!-- 메시지 텍스트 -->
-              <div v-if="message.body && message.body.trim()" class="message-bubble" v-html="linkifyMessage(message.body)"></div>
+              <div v-if="message.body && message.body.trim()" class="message-bubble">
+                <!-- 답변 메시지인 경우 원본 메시지 표시 -->
+                <div 
+                  v-if="message.parent_message" 
+                  class="replied-message"
+                  @click.stop="scrollToMessage(message.parent_message.id)"
+                >
+                  <div class="replied-message-header">
+                    <VIcon size="14" class="reply-icon-inline">ri-corner-down-right-line</VIcon>
+                    <span class="replied-sender-name">{{ message.parent_message.sender_name }}</span>
+                  </div>
+                  <div class="replied-message-body">
+                    {{ message.parent_message.body?.substring(0, 100) }}{{ message.parent_message.body?.length > 100 ? '...' : '' }}
+                  </div>
+                </div>
+                
+                <!-- 메시지 본문 -->
+                <div v-html="linkifyMessage(message.body)"></div>
+              </div>
               
-              <!-- 리액션 트리거 버튼 (로딩 중이 아닐 때만 표시) -->
-              <div v-if="!message.is_loading" class="message-reaction-trigger" @click.stop="toggleReactionPicker(message.id)">
-                <VIcon size="16">ri-emotion-line</VIcon>
+              <!-- 액션 버튼 그룹 (로딩 중이 아닐 때만 표시) -->
+              <div v-if="!message.is_loading" class="message-action-buttons">
+                <!-- 답변 버튼 -->
+                <div class="message-action-btn" @click.stop="startReply(message)" :title="'返信'">
+                  <VIcon size="16">ri-reply-line</VIcon>
+                </div>
+                
+                <!-- 리액션 트리거 버튼 -->
+                <div class="message-action-btn" @click.stop="toggleReactionPicker(message.id)" :title="'リアクション'">
+                  <VIcon size="16">ri-emotion-line</VIcon>
+                </div>
               </div>
             </div>
             
@@ -460,6 +487,28 @@
 
       <!-- メッセージ入力エリア -->
       <div class="chat-input" v-if="selectedChat">
+        <!-- 답변 미리보기 -->
+        <div v-if="replyingToMessage" class="reply-preview">
+          <div class="reply-preview-content">
+            <div class="reply-preview-header">
+              <VIcon size="16" class="reply-icon">ri-reply-line</VIcon>
+              <span class="reply-to-label">{{ replyingToMessage.sender_name }}に返信</span>
+            </div>
+            <div class="reply-preview-message">
+              {{ replyingToMessage.body?.substring(0, 100) }}{{ replyingToMessage.body?.length > 100 ? '...' : '' }}
+            </div>
+          </div>
+          <VBtn
+            icon
+            variant="text"
+            size="x-small"
+            @click="cancelReply"
+            class="reply-cancel-btn"
+          >
+            <VIcon size="16">ri-close-line</VIcon>
+          </VBtn>
+        </div>
+        
         <!-- 파일 업로드 영역 -->
         <div v-if="showFileUpload" class="file-upload-section">
           <!-- 커스텀 파일 입력 -->
@@ -1620,10 +1669,20 @@ const sendMessage = async () => {
   // 입력 필드 초기화 (사용자 경험을 위해 먼저 초기화)
   const messageText = newMessage.value.trim()
   const filesToSend = [...selectedFiles.value]
+  const parentMessageId = replyingToMessage.value?.id // 답변 중인 메시지 ID
+  const parentMessageData = replyingToMessage.value ? {
+    id: replyingToMessage.value.id,
+    body: replyingToMessage.value.body,
+    sender_id: replyingToMessage.value.sender_id,
+    sender_name: replyingToMessage.value.sender_name,
+    sender_avatar: replyingToMessage.value.sender_avatar,
+    created_at: replyingToMessage.value.created_at
+  } : null
   
   newMessage.value = ''
   selectedFiles.value = []
   showFileUpload.value = false
+  replyingToMessage.value = null // 답변 상태 초기화
 
   try {
     // 파일이 있는 경우: 로딩 처리 후 백엔드 응답으로 교체
@@ -1637,7 +1696,8 @@ const sendMessage = async () => {
         conversation_id: selectedChat.value.id,
         sender_id: localStorage.getItem('user_id'),
         body: messageText || 'ファイルを添付しました。',
-        parent_id: undefined,
+        parent_id: parentMessageId,
+        parent_message: parentMessageData,
         created_at: new Date().toISOString(),
         edited_at: undefined,
         deleted_at: undefined,
@@ -1668,8 +1728,8 @@ const sendMessage = async () => {
         scrollToBottom()
       })
       
-      // 백엔드에 메시지 저장 요청
-      const response = await chatService.sendMessageWithFiles(selectedChat.value.id, messageText, filesToSend)
+      // 백엔드에 메시지 저장 요청 (답변인 경우 parent_id 포함)
+      const response = await chatService.sendMessageWithFiles(selectedChat.value.id, messageText, filesToSend, parentMessageId)
       
       // 로딩 메시지를 실제 응답으로 교체
       const messageIndex = selectedChat.value.messages.findIndex((m: any) => m.id === tempMessageId)
@@ -1695,6 +1755,7 @@ const sendMessage = async () => {
         message.sender_role = response.sender_role || 'user'
         message.attachments = response.attachments || []
         message.reactions = response.reactions || []
+        message.parent_message = response.parent_message || message.parent_message // 백엔드 응답 또는 기존 값 유지
         message.is_loading = false // 로딩 상태 해제
         
       }
@@ -1737,7 +1798,8 @@ const sendMessage = async () => {
         conversation_id: selectedChat.value.id,
         sender_id: localStorage.getItem('user_id'),
         body: messageText,
-        parent_id: undefined,
+        parent_id: parentMessageId,
+        parent_message: parentMessageData,
         created_at: new Date().toISOString(),
         edited_at: undefined,
         deleted_at: undefined,
@@ -1767,9 +1829,9 @@ const sendMessage = async () => {
         scrollToBottom()
       })
       
-      // 백엔드에 메시지 저장 요청 (백그라운드에서)
+      // 백엔드에 메시지 저장 요청 (백그라운드에서, 답변인 경우 parent_id 포함)
       try {
-        const response = await chatService.sendMessage(selectedChat.value.id, messageText)
+        const response = await chatService.sendMessage(selectedChat.value.id, messageText, parentMessageId)
         
         // 메시지 ID를 실제 응답으로 업데이트
         const messageIndex = selectedChat.value.messages.findIndex((m: any) => m.id === newMessageData.id)
@@ -1782,6 +1844,7 @@ const sendMessage = async () => {
           selectedChat.value.messages[messageIndex].sender_avatar = response.sender_avatar || ''
           selectedChat.value.messages[messageIndex].sender_role = response.sender_role || 'user'
           selectedChat.value.messages[messageIndex].reactions = response.reactions || []
+          selectedChat.value.messages[messageIndex].parent_message = response.parent_message || selectedChat.value.messages[messageIndex].parent_message
         }
         
         // 채팅방 목록의 마지막 메시지 정보도 업데이트
@@ -2031,6 +2094,49 @@ const handleChatRoomWebSocketMessage = (message: ChatRoomMessage) => {
           
           // 사용자에게 브라우저 알림 표시
           showGlobalChatNotification(message)
+        }
+      }
+      break
+
+    case 'reaction_added':
+      // 리액션 추가 웹소켓 메시지 처리
+      if (selectedChat.value && message.conversation_id === selectedChat.value.id) {
+        const reactionData = message as any
+        const targetMessage = selectedChat.value.messages.find((m: any) => m.id === reactionData.message_id)
+        
+        if (targetMessage) {
+          // reactions 배열이 없으면 초기화
+          if (!targetMessage.reactions) {
+            targetMessage.reactions = []
+          }
+          
+          // 리액션 추가
+          targetMessage.reactions.push({
+            emoji: reactionData.emoji,
+            user_id: reactionData.user_id,
+            user_name: reactionData.user_name,
+            user_avatar: reactionData.user_avatar,
+            created_at: reactionData.timestamp
+          })
+          
+          console.log('리액션 추가 완료:', reactionData.emoji, 'by', reactionData.user_name)
+        }
+      }
+      break
+
+    case 'reaction_removed':
+      // 리액션 제거 웹소켓 메시지 처리
+      if (selectedChat.value && message.conversation_id === selectedChat.value.id) {
+        const reactionData = message as any
+        const targetMessage = selectedChat.value.messages.find((m: any) => m.id === reactionData.message_id)
+        
+        if (targetMessage && targetMessage.reactions) {
+          // 해당 사용자의 해당 이모지 리액션 제거
+          targetMessage.reactions = targetMessage.reactions.filter((r: any) => 
+            !(r.emoji === reactionData.emoji && String(r.user_id) === String(reactionData.user_id))
+          )
+          
+          console.log('리액션 제거 완료:', reactionData.emoji, 'by', reactionData.user_name)
         }
       }
       break
@@ -2879,6 +2985,40 @@ const closeReactionDetails = () => {
   selectedMessageForReactions.value = null
 }
 
+// 답변 관련 상태
+const replyingToMessage = ref<any>(null)
+
+// 답변 시작
+const startReply = (message: any) => {
+  replyingToMessage.value = message
+  // 메시지 입력창으로 포커스
+  nextTick(() => {
+    messageTextarea.value?.focus()
+  })
+}
+
+// 답변 취소
+const cancelReply = () => {
+  replyingToMessage.value = null
+}
+
+// 답변된 원본 메시지로 스크롤
+const scrollToMessage = (messageId: string) => {
+  // 메시지 요소 찾기
+  const messageElement = document.querySelector(`[data-message-id="${messageId}"]`)
+  
+  if (messageElement && messagesContainer.value) {
+    // 부드럽게 스크롤
+    messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    
+    // 하이라이트 효과 추가
+    messageElement.classList.add('highlight-message')
+    setTimeout(() => {
+      messageElement.classList.remove('highlight-message')
+    }, 2000)
+  }
+}
+
 // 참여자 목록 가져오기
 const fetchChatParticipants = async (conversationId: string) => {
   try {
@@ -3420,6 +3560,26 @@ const addReaction = async (messageId: string, emoji: string) => {
   align-items: flex-start;
   margin-bottom: 16px;
   width: 100%;
+  transition: background-color 0.3s;
+  border-radius: 8px;
+  padding: 4px;
+  margin-left: -4px;
+  margin-right: -4px;
+}
+
+/* 메시지 하이라이트 효과 */
+.message.highlight-message {
+  background-color: rgba(124, 58, 237, 0.1);
+  animation: highlightPulse 0.5s ease-in-out 2;
+}
+
+@keyframes highlightPulse {
+  0%, 100% {
+    background-color: rgba(124, 58, 237, 0.1);
+  }
+  50% {
+    background-color: rgba(124, 58, 237, 0.2);
+  }
 }
 
 .message-left-content {
@@ -3487,7 +3647,20 @@ const addReaction = async (messageId: string, emoji: string) => {
   justify-content: flex-end;
 }
 
-.message-reaction-trigger {
+/* 메시지 액션 버튼 그룹 */
+.message-action-buttons {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.message:hover .message-action-buttons {
+  opacity: 1;
+}
+
+.message-action-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -3499,16 +3672,10 @@ const addReaction = async (messageId: string, emoji: string) => {
   cursor: pointer;
   transition: all 0.2s;
   color: #999;
-  opacity: 0;
   flex-shrink: 0;
-  margin-top: 4px;
 }
 
-.message:hover .message-reaction-trigger {
-  opacity: 1;
-}
-
-.message-reaction-trigger:hover {
+.message-action-btn:hover {
   background-color: #e0e0e0;
   color: #666;
   transform: scale(1.05);
@@ -3527,6 +3694,74 @@ const addReaction = async (messageId: string, emoji: string) => {
   word-break: break-word; /* 긴 단어 줄바꿈 */
   display: inline-block;
   width: fit-content;
+}
+
+/* 답변 메시지 표시 */
+.replied-message {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  background-color: rgba(0, 0, 0, 0.05);
+  border-left: 3px solid rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.replied-message:hover {
+  background-color: rgba(0, 0, 0, 0.08);
+}
+
+.replied-message-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.reply-icon-inline {
+  color: rgba(0, 0, 0, 0.5);
+  flex-shrink: 0;
+}
+
+.replied-sender-name {
+  font-weight: 600;
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.7);
+}
+
+.replied-message-body {
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.6);
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-left: 18px;
+  width: 400px;
+}
+
+/* 본인 메시지의 답변 표시 스타일 */
+.message-right .replied-message {
+  background-color: rgba(255, 255, 255, 0.2);
+  border-left-color: rgba(255, 255, 255, 0.4);
+}
+
+.message-right .replied-message:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+.message-right .reply-icon-inline {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.message-right .replied-sender-name {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.message-right .replied-message-body {
+  color: rgba(255, 255, 255, 0.8);
 }
 
 /* 메시지 내 링크 스타일 */
@@ -3612,6 +3847,63 @@ const addReaction = async (messageId: string, emoji: string) => {
   padding: 20px;
   border-top: 1px solid #e0e0e0;
   background-color: white;
+}
+
+/* 답변 미리보기 */
+.reply-preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  margin-bottom: 12px;
+  background-color: #f3e8ff;
+  border-left: 3px solid #7c3aed;
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.reply-preview:hover {
+  background-color: #ede9fe;
+}
+
+.reply-preview-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.reply-preview-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.reply-icon {
+  color: #7c3aed;
+}
+
+.reply-to-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #7c3aed;
+}
+
+.reply-preview-message {
+  font-size: 13px;
+  color: #666;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reply-cancel-btn {
+  flex-shrink: 0;
+  color: #999;
+}
+
+.reply-cancel-btn:hover {
+  color: #666;
+  background-color: rgba(124, 58, 237, 0.1);
 }
 
 .input-container {
@@ -3892,14 +4184,14 @@ const addReaction = async (messageId: string, emoji: string) => {
 }
 
 .message-right .reaction-add-btn,
-.message-right .message-reaction-trigger {
+.message-right .message-action-btn {
   background-color: rgba(124, 58, 237, 0.1);
   border-color: rgba(124, 58, 237, 0.3);
   color: #7c3aed;
 }
 
 .message-right .reaction-add-btn:hover,
-.message-right .message-reaction-trigger:hover {
+.message-right .message-action-btn:hover {
   background-color: rgba(124, 58, 237, 0.2);
 }
 
@@ -5709,12 +6001,12 @@ const addReaction = async (messageId: string, emoji: string) => {
   }
   
   .reaction-add-btn,
-  .message-reaction-trigger {
+  .message-action-btn {
     width: 24px;
     height: 24px;
   }
   
-  .message-reaction-trigger {
+  .message-action-buttons {
     opacity: 1;
   }
   
@@ -5727,6 +6019,35 @@ const addReaction = async (messageId: string, emoji: string) => {
   .reaction-picker {
     padding: 6px;
     gap: 3px;
+  }
+  
+  /* 답변 미리보기 (모바일) */
+  .reply-preview {
+    padding: 10px 12px;
+    margin-bottom: 10px;
+  }
+  
+  .reply-to-label {
+    font-size: 11px;
+  }
+  
+  .reply-preview-message {
+    font-size: 12px;
+  }
+  
+  /* 답변 메시지 표시 (모바일) */
+  .replied-message {
+    padding: 6px 10px;
+    margin-bottom: 6px;
+  }
+  
+  .replied-sender-name {
+    font-size: 11px;
+  }
+  
+  .replied-message-body {
+    font-size: 11px;
+    margin-left: 16px;
   }
 }
 
