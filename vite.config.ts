@@ -20,11 +20,20 @@ export default defineConfig({
       filename: 'service-worker.js',
       injectManifest: {
         swSrc: 'src/service-worker.js',
-        swDest: 'dist/service-worker.js'
+        swDest: 'dist/service-worker.js',
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}']
       },
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
+      workbox: {
+        skipWaiting: true,
+        clientsClaim: true
+      },
       manifestFilename: 'manifest.json',
       includeAssets: ['favicon.ico', 'robots.txt', 'apple-touch-icon.png'],
+      devOptions: {
+        enabled: true,
+        type: 'module'
+      },
       manifest: {
         name: 'SOUSEI社内システム',
         short_name: 'SOUSEI社内システム',

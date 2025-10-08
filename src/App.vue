@@ -2,6 +2,7 @@
 import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { websocketService, type WebSocketMessage } from '@/services/websocket'
 import { useChatNotificationStore } from '@/stores/chatNotification'
+import { Analytics } from "@vercel/analytics/next"
 
 // 채팅 알림 store
 const chatNotificationStore = useChatNotificationStore()
@@ -229,6 +230,15 @@ const handleServiceWorkerPushMessage = (event: MessageEvent) => {
     return
   }
   
+  // 서비스 워커 활성화 완료 - 강제 새로고침
+  if (event.data && event.data.type === 'SW_ACTIVATED') {
+    console.log('새 서비스 워커가 활성화되었습니다. 페이지를 새로고침합니다...')
+    
+    // 페이지 즉시 새로고침 (사용자 확인 없이)
+    window.location.reload()
+    return
+  }
+  
   if (event.data && event.data.type === 'PUSH_RECEIVED') {
     const pushData = event.data.data
     console.log('푸시 데이터:', pushData)
@@ -343,6 +353,7 @@ onUnmounted(() => {
 <template>
   <VApp>
     <RouterView />
+    <Analytics />
   </VApp>
 </template>
 
