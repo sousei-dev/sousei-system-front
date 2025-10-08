@@ -423,9 +423,9 @@
                 <span class="reaction-count">{{ groupedReaction.count }}</span>
               </div>
               
-              <!-- 리액션 추가 버튼 -->
-              <div class="reaction-add-btn" @click="toggleReactionPicker(message.id)">
-                <VIcon size="16">ri-add-line</VIcon>
+              <!-- 리액션 상세 보기 버튼 -->
+              <div class="reaction-add-btn" @click="openReactionDetails(message)" :title="'リアクションした人を確認'">
+                <VIcon size="16">ri-user-line</VIcon>
               </div>
             </div>
             
@@ -933,6 +933,75 @@
         >
           <VIcon class="me-2">ri-user-add-line</VIcon>
           招待 ({{ selectedMembersToInvite.length }})
+        </VBtn>
+      </VCardActions>
+    </VCard>
+  </VDialog>
+
+  <!-- 리액션 상세 다이얼로그 -->
+  <VDialog
+    v-model="showReactionDetailsDialog"
+    max-width="450"
+    persistent
+  >
+    <VCard class="reaction-details-dialog-card">
+      <VCardTitle class="reaction-details-header">
+        <div class="reaction-details-title">
+          <VIcon class="me-2" color="primary">ri-emotion-line</VIcon>
+          <span>リアクション</span>
+        </div>
+        <VBtn
+          icon
+          variant="text"
+          size="small"
+          @click="closeReactionDetails"
+          class="close-btn"
+        >
+          <VIcon>ri-close-line</VIcon>
+        </VBtn>
+      </VCardTitle>
+      
+      <VCardText class="reaction-details-content">
+        <div v-if="selectedMessageForReactions" class="reaction-groups">
+          <div
+            v-for="groupedReaction in groupReactions(selectedMessageForReactions.reactions || [])"
+            :key="groupedReaction.emoji"
+            class="reaction-group"
+          >
+            <div class="reaction-group-header">
+              <span class="reaction-group-emoji">{{ groupedReaction.emoji }}</span>
+              <span class="reaction-group-count">{{ groupedReaction.count }}人</span>
+            </div>
+            
+            <div class="reaction-users-list">
+              <div
+                v-for="(reaction, index) in (selectedMessageForReactions.reactions || []).filter(r => r.emoji === groupedReaction.emoji)"
+                :key="`${reaction.user_id}-${index}`"
+                class="reaction-user-item"
+              >
+                <VAvatar size="32" class="me-2">
+                  <VAvatar :color="getUserColor(reaction.user_name || 'User')" size="32">
+                    <span class="text-white text-body-2">{{ getUserInitials(reaction.user_name || 'U') }}</span>
+                  </VAvatar>
+                </VAvatar>
+                
+                <div class="reaction-user-info">
+                  <div class="reaction-user-name">{{ reaction.user_name || '不明なユーザー' }}</div>
+                  <div class="reaction-user-time">{{ formatMessageTime(reaction.created_at) }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </VCardText>
+      
+      <VCardActions class="reaction-details-actions">
+        <VSpacer />
+        <VBtn
+          variant="outlined"
+          @click="closeReactionDetails"
+        >
+          閉じる
         </VBtn>
       </VCardActions>
     </VCard>
@@ -2793,6 +2862,22 @@ const showInviteMembersDialog = ref(false)
 const selectedMembersToInvite = ref<number[]>([])
 const isInviting = ref(false)
 
+// 리액션 상세 다이얼로그 관련 상태
+const showReactionDetailsDialog = ref(false)
+const selectedMessageForReactions = ref<any>(null)
+
+// 리액션 상세 다이얼로그 열기
+const openReactionDetails = (message: any) => {
+  selectedMessageForReactions.value = message
+  showReactionDetailsDialog.value = true
+}
+
+// 리액션 상세 다이얼로그 닫기
+const closeReactionDetails = () => {
+  showReactionDetailsDialog.value = false
+  selectedMessageForReactions.value = null
+}
+
 // 참여자 목록 가져오기
 const fetchChatParticipants = async (conversationId: string) => {
   try {
@@ -4033,8 +4118,8 @@ const addReaction = async (messageId: string, emoji: string) => {
   
   /* 맨 아래로 이동 버튼 (모바일) */
   .scroll-to-bottom-btn {
-    bottom: 80px;
-    right: 16px;
+    bottom: 130px;
+    right: 20px;
   }
   
   .scroll-to-bottom-btn .v-btn {
@@ -4156,9 +4241,9 @@ const addReaction = async (messageId: string, emoji: string) => {
 
 /* 맨 아래로 이동 버튼 */
 .scroll-to-bottom-btn {
-  position: absolute;
-  bottom: 100px;
-  right: 20px;
+  position: fixed;
+  bottom: 140px;
+  right: 40px;
   z-index: 10;
   cursor: pointer;
 }
@@ -5641,6 +5726,150 @@ const addReaction = async (messageId: string, emoji: string) => {
   .reaction-picker {
     padding: 6px;
     gap: 3px;
+  }
+}
+
+/* 리액션 상세 다이얼로그 스타일 */
+.reaction-details-dialog-card {
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.12);
+}
+
+.reaction-details-header {
+  padding: 20px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.reaction-details-title {
+  display: flex;
+  align-items: center;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.reaction-details-content {
+  padding: 20px 24px;
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.reaction-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.reaction-group {
+  background-color: #f8f9fa;
+  border-radius: 12px;
+  padding: 16px;
+  border: 1px solid #e0e0e0;
+}
+
+.reaction-group-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.reaction-group-emoji {
+  font-size: 24px;
+}
+
+.reaction-group-count {
+  font-size: 14px;
+  font-weight: 600;
+  color: #666;
+}
+
+.reaction-users-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.reaction-user-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  background-color: white;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+  transition: all 0.2s;
+}
+
+.reaction-user-item:hover {
+  background-color: #f5f5f5;
+  border-color: #7c3aed;
+  transform: translateX(4px);
+}
+
+.reaction-user-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.reaction-user-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: #333;
+  margin-bottom: 2px;
+}
+
+.reaction-user-time {
+  font-size: 12px;
+  color: #666;
+}
+
+.reaction-details-actions {
+  padding: 16px 24px;
+  border-top: 1px solid #e0e0e0;
+}
+
+/* 모바일 반응형 */
+@media (max-width: 768px) {
+  .reaction-details-dialog-card {
+    margin: 16px;
+    border-radius: 12px;
+  }
+  
+  .reaction-details-header {
+    padding: 16px 20px;
+  }
+  
+  .reaction-details-title {
+    font-size: 16px;
+  }
+  
+  .reaction-details-content {
+    padding: 16px 20px;
+    max-height: 400px;
+  }
+  
+  .reaction-group {
+    padding: 12px;
+  }
+  
+  .reaction-group-emoji {
+    font-size: 20px;
+  }
+  
+  .reaction-user-item {
+    padding: 8px;
+  }
+  
+  .reaction-user-name {
+    font-size: 13px;
+  }
+  
+  .reaction-user-time {
+    font-size: 11px;
   }
 }
 </style> 
