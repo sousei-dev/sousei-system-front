@@ -300,7 +300,7 @@
         <div v-if="isInitialLoading" class="initial-loading-overlay">
           <div class="initial-loading-content">
             <VIcon class="initial-loading-icon" size="48" color="primary">ri-loader-4-line</VIcon>
-            <p class="initial-loading-text">メッセージを読み込んでいます...１１</p>
+            <p class="initial-loading-text">メッセージを読み込んでいます...</p>
           </div>
         </div>
         
