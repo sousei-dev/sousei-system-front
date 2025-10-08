@@ -218,7 +218,16 @@ const handleGlobalWebSocketMessage = (message: WebSocketMessage) => {
 
 // 서비스 워커 푸시 메시지 처리 (사용자가 웹사이트를 보고 있을 때)
 const handleServiceWorkerPushMessage = (event: MessageEvent) => {
-  console.log('서비스 워커로부터 푸시 메시지 수신:', event.data)
+  console.log('서비스 워커로부터 메시지 수신:', event.data)
+  
+  // 서비스 워커 업데이트 감지 - 강제 새로고침
+  if (event.data && event.data.type === 'SW_UPDATE_AVAILABLE') {
+    console.log('새로운 버전이 감지되었습니다. 자동으로 업데이트합니다...')
+    
+    // 페이지 즉시 새로고침 (사용자 확인 없이)
+    window.location.reload()
+    return
+  }
   
   if (event.data && event.data.type === 'PUSH_RECEIVED') {
     const pushData = event.data.data
@@ -340,15 +349,13 @@ onUnmounted(() => {
 <style>
 /* 모바일 터치 최적화 */
 @media (hover: none) and (pointer: coarse) {
-  .layout-vertical-nav {
-    .nav-link a:hover,
-    .nav-link div:hover,
-    .nav-group-label:hover {
-      background-color: transparent !important;
-      color: inherit !important;
-      transform: none !important;
-      box-shadow: none !important;
-    }
+  .layout-vertical-nav .nav-link a:hover,
+  .layout-vertical-nav .nav-link div:hover,
+  .layout-vertical-nav .nav-group-label:hover {
+    background-color: transparent !important;
+    color: inherit !important;
+    transform: none !important;
+    box-shadow: none !important;
   }
   
   /* 모든 링크에 터치 최적화 */

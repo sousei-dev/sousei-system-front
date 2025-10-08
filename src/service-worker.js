@@ -8,7 +8,9 @@ const CACHE_NAME = 'sousei-system-v1'
 
 // Install event
 self.addEventListener('install', (event) => {
-  console.log('Service Worker installing...')
+  console.log('Service Worker installing... 새 버전 감지!')
+  
+  // 새 서비스 워커를 즉시 활성화
   self.skipWaiting()
 })
 
