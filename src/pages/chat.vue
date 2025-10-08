@@ -607,7 +607,7 @@
             
           <VTextarea
             v-model="newMessage"
-            :placeholder="isMobile ? 'メッセージを入力してください' : 'メッセージを入力してください (Ctrl+Enterで改行)'"
+            :placeholder="isMobile ? 'メッセージ入力' : 'メッセージを入力してください (Ctrl+Enterで改行)'"
             variant="outlined"
             density="comfortable"
             hide-details
@@ -2331,6 +2331,12 @@ const handleKeyDown = (event: KeyboardEvent) => {
     return
   }
   
+  // 모바일에서는 Enter를 개행으로 처리
+  if (isMobile.value && event.key === 'Enter' && !event.shiftKey && !event.ctrlKey) {
+    // 기본 동작 허용 (개행)
+    return
+  }
+  
   // Ctrl + Enter: 줄바꿈 (직접 제어)
   if (event.ctrlKey && event.key === 'Enter') {
     event.preventDefault()
@@ -2345,7 +2351,7 @@ const handleKeyDown = (event: KeyboardEvent) => {
     return
   }
   
-  // Enter: 메시지 전송
+  // Enter: 메시지 전송 (데스크탑만)
   if (event.key === 'Enter') {
     console.log('Enter: 메시지 전송')
     event.preventDefault()
@@ -3708,6 +3714,8 @@ const addReaction = async (messageId: string, emoji: string) => {
   border-radius: 6px;
   cursor: pointer;
   transition: background-color 0.2s;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .replied-message:hover {
@@ -3739,7 +3747,8 @@ const addReaction = async (messageId: string, emoji: string) => {
   text-overflow: ellipsis;
   white-space: nowrap;
   margin-left: 18px;
-  width: 400px;
+  max-width: 400px;
+  width: 100%;
 }
 
 /* 본인 메시지의 답변 표시 스타일 */
@@ -4365,6 +4374,7 @@ const addReaction = async (messageId: string, emoji: string) => {
   .message-bubble {
     padding: 10px 14px;
     font-size: 13px;
+    max-width: calc(100vw - 100px);
   }
   
   .message-time {
@@ -6039,6 +6049,8 @@ const addReaction = async (messageId: string, emoji: string) => {
   .replied-message {
     padding: 6px 10px;
     margin-bottom: 6px;
+    max-width: 100%;
+    overflow: hidden;
   }
   
   .replied-sender-name {
@@ -6048,6 +6060,7 @@ const addReaction = async (messageId: string, emoji: string) => {
   .replied-message-body {
     font-size: 11px;
     margin-left: 16px;
+    max-width: calc(100% - 20px);
   }
 }
 
