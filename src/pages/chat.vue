@@ -980,7 +980,8 @@
                 class="reaction-user-item"
               >
                 <VAvatar size="32" class="me-2">
-                  <VAvatar :color="getUserColor(reaction.user_name || 'User')" size="32">
+                  <VImg v-if="reaction.user_avatar" :src="reaction.user_avatar" />
+                  <VAvatar v-else :color="getUserColor(reaction.user_name || 'User')" size="32">
                     <span class="text-white text-body-2">{{ getUserInitials(reaction.user_name || 'U') }}</span>
                   </VAvatar>
                 </VAvatar>
@@ -5760,6 +5761,7 @@ const addReaction = async (messageId: string, emoji: string) => {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  padding-top: 20px;
 }
 
 .reaction-group {
