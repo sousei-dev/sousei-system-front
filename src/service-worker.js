@@ -4,8 +4,8 @@ import { precacheAndRoute } from 'workbox-precaching'
 // Workbox에서 자동으로 주입하는 매니페스트
 precacheAndRoute(self.__WB_MANIFEST)
 
-// 빌드 시간을 캐시 이름에 포함하여 자동으로 새 버전 감지
-const CACHE_NAME = `sousei-system-${self.__WB_MANIFEST.length || Date.now()}`
+// 캐시 이름 (버전 관리)
+const CACHE_NAME = 'sousei-system-v1'
 
 // Install event
 self.addEventListener('install', (event) => {

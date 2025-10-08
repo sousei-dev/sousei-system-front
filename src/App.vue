@@ -2,7 +2,7 @@
 import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { websocketService, type WebSocketMessage } from '@/services/websocket'
 import { useChatNotificationStore } from '@/stores/chatNotification'
-import { Analytics } from "@vercel/analytics/next"
+import { inject } from '@vercel/analytics'
 
 // 채팅 알림 store
 const chatNotificationStore = useChatNotificationStore()
@@ -310,6 +310,9 @@ onMounted(() => {
   // 원본 타이틀 저장
   originalTitle.value = document.title
   
+  // Vercel Analytics 초기화
+  inject()
+  
   // 브라우저 알림 권한 확인
   if ('Notification' in window) {
     notificationPermission.value = Notification.permission
@@ -353,7 +356,6 @@ onUnmounted(() => {
 <template>
   <VApp>
     <RouterView />
-    <Analytics />
   </VApp>
 </template>
 
