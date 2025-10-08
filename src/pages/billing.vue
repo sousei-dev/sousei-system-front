@@ -711,20 +711,14 @@ const downloadInvoicePdf = async () => {
       return
     }
 
-    // 선택된 회사 정보 찾기
-    const company = companies.value.find(c => c.id === selectedCompany.value)
-    if (!company) {
-      error.value = '選択された会社が見つかりません。'
-      return
-    }
-
     loading.value = true
     error.value = null
 
     const response = await buildingService.downloadMonthlyInvoicePdfCompany(
       selectedYear.value,
       selectedMonth.value,
-      selectedCompany.value
+      selectedCompany.value.company_id,
+      selectedCompany.value.department_id,
     )
 
     // PDF 파일 다운로드
@@ -733,7 +727,7 @@ const downloadInvoicePdf = async () => {
     const link = document.createElement('a')
 
     link.href = url
-    link.download = `${selectedYear.value}年${selectedMonth.value}月_${company.name}_請求書.pdf`
+    link.download = `${selectedYear.value}年${selectedMonth.value}月_${selectedCompany.value.name}_請求書.pdf`
     link.click()
     window.URL.revokeObjectURL(url)
 

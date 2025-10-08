@@ -273,6 +273,30 @@ export const chatService = {
     }
   },
 
+  // 메시지에 리액션 추가/제거
+  toggleReaction: async (messageId: string, emoji: string): Promise<any> => {
+    try {
+      const response = await api.post(`/chat/messages/${messageId}/reactions`, {
+        emoji: emoji
+      })
+      return response.data
+    } catch (error) {
+      console.error('리액션 토글 오류:', error)
+      throw new Error('リアクションの追加に失敗しました。')
+    }
+  },
+
+  // 메시지의 리액션 목록 조회
+  getMessageReactions: async (messageId: string): Promise<any[]> => {
+    try {
+      const response = await api.get(`/chat/messages/${messageId}/reactions`)
+      return response.data
+    } catch (error) {
+      console.error('리액션 목록 조회 오류:', error)
+      throw new Error('リアクション目録の取得に失敗しました。')
+    }
+  },
+
   // 사용자와의 기존 대화방 검색
   findExistingConversation: async (userId: number): Promise<Conversation | null> => {
     try {

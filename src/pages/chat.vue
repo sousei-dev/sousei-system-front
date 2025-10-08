@@ -114,7 +114,7 @@
       <!-- ユーザー一覧 -->
       <div v-if="activeTab === 'users'" class="sidebar-section">
         <div class="user-section-header">
-          <h3 class="section-title">ユーザーリスト ({{ totalUsers }}人)</h3>
+          <h3 class="section-title">ユーザー ({{ totalUsers }}人)</h3>
           <VBtn
             v-if="!isGroupChatMode"
             size="small"
@@ -282,8 +282,30 @@
         ref="messagesContainer"
         @scroll="handleScroll"
       >
-        <!-- 로딩 인디케이터 (상단) -->
-        <div v-if="isLoadingMessages" class="loading-messages">
+        <!-- 맨 아래로 이동 버튼 -->
+        <Transition name="scroll-btn-fade">
+          <div v-if="showScrollToBottom" class="scroll-to-bottom-btn" @click="scrollToBottom">
+            <VBtn
+              icon
+              color="primary"
+              elevation="3"
+              size="large"
+            >
+              <VIcon>ri-arrow-down-line</VIcon>
+            </VBtn>
+          </div>
+        </Transition>
+        
+        <!-- 초기 로딩 인디케이터 (전체 화면) -->
+        <div v-if="isInitialLoading" class="initial-loading-overlay">
+          <div class="initial-loading-content">
+            <VIcon class="initial-loading-icon" size="48" color="primary">ri-loader-4-line</VIcon>
+            <p class="initial-loading-text">メッセージを読み込んでいます...１１</p>
+          </div>
+        </div>
+        
+        <!-- 스크롤 로딩 인디케이터 (상단) -->
+        <div v-if="isLoadingMessages && !isInitialLoading" class="loading-messages">
           <VIcon class="loading-icon">ri-loader-4-line</VIcon>
           <span>以前のメッセージを読み込んでいます...</span>
         </div>
@@ -322,6 +344,7 @@
 
           <!-- 메시지 내용 -->
           <div class="message-content">
+            <div class="message-bubble-wrapper">
             <!-- 파일 첨부가 있는 경우 -->
             <div v-if="message.attachments && message.attachments.length > 0 && !message.is_loading" class="message-attachments">
               <div v-for="attachment in message.attachments" :key="attachment.id" class="attachment-item">
@@ -376,8 +399,36 @@
               </div>
             </div>
             
-            <!-- 메시지 텍스트 -->
-            <div v-if="message.body && message.body.trim()" class="message-bubble" v-html="linkifyMessage(message.body)"></div>
+            <!-- 메시지 텍스트와 리액션 트리거 버튼 -->
+            <div class="message-bubble-with-reaction">
+              <!-- 메시지 텍스트 -->
+              <div v-if="message.body && message.body.trim()" class="message-bubble" v-html="linkifyMessage(message.body)"></div>
+              
+              <!-- 리액션 트리거 버튼 (로딩 중이 아닐 때만 표시) -->
+              <div v-if="!message.is_loading" class="message-reaction-trigger" @click.stop="toggleReactionPicker(message.id)">
+                <VIcon size="16">ri-emotion-line</VIcon>
+              </div>
+            </div>
+            
+            <!-- 리액션 표시 -->
+            <div v-if="message.reactions && message.reactions.length > 0" class="message-reactions">
+              <div
+                v-for="groupedReaction in groupReactions(message.reactions)"
+                :key="groupedReaction.emoji"
+                :class="['reaction-item', { 'user-reacted': groupedReaction.hasCurrentUser }]"
+                @click="addReaction(message.id, groupedReaction.emoji)"
+                :title="groupedReaction.userNames"
+              >
+                <span class="reaction-emoji">{{ groupedReaction.emoji }}</span>
+                <span class="reaction-count">{{ groupedReaction.count }}</span>
+              </div>
+              
+              <!-- 리액션 추가 버튼 -->
+              <div class="reaction-add-btn" @click="toggleReactionPicker(message.id)">
+                <VIcon size="16">ri-add-line</VIcon>
+              </div>
+            </div>
+            
             
             <div class="message-time">
               {{ formatMessageTime(message.created_at) }}
@@ -389,6 +440,19 @@
               >
                 {{ message.is_read ? 'ri-check-line' : '' }}
               </VIcon>
+            </div>
+            </div>
+            
+            <!-- 리액션 피커 -->
+            <div v-if="showReactionPicker === message.id" class="reaction-picker">
+              <div
+                v-for="emoji in popularEmojis"
+                :key="emoji"
+                :class="['emoji-item', { 'selected': hasCurrentUserReaction(message, emoji) }]"
+                @click="addReaction(message.id, emoji)"
+              >
+                {{ emoji }}
+              </div>
             </div>
           </div>
         </div>
@@ -571,13 +635,13 @@
           class="download-modal-btn"
         >
           <VIcon class="me-2">ri-download-line</VIcon>
-          다운로드
+          ダウンロード
         </VBtn>
         <VBtn
           variant="outlined"
           @click="closeImageModal"
         >
-          닫기
+          閉じる
         </VBtn>
       </VCardActions>
     </VCard>
@@ -970,15 +1034,23 @@ const hasMoreMessages = ref(true)
 const isLoadingMessages = ref(false)
 const messagesPerPage = 20
 
+// 맨 아래로 이동 버튼 표시 여부
+const showScrollToBottom = ref(false)
+
+// 초기 메시지 로딩 상태 (채팅방 선택 시)
+const isInitialLoading = ref(false)
+
 // 메시지 목록 가져오기 (페이지네이션 지원)
 const fetchMessages = async (conversationId: string, page: number = 1, reset: boolean = false) => {
   try {
     if (reset) {
       currentPage.value = 1
       hasMoreMessages.value = true
+      isInitialLoading.value = true // 초기 로딩 시작
+    } else {
+      isLoadingMessages.value = true // 스크롤 로딩 시작
     }
     
-    isLoadingMessages.value = true
     const messages = await chatService.getMessages(conversationId, page, messagesPerPage)
     
     // 메시지를 selectedChat에 추가
@@ -998,18 +1070,23 @@ const fetchMessages = async (conversationId: string, page: number = 1, reset: bo
     console.error('메시지 목록 가져오기 오류:', error)
   } finally {
     isLoadingMessages.value = false
+    isInitialLoading.value = false
   }
 }
 
 const handleScroll = () => {
-  if (!messagesContainer.value || isLoadingMessages.value || !hasMoreMessages.value) return
+  if (!messagesContainer.value) return
   
   const { scrollTop, scrollHeight, clientHeight } = messagesContainer.value
   
   // 상단에서 100px 이내에 도달하면 이전 메시지 로드
-  if (scrollTop < 100) {
+  if (!isLoadingMessages.value && hasMoreMessages.value && scrollTop < 100) {
     loadMoreMessages()
   }
+  
+  // 맨 아래에서 200px 이상 떨어지면 "맨 아래로" 버튼 표시
+  const distanceFromBottom = scrollHeight - scrollTop - clientHeight
+  showScrollToBottom.value = distanceFromBottom > 200
 }
 
 // 더 많은 메시지 로드
@@ -1407,6 +1484,7 @@ const selectChat = async (chat: any) => {
   
   nextTick(() => {
     scrollToBottom()
+    showScrollToBottom.value = false
   })
 }
 
@@ -1688,6 +1766,7 @@ const sendMessage = async () => {
 const scrollToBottom = () => {
   if (messagesContainer.value) {
     messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+    showScrollToBottom.value = false
   }
 }
 
@@ -1811,16 +1890,27 @@ const handleChatRoomWebSocketMessage = (message: ChatRoomMessage) => {
         // 현재 선택된 채팅방이어도 채팅 리스트의 마지막 메시지 업데이트
         updateCurrentChatInfoFromMessage(message)
       } else {
+        // 다른 채팅방의 메시지인 경우
+        
+        // 본인이 보낸 메시지인지 확인
+        const currentUserId = localStorage.getItem('user_id')
+        const isOwnMessage = message.message?.is_own_message || 
+                           String(message.message?.sender_id) === String(currentUserId)
         
         // 해당 채팅방 정보 업데이트
-        updateChatInfoFromGlobalMessage(message)
+        updateChatInfoFromMessage(message)
         
-        // 알림 증가
-        chatNotificationStore.incrementUnreadCount()
-        chatNotificationStore.setNewMessageNotification(true)
+        // 채팅방 리스트의 unread_count를 기반으로 전역 알림 카운트 재계산
+        const totalUnread = chats.value.reduce((total, chat) => total + (chat.unread_count || 0), 0)
+        chatNotificationStore.setUnreadCount(totalUnread)
         
-        // 사용자에게 알림 표시 (선택사항)
-        showGlobalChatNotification(message)
+        // 본인 메시지가 아닌 경우에만 새 메시지 알림 표시
+        if (!isOwnMessage) {
+          chatNotificationStore.setNewMessageNotification(true)
+          
+          // 사용자에게 브라우저 알림 표시
+          showGlobalChatNotification(message)
+        }
       }
       
       break
@@ -1837,16 +1927,41 @@ const handleChatRoomWebSocketMessage = (message: ChatRoomMessage) => {
         // 현재 선택된 채팅방의 메시지인 경우 - 읽음 처리
         updateCurrentChatInfoFromMessage(message)
       } else {
+        // 다른 채팅방의 메시지인 경우
+        
+        // 본인이 보낸 메시지인지 확인
+        const currentUserId = localStorage.getItem('user_id')
+        let lastMessageData = null
+        
+        if (message.data && message.data.last_message) {
+          lastMessageData = message.data.last_message
+        } else if (message.data && message.data.message) {
+          lastMessageData = message.data.message
+        } else if (message.update_data && message.update_data.last_message) {
+          lastMessageData = message.update_data.last_message
+        } else if (message.message) {
+          lastMessageData = message.message
+        }
+        
+        const isOwnMessage = lastMessageData && (
+          lastMessageData.is_own_message || 
+          String(lastMessageData.sender_id) === String(currentUserId)
+        )
         
         // 해당 채팅방 정보 업데이트
         updateChatInfoFromGlobalMessage(message)
         
-        // 알림 증가
-        chatNotificationStore.incrementUnreadCount()
-        chatNotificationStore.setNewMessageNotification(true)
+        // 채팅방 리스트의 unread_count를 기반으로 전역 알림 카운트 재계산
+        const totalUnread = chats.value.reduce((total, chat) => total + (chat.unread_count || 0), 0)
+        chatNotificationStore.setUnreadCount(totalUnread)
         
-        // 사용자에게 알림 표시
-        showGlobalChatNotification(message)
+        // 본인 메시지가 아닌 경우에만 새 메시지 알림 표시
+        if (!isOwnMessage) {
+          chatNotificationStore.setNewMessageNotification(true)
+          
+          // 사용자에게 브라우저 알림 표시
+          showGlobalChatNotification(message)
+        }
       }
       break
 
@@ -1890,19 +2005,49 @@ const handleGlobalChatListUpdate = (event: CustomEvent) => {
   // chat_list_update 메시지 처리
   if (message.type === 'chat_list_update') {
     // 다른 채팅방에서 새 메시지가 온 경우
-    if (message.conversation_id && message.update_data) {
-      
-      // 현재 선택된 채팅방이 아닌 경우에만 처리
-      if (!selectedChat.value || selectedChat.value.id !== message.conversation_id) {
-        // 해당 채팅방 정보 업데이트
+    if (message.conversation_id) {
+      // 현재 선택된 채팅방인지 확인
+      if (selectedChat.value && selectedChat.value.id === message.conversation_id) {
+        // 현재 보고 있는 채팅방이면 알림 표시 안 함 (이미 읽음)
+        // 채팅방 목록의 마지막 메시지 정보 업데이트 및 읽음 처리
+        updateCurrentChatInfoFromMessage(message)
+        
+        // 채팅 페이지에 있으므로 전역 알림 카운트는 갱신하지 않음
+      } else {
+        // 다른 채팅방의 메시지인 경우
+        
+        // 본인이 보낸 메시지인지 확인
+        const currentUserId = localStorage.getItem('user_id')
+        let lastMessageData = null
+        
+        // 메시지 데이터 추출
+        if (message.data && message.data.last_message) {
+          lastMessageData = message.data.last_message
+        } else if (message.data && message.data.message) {
+          lastMessageData = message.data.message
+        } else if (message.update_data && message.update_data.last_message) {
+          lastMessageData = message.update_data.last_message
+        } else if (message.message) {
+          lastMessageData = message.message
+        }
+        
+        const isOwnMessage = lastMessageData && (
+          lastMessageData.is_own_message || 
+          String(lastMessageData.sender_id) === String(currentUserId)
+        )
+        
+        // 채팅방 정보 업데이트
         updateChatInfoFromGlobalMessage(message)
         
-        // 알림 증가
-        chatNotificationStore.incrementUnreadCount()
-        chatNotificationStore.setNewMessageNotification(true)
+        // 채팅방 리스트의 unread_count를 기반으로 전역 알림 카운트 재계산
+        // (채팅 페이지에서는 실시간으로 채팅방 리스트를 볼 수 있으므로 정확한 카운트 유지)
+        const totalUnread = chats.value.reduce((total, chat) => total + (chat.unread_count || 0), 0)
+        chatNotificationStore.setUnreadCount(totalUnread)
         
-        // 사용자에게 알림 표시
-        showGlobalChatNotification(message)
+        // 본인 메시지가 아닌 경우에만 브라우저 알림 표시
+        if (!isOwnMessage) {
+          showGlobalChatNotification(message)
+        }
       }
     } else {
       // 전체 채팅방 리스트 갱신
@@ -2110,6 +2255,10 @@ onUnmounted(() => {
   window.removeEventListener('chat_list_update', handleGlobalChatListUpdate)
   window.removeEventListener('resize', checkMobile)
   
+  // 채팅 페이지를 벗어날 때 전역 알림 카운트 동기화
+  const totalUnread = chats.value.reduce((total, chat) => total + (chat.unread_count || 0), 0)
+  chatNotificationStore.setUnreadCount(totalUnread)
+  
   // 임시 blob URL들 정리
   selectedFiles.value.forEach(file => {
     const previewUrl = getFilePreview(file)
@@ -2189,6 +2338,10 @@ const updateChatInfoFromMessage = (message: ChatRoomMessage) => {
       
       // 마지막 메시지 정보 업데이트
       if (message.data && message.data.message) {
+        const currentUserId = localStorage.getItem('user_id')
+        const isOwnMessage = message.data.message.is_own_message || 
+                           String(message.data.message.sender_id) === String(currentUserId)
+        
         chat.last_message = {
           id: message.data.message.id,
           conversation_id: message.conversation_id,
@@ -2197,9 +2350,9 @@ const updateChatInfoFromMessage = (message: ChatRoomMessage) => {
           created_at: message.data.message.created_at,
           edited_at: message.data.message.edited_at || undefined,
           deleted_at: message.data.message.deleted_at || undefined,
-          is_own_message: false,
+          is_own_message: isOwnMessage,
           message_type: 'text',
-          alignment: 'left',
+          alignment: isOwnMessage ? 'right' : 'left',
           sender_info: message.data.message.sender_info || undefined,
           sender_name: message.data.message.sender_name || '',
           sender_avatar: message.data.message.sender_avatar || '',
@@ -2209,12 +2362,14 @@ const updateChatInfoFromMessage = (message: ChatRoomMessage) => {
           is_read: false,
           show_avatar: true,
           show_name: true,
-          css_class: 'message-left',
+          css_class: isOwnMessage ? 'message-right' : 'message-left',
+        }
+        
+        // 읽지 않은 메시지 개수 증가 (본인 메시지는 제외)
+        if (!isOwnMessage) {
+          chat.unread_count = (chat.unread_count || 0) + 1
         }
       }
-      
-      // 읽지 않은 메시지 개수 증가
-      chat.unread_count = (chat.unread_count || 0) + 1
       
       // 채팅방을 목록 맨 위로 이동 (최신 메시지가 있는 채팅방이 위로)
       const updatedChat = chats.value.splice(chatIndex, 1)[0]
@@ -2311,11 +2466,18 @@ const updateChatInfoFromGlobalMessage = (message: any) => {
     if (chatIndex !== -1) {
       const chat = chats.value[chatIndex]
       
+      // 현재 사용자 ID 가져오기
+      const currentUserId = localStorage.getItem('user_id')
+      
       // 마지막 메시지 정보 업데이트
       let lastMessageData = null
       
+      // 전역 소켓에서 오는 chat_list_update 메시지 (message.data.last_message)
+      if (message.data && message.data.last_message) {
+        lastMessageData = message.data.last_message
+      }
       // new_message 타입인 경우
-      if (message.data && message.data.message) {
+      else if (message.data && message.data.message) {
         lastMessageData = message.data.message
       }
       // chat_list_update 타입인 경우
@@ -2328,6 +2490,10 @@ const updateChatInfoFromGlobalMessage = (message: any) => {
       }
       
       if (lastMessageData) {
+        // 현재 사용자가 보낸 메시지인지 확인
+        const isOwnMessage = lastMessageData.is_own_message || 
+                           String(lastMessageData.sender_id) === String(currentUserId)
+        
         chat.last_message = {
           id: lastMessageData.id,
           conversation_id: message.conversation_id || '',
@@ -2336,28 +2502,26 @@ const updateChatInfoFromGlobalMessage = (message: any) => {
           created_at: lastMessageData.created_at,
           edited_at: lastMessageData.edited_at || undefined,
           deleted_at: lastMessageData.deleted_at || undefined,
-          is_own_message: false,
+          is_own_message: isOwnMessage,
           message_type: 'text',
-          alignment: 'left',
+          alignment: isOwnMessage ? 'right' : 'left',
           sender_info: lastMessageData.sender_info || undefined,
           sender_name: lastMessageData.sender_name || '',
           sender_avatar: lastMessageData.sender_avatar || '',
           sender_role: lastMessageData.sender_role || 'user',
           attachments: lastMessageData.attachments || [],
           reactions: lastMessageData.reactions || [],
-          is_read: false, // 현재 보고 있는 채팅방이므로 읽음으로 처리
+          is_read: false,
           show_avatar: true,
           show_name: true,
-          css_class: 'message-left',
+          css_class: isOwnMessage ? 'message-right' : 'message-left',
         }
-      }
-      
-      // 읽지 않은 메시지 개수 업데이트
-      if (message.update_data && message.update_data.unread_count !== undefined) {
-        chat.unread_count = message.update_data.unread_count
-      } else {
-        // unread_count가 없으면 1 증가
-        chat.unread_count = (chat.unread_count || 0) + 1
+        
+        // 읽지 않은 메시지 개수 업데이트 (본인 메시지는 제외)
+        if (!isOwnMessage) {
+          // 프론트엔드에서 직접 관리: 1 증가
+          chat.unread_count = (chat.unread_count || 0) + 1
+        }
       }
       
       // 채팅방을 목록 맨 위로 이동 (최신 메시지가 있는 채팅방이 위로)
@@ -2594,6 +2758,10 @@ const updateCurrentChatInfoFromMessage = (message: ChatRoomMessage) => {
         console.error('現在のチャットボックスの読み取り処理に失敗しました:', error)
       })
       
+      // 전역 알림 카운트 재계산 (현재 채팅방의 unread가 0이 되었으므로)
+      const totalUnread = chats.value.reduce((total, chat) => total + (chat.unread_count || 0), 0)
+      chatNotificationStore.setUnreadCount(totalUnread)
+      
     }
   } catch (error) {
     console.error('現在のチャットボックスの情報更新に失敗しました:', error)
@@ -2733,6 +2901,137 @@ const isAlreadyMember = (userId: number): boolean => {
   if (!selectedChat.value?.participants) return false
   return selectedChat.value.participants.some((p: any) => p.id === userId)
 }
+
+// 리액션 관련 상태
+const showReactionPicker = ref<string | null>(null) // 리액션 피커를 표시할 메시지 ID
+const popularEmojis = ['👍', '❤️', '😂', '😮', '😢', '🙏', '👏', '🔥']
+
+// 리액션 배열을 그룹화하는 함수
+const groupReactions = (reactions: any[]) => {
+  const currentUserId = localStorage.getItem('user_id')
+  const grouped = new Map()
+  
+  reactions.forEach((reaction: any) => {
+    const emoji = reaction.emoji
+    if (!grouped.has(emoji)) {
+      grouped.set(emoji, {
+        emoji: emoji,
+        count: 0,
+        userIds: [],
+        userNames: [],
+        hasCurrentUser: false
+      })
+    }
+    
+    const group = grouped.get(emoji)
+    group.count++
+    group.userIds.push(reaction.user_id)
+    
+    // 사용자 이름이 있으면 추가
+    if (reaction.user_name) {
+      group.userNames.push(reaction.user_name)
+    }
+    
+    // 현재 사용자가 이 리액션을 했는지 확인
+    if (String(reaction.user_id) === String(currentUserId)) {
+      group.hasCurrentUser = true
+    }
+  })
+  
+  // Map을 배열로 변환하고 사용자 이름 문자열 생성
+  return Array.from(grouped.values()).map(group => ({
+    ...group,
+    userNames: group.userNames.length > 0 
+      ? group.userNames.join(', ') 
+      : `${group.count}人が反応しました`
+  }))
+}
+
+// 리액션 피커 토글
+const toggleReactionPicker = (messageId: string) => {
+  if (showReactionPicker.value === messageId) {
+    showReactionPicker.value = null
+  } else {
+    showReactionPicker.value = messageId
+  }
+}
+
+// 현재 사용자가 특정 이모지에 리액션했는지 확인
+const hasCurrentUserReaction = (message: any, emoji: string): boolean => {
+  const currentUserId = localStorage.getItem('user_id')
+  if (!message.reactions || message.reactions.length === 0) return false
+  
+  return message.reactions.some((r: any) => 
+    r.emoji === emoji && String(r.user_id) === String(currentUserId)
+  )
+}
+
+
+// 리액션 추가/제거
+const addReaction = async (messageId: string, emoji: string) => {
+  try {
+    if (!selectedChat.value?.messages) return
+    
+    const message = selectedChat.value.messages.find((m: any) => m.id === messageId)
+    if (!message) return
+    
+    const currentUserId = localStorage.getItem('user_id')
+    
+    // reactions 배열이 없으면 초기화
+    if (!message.reactions) {
+      message.reactions = []
+    }
+    
+    // 현재 사용자의 기존 리액션 찾기 (모든 이모지)
+    const existingReaction = message.reactions.find(
+      (r: any) => String(r.user_id) === String(currentUserId)
+    )
+    
+    // 현재 사용자가 이미 같은 이모지에 리액션했는지 확인
+    const isSameEmoji = existingReaction && existingReaction.emoji === emoji
+    
+    if (isSameEmoji) {
+      // 같은 이모지를 다시 클릭 -> 리액션 제거 (토글)
+      await chatService.toggleReaction(messageId, emoji)
+      
+      // 로컬 상태 업데이트
+      message.reactions = message.reactions.filter(
+        (r: any) => !(String(r.user_id) === String(currentUserId) && r.emoji === emoji)
+      )
+    } else {
+      // 다른 이모지를 클릭 또는 새로 추가
+      if (existingReaction) {
+        // 기존 리액션이 있으면 먼저 백엔드에서 제거
+        await chatService.toggleReaction(messageId, existingReaction.emoji)
+        
+        // 로컬 상태에서 기존 리액션 제거
+        message.reactions = message.reactions.filter(
+          (r: any) => !(String(r.user_id) === String(currentUserId))
+        )
+      }
+      
+      // 새 리액션 백엔드에 추가
+      await chatService.toggleReaction(messageId, emoji)
+      
+      // 로컬 상태에 새 리액션 추가
+      message.reactions.push({
+        emoji: emoji,
+        user_id: currentUserId,
+        created_at: new Date().toISOString()
+      })
+    }
+    
+    // 리액션 피커 닫기
+    showReactionPicker.value = null
+  } catch (error) {
+    console.error('リアクション追加エラー:', error)
+    // 에러 발생 시 페이지 새로고침하여 최신 상태 동기화
+    if (selectedChat.value) {
+      await fetchMessages(selectedChat.value.id, 1, true)
+    }
+  }
+}
+
 </script>
 
 <style scoped>
@@ -3027,6 +3326,7 @@ const isAlreadyMember = (userId: number): boolean => {
   min-height: 0; /* flexbox 오버플로우 방지 */
   max-height: calc(100vh - 200px); /* 최대 높이 제한 */
   width: 100%;
+  position: relative; /* 초기 로딩 오버레이를 위해 필요 */
 }
 
 .message {
@@ -3065,6 +3365,67 @@ const isAlreadyMember = (userId: number): boolean => {
   max-width: 60%;
   min-width: 0;
   flex: 1;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  position: relative;
+}
+
+.message-content > .message-bubble-wrapper {
+  position: relative;
+}
+
+.message-bubble-wrapper {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 메시지 버블과 리액션 트리거를 감싸는 컨테이너 */
+.message-bubble-with-reaction {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  position: relative;
+  min-height: 28px;
+}
+
+/* 상대방 메시지 (왼쪽 정렬) - 버튼을 오른쪽에 */
+.message-left .message-bubble-with-reaction {
+  flex-direction: row;
+  justify-content: flex-start;
+}
+
+/* 내 메시지 (오른쪽 정렬) - 버튼을 왼쪽에 */
+.message-right .message-bubble-with-reaction {
+  flex-direction: row-reverse;
+  justify-content: flex-end;
+}
+
+.message-reaction-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background-color: #f5f5f5;
+  border: 1px solid #e0e0e0;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #999;
+  opacity: 0;
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+
+.message:hover .message-reaction-trigger {
+  opacity: 1;
+}
+
+.message-reaction-trigger:hover {
+  background-color: #e0e0e0;
+  color: #666;
+  transform: scale(1.05);
 }
 
 .message-bubble {
@@ -3075,10 +3436,11 @@ const isAlreadyMember = (userId: number): boolean => {
   font-size: 14px;
   line-height: 1.4;
   word-wrap: break-word;
-  display: inline-block;
   max-width: 100%;
   white-space: pre-wrap; /* 개행 문자 보존 */
   word-break: break-word; /* 긴 단어 줄바꿈 */
+  display: inline-block;
+  width: fit-content;
 }
 
 /* 메시지 내 링크 스타일 */
@@ -3137,6 +3499,13 @@ const isAlreadyMember = (userId: number): boolean => {
 
 /* 본인 메시지 오른쪽 정렬 강화 */
 .message.message-right .message-content {
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.message.message-right .message-bubble-wrapper {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -3279,6 +3648,182 @@ const isAlreadyMember = (userId: number): boolean => {
   bottom: 0;
   background-color: rgba(0, 0, 0, 0.5);
   z-index: 2;
+}
+
+/* 리액션 스타일 */
+.message-reactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+  align-items: center;
+}
+
+.reaction-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background-color: #f5f5f5;
+  border: 1px solid #e0e0e0;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 14px;
+}
+
+.reaction-item:hover {
+  background-color: #e0e0e0;
+  transform: scale(1.05);
+}
+
+.reaction-item.user-reacted {
+  background-color: #e3f2fd;
+  border-color: #2196f3;
+}
+
+.reaction-emoji {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.reaction-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: #666;
+  line-height: 1;
+}
+
+.reaction-item.user-reacted .reaction-count {
+  color: #2196f3;
+}
+
+.reaction-add-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background-color: #f5f5f5;
+  border: 1px solid #e0e0e0;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #999;
+}
+
+.reaction-add-btn:hover {
+  background-color: #e0e0e0;
+  color: #666;
+  transform: scale(1.05);
+}
+
+
+
+.reaction-picker {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  display: flex;
+  gap: 4px;
+  padding: 8px;
+  background-color: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 10;
+  animation: slideUpReaction 0.2s ease-out;
+}
+
+/* 상대방 메시지 - 리액션 피커를 message-bubble 위쪽에 */
+.message-left .reaction-picker {
+  left: 0;
+}
+
+/* 내 메시지 - 리액션 피커를 message-bubble 위쪽에 */
+.message-right .reaction-picker {
+  right: 0;
+}
+
+@keyframes slideUpReaction {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.emoji-item {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.emoji-item:hover {
+  background-color: #f5f5f5;
+  transform: scale(1.2);
+}
+
+.emoji-item.selected {
+  background-color: #e3f2fd;
+  border: 2px solid #2196f3;
+  transform: scale(1.1);
+}
+
+.emoji-item.selected:hover {
+  background-color: #bbdefb;
+}
+
+.message-content {
+  position: relative;
+}
+
+/* 본인 메시지의 리액션 스타일 */
+.message-right .reaction-item {
+  background-color: rgba(124, 58, 237, 0.1);
+  border-color: rgba(124, 58, 237, 0.3);
+}
+
+.message-right .reaction-item:hover {
+  background-color: rgba(124, 58, 237, 0.2);
+}
+
+.message-right .reaction-item.user-reacted {
+  background-color: rgba(124, 58, 237, 0.2);
+  border-color: #7c3aed;
+}
+
+.message-right .reaction-item.user-reacted .reaction-count {
+  color: #7c3aed;
+}
+
+.message-right .reaction-add-btn,
+.message-right .message-reaction-trigger {
+  background-color: rgba(124, 58, 237, 0.1);
+  border-color: rgba(124, 58, 237, 0.3);
+  color: #7c3aed;
+}
+
+.message-right .reaction-add-btn:hover,
+.message-right .message-reaction-trigger:hover {
+  background-color: rgba(124, 58, 237, 0.2);
+}
+
+.message-right .emoji-item.selected {
+  background-color: rgba(124, 58, 237, 0.2);
+  border: 2px solid #7c3aed;
+}
+
+.message-right .emoji-item.selected:hover {
+  background-color: rgba(124, 58, 237, 0.3);
 }
 
 /* 반응형 디자인 */
@@ -3485,6 +4030,30 @@ const isAlreadyMember = (userId: number): boolean => {
     padding: 12px;
     font-size: 14px;
   }
+  
+  /* 맨 아래로 이동 버튼 (모바일) */
+  .scroll-to-bottom-btn {
+    bottom: 80px;
+    right: 16px;
+  }
+  
+  .scroll-to-bottom-btn .v-btn {
+    width: 48px;
+    height: 48px;
+  }
+  
+  /* 초기 로딩 (모바일) */
+  .initial-loading-content {
+    padding: 24px;
+  }
+  
+  .initial-loading-icon {
+    font-size: 40px;
+  }
+  
+  .initial-loading-text {
+    font-size: 14px;
+  }
 }
 
 /* 채팅 선택 안내 */
@@ -3583,6 +4152,41 @@ const isAlreadyMember = (userId: number): boolean => {
   .chat-messages {
     max-height: calc(100vh - 160px);
   }
+}
+
+/* 맨 아래로 이동 버튼 */
+.scroll-to-bottom-btn {
+  position: absolute;
+  bottom: 100px;
+  right: 20px;
+  z-index: 10;
+  cursor: pointer;
+}
+
+.scroll-to-bottom-btn .v-btn {
+  background-color: white;
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
+}
+
+.scroll-to-bottom-btn .v-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 16px rgba(124, 58, 237, 0.4);
+}
+
+/* 버튼 fade 애니메이션 */
+.scroll-btn-fade-enter-active,
+.scroll-btn-fade-leave-active {
+  transition: all 0.3s ease;
+}
+
+.scroll-btn-fade-enter-from {
+  opacity: 0;
+  transform: translateY(20px) scale(0.8);
+}
+
+.scroll-btn-fade-leave-to {
+  opacity: 0;
+  transform: translateY(20px) scale(0.8);
 }
 
 /* 스크롤바 스타일링 */
@@ -4149,7 +4753,48 @@ const isAlreadyMember = (userId: number): boolean => {
   color: rgba(255, 255, 255, 0.95);
 }
 
-/* 로딩 인디케이터 (상단) */
+/* 초기 로딩 인디케이터 (전체 화면) */
+.initial-loading-overlay {
+  position: fixed;
+  top: 50%;
+  left: 63%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.initial-loading-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 32px;
+  background-color: white;
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(124, 58, 237, 0.15);
+}
+
+.initial-loading-icon {
+  animation: spin 1s linear infinite;
+  color: #7c3aed;
+}
+
+.initial-loading-text {
+  font-size: 16px;
+  font-weight: 500;
+  color: #666;
+  margin: 0;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* 로딩 인디케이터 (상단 - 스크롤 시) */
 .loading-messages {
   display: flex;
   align-items: center;
@@ -4162,11 +4807,6 @@ const isAlreadyMember = (userId: number): boolean => {
 
 .loading-messages .loading-icon {
   animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
 }
 
 .user-list-container {
@@ -4966,6 +5606,41 @@ const isAlreadyMember = (userId: number): boolean => {
   
   .invite-members-actions .VBtn {
     width: 100%;
+  }
+  
+  /* 모바일 리액션 스타일 */
+  .reaction-item {
+    padding: 3px 8px;
+    font-size: 13px;
+  }
+  
+  .reaction-emoji {
+    font-size: 14px;
+  }
+  
+  .reaction-count {
+    font-size: 11px;
+  }
+  
+  .reaction-add-btn,
+  .message-reaction-trigger {
+    width: 24px;
+    height: 24px;
+  }
+  
+  .message-reaction-trigger {
+    opacity: 1;
+  }
+  
+  .emoji-item {
+    width: 36px;
+    height: 36px;
+    font-size: 20px;
+  }
+  
+  .reaction-picker {
+    padding: 6px;
+    gap: 3px;
   }
 }
 </style> 
