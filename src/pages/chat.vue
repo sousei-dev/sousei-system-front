@@ -325,7 +325,7 @@
           v-else
           v-for="message in selectedChat?.messages || []"
           :key="message.id"
-          :class="['message', message.css_class]"
+          :class="['message', message.css_class, { 'mentioned-me': isCurrentUserMentioned(message) }]"
           :data-message-id="message.id"
         >          
           <!-- 상대방 메시지: 왼쪽에 아바타와 이름 -->
@@ -402,6 +402,11 @@
             
             <!-- 메시지 텍스트와 리액션 트리거 버튼 -->
             <div class="message-bubble-with-reaction">
+              <!-- 멘션 표시 배지 -->
+              <div v-if="isCurrentUserMentioned(message)" class="mention-badge">
+                <VIcon size="14" color="warning">ri-at-line</VIcon>
+              </div>
+              
               <!-- 메시지 텍스트 -->
               <div v-if="message.body && message.body.trim()" class="message-bubble">
                 <!-- 답변 메시지인 경우 원본 메시지 표시 -->
@@ -604,6 +609,41 @@
           >
             <VIcon>{{ showFileUpload ? 'ri-close-line' : 'ri-attachment-2' }}</VIcon>
           </VBtn>
+          
+          <!-- 멘션 드롭다운 -->
+          <div v-if="showMentionDropdown" class="mention-dropdown">
+            <div class="mention-dropdown-header">
+              <VIcon size="16" class="me-2">ri-at-line</VIcon>
+              <span>メンバーをメンション</span>
+            </div>
+            <div class="mention-list">
+              <div
+                v-for="(user, index) in mentionableUsers"
+                :key="user.id"
+                :class="['mention-item', { 'selected': index === selectedMentionIndex }]"
+                @click="selectMentionUser(user)"
+                @mouseenter="selectedMentionIndex = index"
+              >
+                <VAvatar size="28" class="me-2">
+                  <VImg v-if="user.avatar" :src="user.avatar" />
+                  <VAvatar v-else :color="getUserColor(user.name)" size="28">
+                    <span class="text-white text-caption">{{ getUserInitials(user.name) }}</span>
+                  </VAvatar>
+                </VAvatar>
+                <div class="mention-user-info">
+                  <div class="mention-user-name">{{ user.name }}</div>
+                  <div class="mention-user-details" v-if="user.position || user.department">
+                    <span v-if="user.position">{{ user.position }}</span>
+                    <span v-if="user.position && user.department"> • </span>
+                    <span v-if="user.department">{{ user.department }}</span>
+                  </div>
+                </div>
+              </div>
+              <div v-if="mentionableUsers.length === 0" class="mention-empty">
+                <span>該当するメンバーがいません</span>
+              </div>
+            </div>
+          </div>
             
           <VTextarea
             v-model="newMessage"
@@ -616,6 +656,7 @@
             rows="1"
             max-rows="4"
             @keydown="handleKeyDown"
+            @input="handleMentionInput"
             ref="messageTextarea"
             :disabled="isLoadingMessages"
           />
@@ -1290,19 +1331,33 @@ const formatFileSize = (bytes: number): string => {
 const linkifyMessage = (text: string): string => {
   if (!text) return ''
   
-  // URL 정규식 (http, https, www 등을 감지)
-  const urlRegex = /(https?:\/\/[^\s]+)|(www\.[^\s]+)|([a-zA-Z0-9.-]+\.[a-zA-Z]{2,}[^\s]*)/g
+  // 1. 멘션을 플레이스홀더로 대체 (@ 앞에 공백, 줄바꿈 또는 시작 위치만 허용)
+  const mentions: string[] = []
+  let processedText = text.replace(/(^|[\s\n])@([^\s@]+)/g, (match, prefix, userName) => {
+    const index = mentions.length
+    mentions.push(`${prefix}<span class="mention-highlight">@${userName}</span>`)
+    return `__MENTION_${index}__`
+  })
   
-  return text.replace(urlRegex, (url) => {
-    let href = url
+  // 2. URL을 링크로 변환
+  const urlRegex = /(https?:\/\/[^\s]+)|(www\.[^\s]+)/g
+  processedText = processedText.replace(urlRegex, (match) => {
+    let href = match
     
     // http/https가 없으면 추가
-    if (!url.match(/^https?:\/\//)) {
-      href = 'https://' + url
+    if (!match.match(/^https?:\/\//)) {
+      href = 'https://' + match
     }
     
-    return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="message-link">${url}</a>`
+    return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="message-link">${match}</a>`
   })
+  
+  // 3. 플레이스홀더를 실제 멘션 HTML로 복원
+  mentions.forEach((mention, index) => {
+    processedText = processedText.replace(`__MENTION_${index}__`, mention)
+  })
+  
+  return processedText
 }
 
 // 파일 타입이 이미지인지 확인
@@ -1679,6 +1734,9 @@ const sendMessage = async () => {
     created_at: replyingToMessage.value.created_at
   } : null
   
+  // 멘션 추출
+  const mentions = extractMentions(messageText)
+  
   newMessage.value = ''
   selectedFiles.value = []
   showFileUpload.value = false
@@ -1728,8 +1786,8 @@ const sendMessage = async () => {
         scrollToBottom()
       })
       
-      // 백엔드에 메시지 저장 요청 (답변인 경우 parent_id 포함)
-      const response = await chatService.sendMessageWithFiles(selectedChat.value.id, messageText, filesToSend, parentMessageId)
+      // 백엔드에 메시지 저장 요청 (답변인 경우 parent_id 포함, 멘션 포함)
+      const response = await chatService.sendMessageWithFiles(selectedChat.value.id, messageText, filesToSend, parentMessageId, mentions)
       
       // 로딩 메시지를 실제 응답으로 교체
       const messageIndex = selectedChat.value.messages.findIndex((m: any) => m.id === tempMessageId)
@@ -1829,9 +1887,9 @@ const sendMessage = async () => {
         scrollToBottom()
       })
       
-      // 백엔드에 메시지 저장 요청 (백그라운드에서, 답변인 경우 parent_id 포함)
+      // 백엔드에 메시지 저장 요청 (백그라운드에서, 답변인 경우 parent_id 포함, 멘션 포함)
       try {
-        const response = await chatService.sendMessage(selectedChat.value.id, messageText, parentMessageId)
+        const response = await chatService.sendMessage(selectedChat.value.id, messageText, parentMessageId, mentions)
         
         // 메시지 ID를 실제 응답으로 업데이트
         const messageIndex = selectedChat.value.messages.findIndex((m: any) => m.id === newMessageData.id)
@@ -2325,6 +2383,12 @@ const handleDrop = (event: DragEvent) => {
 
 // 키보드 이벤트 핸들러 수정
 const handleKeyDown = (event: KeyboardEvent) => {
+  // 멘션 드롭다운이 열려있을 때 키보드 네비게이션
+  if (showMentionDropdown.value) {
+    handleMentionKeyDown(event)
+    return
+  }
+  
   // IME 변환 중인지 확인 (isComposing 속성으로 판단)
   if (event.isComposing || event.keyCode === 229) {
     // IME 변환 중이면 메시지 전송하지 않음
@@ -3019,12 +3083,178 @@ const scrollToMessage = (messageId: string) => {
   }
 }
 
+// 멘션 관련 상태
+const showMentionDropdown = ref(false)
+const mentionSearchQuery = ref('')
+const mentionCursorPosition = ref(0)
+const selectedMentionIndex = ref(0)
+
+// 멘션 가능한 사용자 목록 (현재 채팅방의 참여자)
+const mentionableUsers = computed(() => {
+  if (!selectedChat.value?.participants) return []
+  
+  const query = mentionSearchQuery.value.toLowerCase()
+  if (!query) return selectedChat.value.participants
+  
+  return selectedChat.value.participants.filter((user: any) => 
+    user.name.toLowerCase().includes(query)
+  )
+})
+
+// @ 입력 감지
+const handleMentionInput = () => {
+  const textarea = messageTextarea.value
+  if (!textarea) return
+  
+  const cursorPos = textarea.selectionStart
+  const text = newMessage.value.substring(0, cursorPos)
+  const lastAtIndex = text.lastIndexOf('@')
+  
+  if (lastAtIndex !== -1) {
+    // @ 앞의 문자 확인
+    const charBeforeAt = lastAtIndex > 0 ? text.charAt(lastAtIndex - 1) : ''
+    
+    // @ 앞에 문자가 있으면 (공백이나 줄바꿈이 아니면) 멘션 기능 비활성화
+    if (charBeforeAt && charBeforeAt !== ' ' && charBeforeAt !== '\n') {
+      showMentionDropdown.value = false
+      return
+    }
+    
+    const textAfterAt = text.substring(lastAtIndex + 1)
+    
+    // @ 이후 공백이 없고, 20자 이내인 경우 멘션으로 간주
+    if (!textAfterAt.includes(' ') && textAfterAt.length <= 20) {
+      mentionSearchQuery.value = textAfterAt
+      mentionCursorPosition.value = lastAtIndex
+      showMentionDropdown.value = true
+      selectedMentionIndex.value = 0
+      return
+    }
+  }
+  
+  showMentionDropdown.value = false
+}
+
+// 멘션 사용자 선택
+const selectMentionUser = (user: any) => {
+  const textarea = messageTextarea.value
+  if (!textarea) return
+  
+  const beforeMention = newMessage.value.substring(0, mentionCursorPosition.value)
+  const afterCursor = newMessage.value.substring(textarea.selectionStart)
+  
+  // @사용자명 형식으로 삽입
+  newMessage.value = `${beforeMention}@${user.name} ${afterCursor}`
+  
+  // 멘션 드롭다운 닫기
+  showMentionDropdown.value = false
+  mentionSearchQuery.value = ''
+  
+  // 커서를 멘션 뒤로 이동
+  nextTick(() => {
+    const newCursorPos = mentionCursorPosition.value + user.name.length + 2
+    textarea.focus()
+    textarea.setSelectionRange(newCursorPos, newCursorPos)
+  })
+}
+
+// 멘션 드롭다운 닫기
+const closeMentionDropdown = () => {
+  showMentionDropdown.value = false
+  mentionSearchQuery.value = ''
+}
+
+// 멘션 키보드 네비게이션
+const handleMentionKeyDown = (event: KeyboardEvent) => {
+  if (!showMentionDropdown.value) return
+  
+  if (event.key === 'ArrowDown') {
+    event.preventDefault()
+    selectedMentionIndex.value = Math.min(
+      selectedMentionIndex.value + 1,
+      mentionableUsers.value.length - 1
+    )
+  } else if (event.key === 'ArrowUp') {
+    event.preventDefault()
+    selectedMentionIndex.value = Math.max(selectedMentionIndex.value - 1, 0)
+  } else if (event.key === 'Enter' && mentionableUsers.value.length > 0) {
+    event.preventDefault()
+    selectMentionUser(mentionableUsers.value[selectedMentionIndex.value])
+  } else if (event.key === 'Escape') {
+    event.preventDefault()
+    closeMentionDropdown()
+  }
+}
+
+// 메시지에서 멘션 추출
+const extractMentions = (text: string): Array<{ user_id: string; user_name: string }> => {
+  const mentions: Array<{ user_id: string; user_name: string }> = []
+  if (!selectedChat.value?.participants) return mentions
+  
+  // @사용자명 패턴 찾기 (@ 앞에 공백, 줄바꿈 또는 시작 위치만 허용)
+  const mentionPattern = /(^|[\s\n])@([^\s@]+)/g
+  let match
+  
+  while ((match = mentionPattern.exec(text)) !== null) {
+    const userName = match[2] // 두 번째 캡처 그룹이 사용자명
+    const user = selectedChat.value.participants.find((p: any) => p.name === userName)
+    
+    if (user && !mentions.find(m => m.user_id === user.id)) {
+      mentions.push({
+        user_id: user.id,
+        user_name: user.name
+      })
+    }
+  }
+  
+  return mentions
+}
+
+// 메시지 텍스트에서 멘션 하이라이트
+const highlightMentions = (text: string): string => {
+  if (!text) return ''
+  
+  // @사용자명 패턴을 HTML 태그로 변환 (@ 앞에 공백, 줄바꿈 또는 시작 위치만 허용)
+  return text.replace(/(^|[\s\n])@([^\s@]+)/g, '$1<span class="mention-highlight">@$2</span>')
+}
+
+// 메시지가 현재 사용자를 멘션하는지 확인
+const isCurrentUserMentioned = (message: any): boolean => {
+  if (!message) return false
+  
+  const currentUserId = localStorage.getItem('user_id')
+  if (!currentUserId) return false
+  
+  // 백엔드에서 mentioned_users 배열이 있는 경우
+  if (message.mentioned_users && Array.isArray(message.mentioned_users)) {
+    return message.mentioned_users.some((userId: string) => String(userId) === String(currentUserId))
+  }
+  
+  // 백엔드에서 mentions 배열이 있는 경우 (객체 형태)
+  if (message.mentions && Array.isArray(message.mentions)) {
+    return message.mentions.some((mention: any) => String(mention.user_id) === String(currentUserId))
+  }
+  
+  // 메시지 본문에서 직접 확인 (fallback)
+  if (message.body && selectedChat.value?.participants) {
+    const currentUser = selectedChat.value.participants.find((p: any) => String(p.id) === String(currentUserId))
+    if (currentUser && currentUser.name) {
+      // @ 앞에 공백, 줄바꿈 또는 시작 위치만 허용
+      const mentionPattern = new RegExp(`(^|[\\s\\n])@${currentUser.name}(?:\\s|$)`, 'g')
+      return mentionPattern.test(message.body)
+    }
+  }
+  
+  return false
+}
+
 // 참여자 목록 가져오기
 const fetchChatParticipants = async (conversationId: string) => {
   try {
     isLoadingParticipants.value = true
-    const response = await chatService.getChatParticipants(conversationId)
-    chatParticipants.value = response.participants || []
+    const response = await chatService.getParticipants(conversationId)
+    // 응답이 배열인 경우 직접 할당, 아니면 빈 배열
+    chatParticipants.value = Array.isArray(response) ? response : []
   } catch (error) {
     console.error('참여자 목록 가져오기 오류:', error)
     chatParticipants.value = []
@@ -6194,5 +6424,170 @@ const addReaction = async (messageId: string, emoji: string) => {
   .reaction-user-time {
     font-size: 11px;
   }
+}
+
+/* 멘션 드롭다운 */
+.mention-dropdown {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50px;
+  width: 300px;
+  max-height: 280px;
+  background-color: rgb(var(--v-theme-surface));
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+  z-index: 1000;
+}
+
+.mention-dropdown-header {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  font-size: 13px;
+  font-weight: 600;
+  color: rgb(var(--v-theme-on-surface));
+}
+
+.mention-list {
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.mention-item {
+  display: flex;
+  align-items: center;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.mention-item:hover,
+.mention-item.selected {
+  background-color: rgba(var(--v-theme-primary), 0.08);
+}
+
+.mention-user-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.mention-user-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: rgb(var(--v-theme-on-surface));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mention-user-details {
+  font-size: 12px;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+
+.mention-empty {
+  padding: 20px;
+  text-align: center;
+  color: rgba(var(--v-theme-on-surface), 0.5);
+  font-size: 13px;
+}
+
+@media (max-width: 600px) {
+  .mention-dropdown {
+    left: 16px;
+    right: 16px;
+    width: auto;
+  }
+  
+  .message.mentioned-me {
+    margin-left: -12px;
+    margin-right: -12px;
+    padding-left: 10px;
+    padding-right: 12px;
+  }
+}
+
+/* 멘션 하이라이트 - :deep() 사용 */
+:deep(.mention-highlight) {
+  background-color: #ede9fe;
+  color: #7c3aed;
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-weight: 600;
+  display: inline-block;
+}
+
+/* 나를 멘션한 메시지 강조 표시 */
+.message.mentioned-me {
+  padding-left: 12px;
+  margin-left: -16px;
+  margin-right: -16px;
+  padding-right: 16px;
+  border-radius: 8px;
+  position: relative;
+}
+
+.message.mentioned-me::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  border-radius: 4px 0 0 4px;
+}
+
+.message.mentioned-me .message-bubble {
+  background-color: #fffbeb;
+  border: 1px solid #fcd34d;
+}
+
+.message.mentioned-me.message-right .message-bubble {
+  background-color: #7c3aed;
+  border: 1px solid #6d28d9;
+}
+
+/* 멘션 배지 */
+.mention-badge {
+  position: absolute;
+  top: -8px;
+  left: -8px;
+  background-color: #f59e0b;
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  z-index: 10;
+}
+
+.message-right .mention-badge {
+  left: auto;
+  right: -8px;
+}
+
+.mention-badge .v-icon {
+  color: white !important;
+}
+</style>
+
+<style>
+/* v-html로 렌더링되는 멘션 하이라이트 (전역 스타일) */
+.mention-highlight {
+  background-color: #ede9fe;
+  color: #7c3aed;
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-weight: 600;
+  display: inline-block;
 }
 </style> 

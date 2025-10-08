@@ -158,7 +158,12 @@ export const chatService = {
   },
 
   // 메시지 전송
-  sendMessage: async (conversationId: string, body: string, parentId?: string): Promise<Message> => {
+  sendMessage: async (
+    conversationId: string, 
+    body: string, 
+    parentId?: string,
+    mentions?: Array<{ user_id: string; user_name: string }>
+  ): Promise<Message> => {
     try {
       const formData = new FormData()
       
@@ -168,6 +173,12 @@ export const chatService = {
       // 답변인 경우 parent_id 추가
       if (parentId) {
         formData.append('parent_id', parentId)
+      }
+      
+      // 멘션 정보 추가 (user_id 배열만 전송)
+      if (mentions && mentions.length > 0) {
+        const mentionedUserIds = mentions.map(m => m.user_id)
+        formData.append('mentioned_user_ids', JSON.stringify(mentionedUserIds))
       }
       
       const response = await api.post<Message>(`/chat/conversations/${conversationId}/messages`, formData, {
@@ -187,7 +198,8 @@ export const chatService = {
     conversationId: string, 
     body: string, 
     attachments: string[],
-    parentId?: string
+    parentId?: string,
+    mentions?: Array<{ user_id: string; user_name: string }>
   ): Promise<Message> => {
     try {
       const formData = new FormData()
@@ -195,6 +207,12 @@ export const chatService = {
       // 메시지 본문 추가
       formData.append('body', body || 'ファイルを添付しました。')
       formData.append('parent_id', parentId || '')
+      
+      // 멘션 정보 추가 (user_id 배열만 전송)
+      if (mentions && mentions.length > 0) {
+        const mentionedUserIds = mentions.map(m => m.user_id)
+        formData.append('mentioned_user_ids', JSON.stringify(mentionedUserIds))
+      }
       
       // 각 파일을 'attachments' 키로 추가ㅋ
       attachments.forEach((file) => {
