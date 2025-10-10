@@ -620,18 +620,28 @@
               <div
                 v-for="(user, index) in mentionableUsers"
                 :key="user.id"
-                :class="['mention-item', { 'selected': index === selectedMentionIndex }]"
+                :class="['mention-item', { 'selected': index === selectedMentionIndex, 'mention-all-item': user.id === 'all' }]"
                 @click="selectMentionUser(user)"
                 @mouseenter="selectedMentionIndex = index"
               >
-                <VAvatar size="28" class="me-2">
+                <!-- @all 특별 아이콘 -->
+                <VAvatar v-if="user.id === 'all'" size="28" color="warning" class="me-2">
+                  <VIcon size="18" color="white">ri-group-line</VIcon>
+                </VAvatar>
+                
+                <!-- 일반 사용자 아바타 -->
+                <VAvatar v-else size="28" class="me-2">
                   <VImg v-if="user.avatar" :src="user.avatar" />
                   <VAvatar v-else :color="getUserColor(user.name)" size="28">
                     <span class="text-white text-caption">{{ getUserInitials(user.name) }}</span>
                   </VAvatar>
                 </VAvatar>
+                
                 <div class="mention-user-info">
-                  <div class="mention-user-name">{{ user.name }}</div>
+                  <div class="mention-user-name">
+                    <span v-if="user.id === 'all'" class="mention-all-label">@{{ user.name }}</span>
+                    <span v-else>{{ user.name }}</span>
+                  </div>
                   <div class="mention-user-details" v-if="user.position || user.department">
                     <span v-if="user.position">{{ user.position }}</span>
                     <span v-if="user.position && user.department"> • </span>
@@ -1335,7 +1345,9 @@ const linkifyMessage = (text: string): string => {
   const mentions: string[] = []
   let processedText = text.replace(/(^|[\s\n])@([^\s@]+)/g, (match, prefix, userName) => {
     const index = mentions.length
-    mentions.push(`${prefix}<span class="mention-highlight">@${userName}</span>`)
+    // @all은 특별한 스타일 적용
+    const mentionClass = userName.toLowerCase() === 'all' ? 'mention-highlight mention-all' : 'mention-highlight'
+    mentions.push(`${prefix}<span class="${mentionClass}">@${userName}</span>`)
     return `__MENTION_${index}__`
   })
   
@@ -3095,16 +3107,39 @@ const mentionSearchQuery = ref('')
 const mentionCursorPosition = ref(0)
 const selectedMentionIndex = ref(0)
 
-// 멘션 가능한 사용자 목록 (현재 채팅방의 참여자)
+// 멘션 가능한 사용자 목록 (현재 채팅방의 참여자 + @all)
 const mentionableUsers = computed(() => {
   if (!selectedChat.value?.participants) return []
   
   const query = mentionSearchQuery.value.toLowerCase()
-  if (!query) return selectedChat.value.participants
   
-  return selectedChat.value.participants.filter((user: any) => 
+  // @all 옵션
+  const allOption = {
+    id: 'all',
+    name: 'ALL',
+    email: '',
+    avatar: null,
+    role: 'system',
+    department: '全員メンション',
+    position: ''
+  }
+  
+  // 검색어가 없으면 @all을 맨 위에 표시
+  if (!query) {
+    return [allOption, ...selectedChat.value.participants]
+  }
+  
+  // 검색어로 필터링
+  const filteredUsers = selectedChat.value.participants.filter((user: any) => 
     user.name.toLowerCase().includes(query)
   )
+  
+  // "all"이 검색어에 포함되면 @all 옵션도 포함
+  if ('all'.includes(query)) {
+    return [allOption, ...filteredUsers]
+  }
+  
+  return filteredUsers
 })
 
 // @ 입력 감지
@@ -3197,6 +3232,20 @@ const extractMentions = (text: string): Array<{ user_id: string; user_name: stri
   const mentions: Array<{ user_id: string; user_name: string }> = []
   if (!selectedChat.value?.participants) return mentions
   
+  // @all이 있는지 먼저 확인
+  const hasAllMention = /(^|[\s\n])@all(?:\s|$)/i.test(text)
+  
+  if (hasAllMention) {
+    // @all이 있으면 모든 참여자를 멘션
+    selectedChat.value.participants.forEach((user: any) => {
+      mentions.push({
+        user_id: user.id,
+        user_name: user.name
+      })
+    })
+    return mentions
+  }
+  
   // @사용자명 패턴 찾기 (@ 앞에 공백, 줄바꿈 또는 시작 위치만 허용)
   const mentionPattern = /(^|[\s\n])@([^\s@]+)/g
   let match
@@ -3230,6 +3279,11 @@ const isCurrentUserMentioned = (message: any): boolean => {
   
   const currentUserId = localStorage.getItem('user_id')
   if (!currentUserId) return false
+  
+  // @all이 있는지 먼저 확인
+  if (message.body && /(^|[\s\n])@all(?:\s|$)/i.test(message.body)) {
+    return true
+  }
   
   // 백엔드에서 mentioned_users 배열이 있는 경우
   if (message.mentioned_users && Array.isArray(message.mentioned_users)) {
@@ -6501,6 +6555,21 @@ const addReaction = async (messageId: string, emoji: string) => {
   background-color: rgba(var(--v-theme-primary), 0.08);
 }
 
+/* @all 아이템 특별 스타일 */
+.mention-item.mention-all-item {
+  background-color: #fef3c7;
+  border: 1px solid #fbbf24;
+  margin: 4px 8px;
+  border-radius: 6px;
+  padding: 12px 12px;
+}
+
+.mention-item.mention-all-item:hover,
+.mention-item.mention-all-item.selected {
+  background-color: #fde68a;
+  border-color: #f59e0b;
+}
+
 .mention-user-info {
   flex: 1;
   min-width: 0;
@@ -6513,6 +6582,11 @@ const addReaction = async (messageId: string, emoji: string) => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.mention-all-label {
+  color: #d97706;
+  font-weight: 700;
 }
 
 .mention-user-details {
@@ -6621,5 +6695,13 @@ const addReaction = async (messageId: string, emoji: string) => {
   border-radius: 4px;
   font-weight: 600;
   display: inline-block;
+}
+
+/* @all 전체 멘션 특별 스타일 */
+.mention-highlight.mention-all {
+  background-color: #fef3c7;
+  color: #d97706;
+  font-weight: 700;
+  border: 1px solid #fbbf24;
 }
 </style> 
