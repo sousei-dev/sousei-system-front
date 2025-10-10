@@ -9,7 +9,7 @@ const CACHE_NAME = 'sousei-system-v1'
 
 // Install event
 self.addEventListener('install', (event) => {
-  console.log('Service Worker installing... 새 버전 감지!')
+  console.log('Service Worker installing...')
   
   // 새 서비스 워커를 즉시 활성화
   self.skipWaiting()
@@ -17,7 +17,7 @@ self.addEventListener('install', (event) => {
 
 // Activate event
 self.addEventListener('activate', (event) => {
-  console.log('Service Worker activating... 새 버전 활성화!')
+  console.log('Service Worker activating...')
   event.waitUntil(
     caches.keys().then(cacheNames => {
       return Promise.all(
@@ -29,17 +29,6 @@ self.addEventListener('activate', (event) => {
       )
     }).then(() => {
       return self.clients.claim()
-    }).then(() => {
-      // 모든 클라이언트에게 활성화 완료 알림
-      return self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
-        console.log('새 서비스 워커 활성화 완료, 클라이언트에게 알림:', clients.length)
-        clients.forEach(client => {
-          client.postMessage({
-            type: 'SW_ACTIVATED',
-            message: '새 버전이 활성화되었습니다.'
-          })
-        })
-      })
     })
   )
 })

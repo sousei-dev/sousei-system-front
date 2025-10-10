@@ -3700,6 +3700,8 @@ const addReaction = async (messageId: string, emoji: string) => {
   word-break: break-word; /* 긴 단어 줄바꿈 */
   display: inline-block;
   width: fit-content;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 /* 답변 메시지 표시 */
@@ -3726,6 +3728,8 @@ const addReaction = async (messageId: string, emoji: string) => {
   display: flex;
   align-items: center;
   gap: 4px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .reply-icon-inline {
@@ -3737,6 +3741,11 @@ const addReaction = async (messageId: string, emoji: string) => {
   font-weight: 600;
   font-size: 12px;
   color: rgba(0, 0, 0, 0.7);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 1;
+  min-width: 0;
 }
 
 .replied-message-body {
@@ -3747,8 +3756,7 @@ const addReaction = async (messageId: string, emoji: string) => {
   text-overflow: ellipsis;
   white-space: nowrap;
   margin-left: 18px;
-  max-width: 400px;
-  width: 100%;
+  max-width: 100%;
 }
 
 /* 본인 메시지의 답변 표시 스타일 */
@@ -4375,6 +4383,12 @@ const addReaction = async (messageId: string, emoji: string) => {
     padding: 10px 14px;
     font-size: 13px;
     max-width: calc(100vw - 100px);
+    box-sizing: border-box;
+  }
+  
+  .message-bubble-with-reaction {
+    max-width: 100%;
+    overflow: hidden;
   }
   
   .message-time {
@@ -5145,7 +5159,7 @@ const addReaction = async (messageId: string, emoji: string) => {
 .initial-loading-overlay {
   position: fixed;
   top: 50%;
-  left: 63%;
+  left: 50%;
   transform: translate(-50%, -50%);
   display: flex;
   align-items: center;
@@ -6053,14 +6067,19 @@ const addReaction = async (messageId: string, emoji: string) => {
     overflow: hidden;
   }
   
+  .replied-message-header {
+    gap: 2px;
+  }
+  
   .replied-sender-name {
     font-size: 11px;
+    max-width: calc(100% - 20px);
   }
   
   .replied-message-body {
     font-size: 11px;
-    margin-left: 16px;
-    max-width: calc(100% - 20px);
+    margin-left: 14px;
+    max-width: calc(100% - 18px);
   }
 }
 

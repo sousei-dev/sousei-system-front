@@ -486,7 +486,7 @@ onMounted(() => {
           <VCardTitle class="d-flex align-center justify-space-between">
             <div class="d-flex align-center">
               <VIcon class="me-2" color="warning">ri-passport-line</VIcon>
-              <span>ビザ更新が迫っている技能生</span>
+              <span>ビザ更新対象</span>
             </div>
             <div class="d-flex align-center">
               <VBtn

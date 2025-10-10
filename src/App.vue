@@ -18,6 +18,9 @@ const inAppNotificationTitle = ref('')
 const inAppNotificationBody = ref('')
 const inAppNotificationColor = ref('primary')
 
+// 앱 업데이트 알림
+const showUpdateNotification = ref(false)
+
 // 브라우저 탭 제목 업데이트
 const updateTabTitle = (unreadCount: number) => {
   if (unreadCount > 0) {
@@ -212,32 +215,28 @@ const handleGlobalWebSocketMessage = (message: WebSocketMessage) => {
       console.log('전역 웹소켓: 사용자 상태 변경:', message.type, message.data)
       break
       
+    case 'system_update':
+      // 시스템 업데이트 알림
+      console.log('전역 웹소켓: 시스템 업데이트 알림 수신:', message)
+      showUpdateNotification.value = true
+      console.log('업데이트 알림 표시:', showUpdateNotification.value)
+      break
+      
     default:
       console.log('전역 웹소켓: 알 수 없는 메시지 타입:', message.type, message)
   }
 }
 
+// 앱 업데이트 실행 (페이지 새로고침)
+const applyUpdate = () => {
+  showUpdateNotification.value = false
+  console.log('페이지 새로고침 중...')
+  window.location.reload()
+}
+
 // 서비스 워커 푸시 메시지 처리 (사용자가 웹사이트를 보고 있을 때)
 const handleServiceWorkerPushMessage = (event: MessageEvent) => {
   console.log('서비스 워커로부터 메시지 수신:', event.data)
-  
-  // 서비스 워커 업데이트 감지 - 강제 새로고침
-  if (event.data && event.data.type === 'SW_UPDATE_AVAILABLE') {
-    console.log('새로운 버전이 감지되었습니다. 자동으로 업데이트합니다...')
-    
-    // 페이지 즉시 새로고침 (사용자 확인 없이)
-    window.location.reload()
-    return
-  }
-  
-  // 서비스 워커 활성화 완료 - 강제 새로고침
-  if (event.data && event.data.type === 'SW_ACTIVATED') {
-    console.log('새 서비스 워커가 활성화되었습니다. 페이지를 새로고침합니다...')
-    
-    // 페이지 즉시 새로고침 (사용자 확인 없이)
-    window.location.reload()
-    return
-  }
   
   if (event.data && event.data.type === 'PUSH_RECEIVED') {
     const pushData = event.data.data
@@ -356,6 +355,34 @@ onUnmounted(() => {
 <template>
   <VApp>
     <RouterView />
+    
+    <!-- 앱 업데이트 알림 -->
+    <VSnackbar
+      v-model="showUpdateNotification"
+      :timeout="-1"
+      location="top"
+      color="primary"
+      elevation="6"
+      multi-line
+    >
+      <div class="d-flex align-center">
+        <VIcon class="me-3" size="24">ri-refresh-line</VIcon>
+        <div>
+          <div class="text-subtitle-1 text-white font-weight-bold">アップデート情報</div>
+          <div class="text-body-2 text-white">新しいバージョンが利用可能になりました。今すぐアップデートしてください</div>
+        </div>
+      </div>
+      
+      <template #actions>
+        <VBtn
+          color="white"
+          variant="outlined"
+          @click="applyUpdate"
+        >
+          アップデート
+        </VBtn>
+      </template>
+    </VSnackbar>
   </VApp>
 </template>
 
