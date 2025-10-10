@@ -77,6 +77,13 @@ self.addEventListener('push', event => {
     requireInteraction: data.notification?.requireInteraction || false
   }
 
+  // 앱 배지 업데이트 (읽지 않은 메시지 개수)
+  if (data.unread_count !== undefined && 'setAppBadge' in self.navigator) {
+    self.navigator.setAppBadge(data.unread_count).catch((error) => {
+      console.error('배지 설정 실패:', error)
+    })
+  }
+
   // 사용자가 웹사이트를 보고 있는지 확인
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
@@ -143,6 +150,11 @@ self.addEventListener('notificationclick', event => {
   console.log('Notification clicked:', event)
   
   event.notification.close()
+
+  // 알림을 클릭하면 배지 제거 (채팅 페이지로 이동하는 경우)
+  // 실제로는 앱에서 읽지 않은 메시지를 확인한 후 배지를 업데이트해야 함
+  // 여기서는 사용자가 알림을 확인했다고 가정하고 배지를 제거하지 않음
+  // 앱 내부에서 메시지를 읽으면 store가 자동으로 배지를 업데이트함
 
   if (event.action === 'close') {
     return

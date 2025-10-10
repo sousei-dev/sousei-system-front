@@ -3924,6 +3924,7 @@ const addReaction = async (messageId: string, emoji: string) => {
   gap: 8px;
   position: relative;
   min-height: 28px;
+  overflow: visible;
 }
 
 /* 상대방 메시지 (왼쪽 정렬) - 버튼을 오른쪽에 */
@@ -4670,7 +4671,12 @@ const addReaction = async (messageId: string, emoji: string) => {
     font-size: 13px;
     max-width: calc(100vw - 100px);
     box-sizing: border-box;
-    overflow: visible;
+  }
+  
+  /* 멘션 배지를 위해 오버플로우 visible 유지 */
+  .message-left-content,
+  .message-right-content {
+    position: relative;
   }
   
   .message-bubble-with-reaction {

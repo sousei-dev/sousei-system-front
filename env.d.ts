@@ -10,3 +10,9 @@ declare module 'vue-router' {
     public?: boolean
   }
 }
+
+// Badging API 타입 정의
+interface Navigator {
+  setAppBadge?(count?: number): Promise<void>
+  clearAppBadge?(): Promise<void>
+}

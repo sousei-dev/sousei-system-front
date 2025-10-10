@@ -1,5 +1,23 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
+
+// PWA 앱 배지 업데이트 함수
+const updateAppBadge = (count: number) => {
+  // Badging API 지원 여부 확인
+  if ('setAppBadge' in navigator) {
+    if (count > 0) {
+      // 배지에 숫자 표시
+      navigator.setAppBadge(count).catch((error) => {
+        console.error('배지 설정 실패:', error)
+      })
+    } else {
+      // 배지 제거
+      navigator.clearAppBadge().catch((error) => {
+        console.error('배지 제거 실패:', error)
+      })
+    }
+  }
+}
 
 export const useChatNotificationStore = defineStore('chatNotification', () => {
   // 읽지 않은 메시지 개수
@@ -13,6 +31,11 @@ export const useChatNotificationStore = defineStore('chatNotification', () => {
   
   // 알림이 있는지 여부
   const hasNotification = computed(() => unreadCount.value > 0)
+  
+  // unreadCount 변경 감지하여 앱 배지 업데이트
+  watch(unreadCount, (newCount) => {
+    updateAppBadge(newCount)
+  })
   
   // 읽지 않은 메시지 개수 설정
   const setUnreadCount = (count: number) => {
