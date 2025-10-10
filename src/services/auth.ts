@@ -88,8 +88,6 @@ export const authService = {
     localStorage.removeItem('refreshToken')
     localStorage.removeItem('rememberToken')
     localStorage.removeItem('userInfo')
-    localStorage.removeItem('rememberId')
-    localStorage.removeItem('isRemember')
     localStorage.removeItem('user_id')
 
     // 로그아웃 후 로그인 페이지로 리다이렉트
