@@ -45,6 +45,28 @@ export interface BuildingOptionsResponse {
   total: number
 }
 
+// My Buildings 응답 타입
+export interface MyBuildingItem {
+  building_id: string
+  building_name: string
+  address: string
+  building_type: string
+  resident_type: 'elderly' | 'student'
+  total_rooms: number
+  active_residents_count: number
+  granted_at: string
+  granted_by: string | null
+  has_full_access: boolean
+}
+
+export interface MyBuildingsResponse {
+  user_id: string
+  user_role: string
+  has_full_access: boolean
+  total_buildings: number
+  buildings: MyBuildingItem[]
+}
+
 export interface EmptyRoomOption {
   value: string
   label: string
@@ -101,6 +123,13 @@ export const buildingService = {
     resident_type?: 'elderly' | 'student'
   }): Promise<BuildingListResponse> {
     const response = await api.get('/buildings', { params })
+
+    return response.data
+  },
+
+  // 내 권한으로 조회 가능한 빌딩 목록
+  async getMyBuildings(): Promise<MyBuildingsResponse> {
+    const response = await api.get('/buildings/my-buildings')
 
     return response.data
   },

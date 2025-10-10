@@ -22,6 +22,9 @@ const isManagerGeneral = computed(() => currentPermission.value === 'manager_gen
 // 技能実習 관리자 권한 확인
 const isUser = computed(() => currentPermission.value === 'user' || currentPermission.value === 'mishima_user');
 
+// 介護管理 권한 확인
+const isCareUser = computed(() => currentPermission.value === 'care_user');
+
 // 채팅 알림 store
 const chatNotificationStore = useChatNotificationStore()
 
@@ -32,24 +35,38 @@ const canManageStudents = computed(() => {
 </script>
 
 <template>
-  <!-- 👉 Dashboards -->
-  <VerticalNavLink
-    :item="{
-      title: 'Dashboards',
-      icon: 'ri-home-smile-line',
-      to: '/dashboard',
-    }"
-  />
-  <template v-if="isAdmin || isUser">
+  <!-- care_user인 경우 care-dashboard만 표시 -->
+  <template v-if="isCareUser">
     <VerticalNavLink
       :item="{
-        title: 'チャット',
-        icon: 'ri-message-2-line',
-        to: '/chat',
-        badgeContent: chatNotificationStore.totalUnreadCount > 0 ? chatNotificationStore.totalUnreadCount.toString() : undefined,
-        badgeClass: chatNotificationStore.hasNotification ? 'bg-error' : undefined,
+        title: '介護管理',
+        icon: 'ri-heart-pulse-line',
+        to: '/care-dashboard',
       }"
     />
+  </template>
+  
+  <!-- care_user가 아닌 경우 일반 메뉴 표시 -->
+  <template v-else>
+    <!-- 👉 Dashboards -->
+    <VerticalNavLink
+      :item="{
+        title: 'Dashboards',
+        icon: 'ri-home-smile-line',
+        to: '/dashboard',
+      }"
+    />
+    <template v-if="isAdmin || isUser">
+      <VerticalNavLink
+        :item="{
+          title: 'チャット',
+          icon: 'ri-message-2-line',
+          to: '/chat',
+          badgeContent: chatNotificationStore.totalUnreadCount > 0 ? chatNotificationStore.totalUnreadCount.toString() : undefined,
+          badgeClass: chatNotificationStore.hasNotification ? 'bg-error' : undefined,
+        }"
+      />
+    </template>
   </template>
 
   <!-- 
@@ -234,6 +251,13 @@ const canManageStudents = computed(() => {
     <VerticalNavSectionTitle
       :item="{
         heading: '介護管理',
+      }"
+    />
+    <VerticalNavLink
+      :item="{
+        title: '管理ダッシュボード',
+        icon: 'ri-dashboard-line',
+        to: '/care-dashboard',
       }"
     />
     <VerticalNavGroup

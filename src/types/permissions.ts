@@ -5,6 +5,7 @@ export type Permission =
   | 'admin'              // 관리자 권한
   | 'user'               // 일반 사용자 권한
   | 'mishima_user'       // 미시마 ユーザー 권한
+  | 'care_user'          // 介護管理 권한
 
 // 권한별 접근 가능한 페이지/기능 정의
 export interface PermissionConfig {
@@ -29,6 +30,11 @@ export interface PermissionConfig {
     studentTypes: string[]
   }
   mishima_user: {
+    pages: string[]
+    features: string[]
+    studentTypes: string[]
+  }
+  care_user: {
     pages: string[]
     features: string[]
     studentTypes: string[]
@@ -118,6 +124,20 @@ export const PERMISSION_CONFIG: PermissionConfig = {
     ],
     features: [
       'chat_management'
+    ],
+    studentTypes: []
+  },
+  care_user: {
+    pages: [
+      '/care-dashboard',
+      '/elderly-list',
+      '/elderly-create',
+      '/elderly-contact',
+      '/care-facility-meal-record'
+    ],
+    features: [
+      'elderly_management',
+      'care_management'
     ],
     studentTypes: []
   }

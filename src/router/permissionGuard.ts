@@ -41,6 +41,15 @@ const PERMISSION_PAGES = {
     '/dashboard',
     '/chat',
   ],
+  care_user: [
+    '/care-dashboard',
+    '/elderly-list',
+    '/elderly-create',
+    '/elderly-contact',
+    '/care-facility-meal-record',
+    '/elderly-detail/:id',
+    '/unauthorized',
+  ],
 }
 
 // 특정 권한으로 특정 페이지에 접근 가능한지 확인
@@ -90,6 +99,7 @@ const getPermissionDisplayName = (permission: string): string => {
     admin: 'システム管理者',
     user: 'ユーザー',
     mishima_user: 'ユーザー',
+    care_user: '介護管理ユーザー',
   }
 
   return names[permission as keyof typeof names] || permission
@@ -111,6 +121,14 @@ export const permissionGuard = (
 ) => {
   const currentPermission = getCurrentUserPermission()
   const targetPath = to.path
+
+  // care_user가 루트 경로나 dashboard 접근 시 care-dashboard로 리다이렉트
+  if (currentPermission === 'care_user') {
+    if (targetPath === '/' || targetPath === '/dashboard') {
+      next('/care-dashboard')
+      return
+    }
+  }
 
   // 공개 페이지는 권한 체크 없이 접근 허용
   if (PUBLIC_PAGES.includes(targetPath)) {

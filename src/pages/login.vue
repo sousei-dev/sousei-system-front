@@ -40,8 +40,14 @@ const handleLogin = async () => {
       remember: form.value.remember,
     })
 
-    // 로그인 성공 후 메인 페이지로 이동
-    router.push('/')
+    // 로그인 성공 후 권한에 따라 페이지 이동
+    const userRole = authService.getUserRole()
+    
+    if (userRole === 'care_user') {
+      router.push('/care-dashboard')
+    } else {
+      router.push('/')
+    }
   }
   catch (error: any) {
     // 에러 메시지 처리

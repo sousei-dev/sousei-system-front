@@ -69,6 +69,10 @@ export const routes = [
         component: () => import('@/pages/resident-detail.vue'),
       },
       {
+        path: 'care-dashboard',
+        component: () => import('@/pages/care-dashboard.vue'),
+      },
+      {
         path: 'care-facility-meal-record',
         component: () => import('@/pages/care-facility-meal-record.vue'),
       },
@@ -79,6 +83,10 @@ export const routes = [
       {
         path: 'elderly-create',
         component: () => import('@/pages/elderly-create.vue'),
+      },
+      {
+        path: 'elderly-contact',
+        component: () => import('@/pages/elderly-contact.vue'),
       },
       {
         path: 'elderly-building-list',
