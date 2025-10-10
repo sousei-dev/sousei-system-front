@@ -3905,6 +3905,7 @@ const addReaction = async (messageId: string, emoji: string) => {
   align-items: flex-start;
   gap: 8px;
   position: relative;
+  overflow: visible;
 }
 
 .message-content > .message-bubble-wrapper {
@@ -3984,7 +3985,7 @@ const addReaction = async (messageId: string, emoji: string) => {
   word-break: break-word; /* 긴 단어 줄바꿈 */
   display: inline-block;
   width: fit-content;
-  overflow: hidden;
+  overflow-wrap: break-word;
   box-sizing: border-box;
 }
 
@@ -4661,6 +4662,7 @@ const addReaction = async (messageId: string, emoji: string) => {
   
   .message-content {
     max-width: 80%;
+    overflow: visible;
   }
   
   .message-bubble {
@@ -4668,11 +4670,13 @@ const addReaction = async (messageId: string, emoji: string) => {
     font-size: 13px;
     max-width: calc(100vw - 100px);
     box-sizing: border-box;
+    overflow: visible;
   }
   
   .message-bubble-with-reaction {
     max-width: 100%;
-    overflow: hidden;
+    overflow: visible;
+    position: relative;
   }
   
   .message-time {
@@ -6614,9 +6618,16 @@ const addReaction = async (messageId: string, emoji: string) => {
   
   .message.mentioned-me {
     margin-left: -12px;
-    margin-right: -12px;
     padding-left: 10px;
-    padding-right: 12px;
+  }
+  
+  .message {
+    overflow: visible;
+  }
+  
+  .message-left-content,
+  .message-right-content {
+    overflow: visible;
   }
 }
 
@@ -6634,8 +6645,6 @@ const addReaction = async (messageId: string, emoji: string) => {
 .message.mentioned-me {
   padding-left: 12px;
   margin-left: -16px;
-  margin-right: -16px;
-  padding-right: 16px;
   border-radius: 8px;
   position: relative;
 }
@@ -6673,7 +6682,6 @@ const addReaction = async (messageId: string, emoji: string) => {
   align-items: center;
   justify-content: center;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  z-index: 10;
 }
 
 .message-right .mention-badge {
@@ -6683,6 +6691,23 @@ const addReaction = async (messageId: string, emoji: string) => {
 
 .mention-badge .v-icon {
   color: white !important;
+}
+
+/* 모바일에서 멘션 배지 더 잘 보이게 */
+@media (max-width: 600px) {
+  .mention-badge {
+    z-index: 2;
+    top: -10px;
+    left: -10px;
+    width: 24px;
+    height: 24px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  }
+  
+  .message-right .mention-badge {
+    left: auto;
+    right: -10px;
+  }
 }
 </style>
 
