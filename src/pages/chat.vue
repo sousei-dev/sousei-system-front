@@ -22,9 +22,10 @@
             icon
             variant="text"
             size="small"
-            @click="showChatOptions = !showChatOptions"
+            @click="closeChat"
+            title="閉じる"
           >
-            <VIcon>ri-more-2-line</VIcon>
+            <VIcon>ri-close-line</VIcon>
           </VBtn>
         </div>
       </div>
@@ -266,12 +267,19 @@
             variant="text" 
             size="small"
             @click="showParticipantsDialog = true"
-            :title="`참여자 ${selectedChat.member_count}명`"
+            :title="`参加者 ${selectedChat.member_count}名`"
           >
             <VIcon>ri-group-line</VIcon>
           </VBtn>
-          <VBtn icon variant="text" size="small">
-            <VIcon>ri-more-2-line</VIcon>
+          <!-- 채팅방 닫기 버튼 -->
+          <VBtn 
+            icon 
+            variant="text" 
+            size="small"
+            @click="closeChat"
+            title="閉じる"
+          >
+            <VIcon>ri-close-line</VIcon>
           </VBtn>
         </div>
       </div>
@@ -2305,6 +2313,33 @@ const handleGlobalChatListUpdate = (event: CustomEvent) => {
 // 웹소켓 연결 해제
 const disconnectWebSocket = () => {
   chatRoomWebSocketService.disconnect()
+}
+
+// 채팅방 닫기 (선택 해제)
+const closeChat = () => {
+  // 웹소켓 연결 해제
+  chatRoomWebSocketService.disconnect()
+  
+  // 선택된 채팅방 초기화
+  selectedChat.value = null
+  selectedUser.value = null
+  
+  // 파일 관련 상태 초기화
+  showFileUpload.value = false
+  selectedFiles.value = []
+  isDragOver.value = false
+  newMessage.value = ''
+  
+  // 답변 상태 초기화
+  replyingToMessage.value = null
+  
+  // 리액션 피커 닫기
+  showReactionPicker.value = null
+  
+  // 모바일에서 채팅 닫기 시 사이드바 열기
+  if (isMobile.value) {
+    showSidebar.value = true
+  }
 }
 
 // 파일 업로드 관련 함수들
