@@ -168,7 +168,12 @@ export const authService = {
   // 푸시 알림 재구독 (설정 페이지에서 사용)
   reSubscribeToPush: async (): Promise<boolean> => {
     try {
-      const result = await pushService.subscribeToPush()
+      const userId = localStorage.getItem('user_id')
+      if (!userId) {
+        console.error('사용자 ID를 찾을 수 없습니다')
+        return false
+      }
+      const result = await pushService.subscribeToPush(userId)
       return result.success
     } catch (error) {
       console.error('푸시 알림 재구독 실패:', error)
@@ -194,5 +199,14 @@ export const authService = {
       console.error('푸시 알림 구독 상태 확인 실패:', error)
       return false
     }
+  },
+
+  // 비밀번호 변경
+  changePassword: async (currentPassword: string, newPassword: string): Promise<{ message: string }> => {
+    const response = await api.post<{ message: string }>('auth/change-password', {
+      current_password: currentPassword,
+      new_password: newPassword,
+    })
+    return response.data
   }
 }

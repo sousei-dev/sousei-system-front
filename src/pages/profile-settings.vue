@@ -24,6 +24,18 @@ const profileData = ref({
   avatar: avatar1,
 })
 
+// 비밀번호 변경 데이터
+const passwordData = ref({
+  current_password: '',
+  new_password: '',
+  confirm_password: '',
+})
+
+// 비밀번호 보기 상태
+const showCurrentPassword = ref(false)
+const showNewPassword = ref(false)
+const showConfirmPassword = ref(false)
+
 // 파일 업로드 관련
 const fileInput = ref<HTMLInputElement>()
 const selectedFile = ref<File | null>(null)
@@ -73,7 +85,7 @@ const updateProfile = async () => {
     // 아바타 업로드가 있는 경우
     if (selectedFile.value) {
       const avatarResponse = await userService.uploadAvatar(selectedFile.value)
-      profileData.value.avatar = avatarResponse.avatar_url
+      profileData.value.avatar = avatarResponse.avatar
     }
 
     // 프로필 업데이트
@@ -97,6 +109,10 @@ const updateProfile = async () => {
     }
 
     success.value = 'プロフィールが正常に更新されました。'
+    
+    // 화면을 맨 위로 스크롤
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+    
     selectedFile.value = null
     previewImage.value = null
 
@@ -107,6 +123,79 @@ const updateProfile = async () => {
   }
   catch (err: any) {
     error.value = err.response?.data?.message || 'プロフィールの更新に失敗しました。'
+    // 에러 발생 시에도 화면을 맨 위로 스크롤
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+  finally {
+    loading.value = false
+  }
+}
+
+// 비밀번호 변경
+const changePassword = async () => {
+  try {
+    loading.value = true
+    error.value = null
+    success.value = null
+
+    // 유효성 검증
+    if (!passwordData.value.current_password) {
+      error.value = '現在のパスワードを入力してください。'
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      return
+    }
+
+    if (!passwordData.value.new_password) {
+      error.value = '新しいパスワードを入力してください。'
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      return
+    }
+
+    if (passwordData.value.new_password.length < 8) {
+      error.value = 'パスワードは8文字以上にしてください。'
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      return
+    }
+
+    if (passwordData.value.new_password !== passwordData.value.confirm_password) {
+      error.value = 'パスワードが一致しません。'
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      return
+    }
+
+    if (passwordData.value.current_password === passwordData.value.new_password) {
+      error.value = '新しいパスワードは現在のパスワードと異なる必要があります。'
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      return
+    }
+
+    // API 호출
+    await authService.changePassword(
+      passwordData.value.current_password,
+      passwordData.value.new_password
+    )
+
+    success.value = 'パスワードが正常に変更されました。'
+    
+    // 화면을 맨 위로 스크롤
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+    
+    // 폼 초기화
+    passwordData.value = {
+      current_password: '',
+      new_password: '',
+      confirm_password: '',
+    }
+    
+    // 비밀번호 보기 상태 초기화
+    showCurrentPassword.value = false
+    showNewPassword.value = false
+    showConfirmPassword.value = false
+  }
+  catch (err: any) {
+    error.value = err.response?.data?.detail || err.response?.data?.message || 'パスワードの変更に失敗しました。'
+    // 에러 발생 시에도 화면을 맨 위로 스크롤
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
   finally {
     loading.value = false
@@ -155,6 +244,7 @@ onMounted(() => {
     <!-- 프로필 수정 폼 -->
     <VCard>
       <VCardTitle class="text-h5 d-flex align-center">
+        <VIcon class="me-2">ri-user-line</VIcon>
         プロフィール設定
       </VCardTitle>
       <VCardText>
@@ -287,29 +377,128 @@ onMounted(() => {
             </VCol>
           </VRow>
 
-          <!-- 버튼 섹션 -->
-          <VDivider class="my-6" />
+          <!-- プロフィール保存ボタン -->
+          <VDivider class="my-4" />
 
-          <div class="d-flex justify-end gap-4">
-            <VBtn
-              color="secondary"
-              variant="outlined"
-              prepend-icon="ri-arrow-left-line"
-              @click="handleCancel"
-            >
-              キャンセル
-            </VBtn>
-
+          <div class="d-flex justify-end">
             <VBtn
               type="submit"
               color="primary"
               :loading="loading"
               prepend-icon="ri-save-line"
             >
-              保存
+              プロフィール保存
             </VBtn>
           </div>
         </VForm>
+      </VCardText>
+    </VCard>
+
+    <!-- 비밀번호 변경 섹션 -->
+    <VCard class="mt-6">
+      <VCardTitle class="text-h5 d-flex align-center">
+        <VIcon class="me-2">ri-lock-password-line</VIcon>
+        パスワード変更
+      </VCardTitle>
+      <VCardText>
+        <VForm @submit.prevent="changePassword">
+          <VRow>
+            <!-- 현재 비밀번호 -->
+            <VCol cols="12">
+              <VTextField
+                v-model="passwordData.current_password"
+                label="現在のパスワード"
+                placeholder="現在のパスワードを入力してください"
+                variant="outlined"
+                prepend-inner-icon="ri-lock-line"
+                :type="showCurrentPassword ? 'text' : 'password'"
+                :append-inner-icon="showCurrentPassword ? 'ri-eye-off-line' : 'ri-eye-line'"
+                @click:append-inner="showCurrentPassword = !showCurrentPassword"
+                required
+              />
+            </VCol>
+
+            <!-- 새 비밀번호 -->
+            <VCol cols="12">
+              <VTextField
+                v-model="passwordData.new_password"
+                label="新しいパスワード"
+                placeholder="新しいパスワードを入力してください (8文字以上)"
+                variant="outlined"
+                prepend-inner-icon="ri-lock-line"
+                :type="showNewPassword ? 'text' : 'password'"
+                :append-inner-icon="showNewPassword ? 'ri-eye-off-line' : 'ri-eye-line'"
+                @click:append-inner="showNewPassword = !showNewPassword"
+                required
+              />
+            </VCol>
+
+            <!-- 새 비밀번호 확인 -->
+            <VCol cols="12">
+              <VTextField
+                v-model="passwordData.confirm_password"
+                label="新しいパスワード確認"
+                placeholder="新しいパスワードを再入力してください"
+                variant="outlined"
+                prepend-inner-icon="ri-lock-line"
+                :type="showConfirmPassword ? 'text' : 'password'"
+                :append-inner-icon="showConfirmPassword ? 'ri-eye-off-line' : 'ri-eye-line'"
+                @click:append-inner="showConfirmPassword = !showConfirmPassword"
+                required
+              />
+            </VCol>
+
+            <!-- 비밀번호 규칙 안내 -->
+            <VCol cols="12">
+              <VAlert
+                type="info"
+                variant="tonal"
+                density="compact"
+              >
+                <div class="d-flex flex-column gap-1">
+                  <div class="text-caption">
+                    <VIcon size="14" class="me-1">ri-information-line</VIcon>
+                    パスワードは8文字以上にしてください
+                  </div>
+                  <div class="text-caption">
+                    <VIcon size="14" class="me-1">ri-shield-check-line</VIcon>
+                    英字、数字、特殊文字を組み合わせることを推奨します
+                  </div>
+                </div>
+              </VAlert>
+            </VCol>
+          </VRow>
+
+          <!-- 비밀번호 변경 버튼 -->
+          <VDivider class="my-4" />
+
+          <div class="d-flex justify-end">
+            <VBtn
+              type="submit"
+              color="warning"
+              :loading="loading"
+              prepend-icon="ri-key-line"
+            >
+              パスワード変更
+            </VBtn>
+          </div>
+        </VForm>
+      </VCardText>
+    </VCard>
+
+    <!-- 페이지 액션 버튼 -->
+    <VCard class="mt-6">
+      <VCardText>
+        <div class="d-flex justify-end gap-4">
+          <VBtn
+            color="secondary"
+            variant="outlined"
+            prepend-icon="ri-arrow-left-line"
+            @click="handleCancel"
+          >
+            戻る
+          </VBtn>
+        </div>
       </VCardText>
     </VCard>
   </div>
