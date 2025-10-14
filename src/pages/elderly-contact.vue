@@ -1,11 +1,15 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { contactService } from '@/services/contact'
 import { elderlyService, type Elderly } from '@/services/elderly'
 import { elderlyHospitalizationService, type ElderlyHospitalizationCreate, type ElderlyHospitalizationResponse } from '@/services/elderlyHospitalization'
 
 const router = useRouter()
+const route = useRoute()
+
+// URL 파라미터에서 건물 ID 가져오기
+const buildingId = computed(() => route.query.building_id as string)
 
 // 메인 카테고리 상태
 const mainCategory = ref<'contact' | 'hospitalization' | null>(null)
@@ -250,7 +254,16 @@ const formatDate = (dateString: string) => {
 const fetchElderlyList = async () => {
   try {
     elderlyListLoading.value = true
-    const response = await elderlyService.getElderlys({ page: 1, page_size: 100 })
+    
+    // 검색 파라미터 구성
+    const params: any = { 
+      page: 1, 
+      page_size: 100,
+      // 빌딩 ID가 있으면 필터에 추가
+      ...(buildingId.value && { building_id: buildingId.value })
+    }
+    
+    const response = await elderlyService.getElderlys(params)
     elderlyList.value = response.items
     console.log('노인 목록:', elderlyList.value)
     

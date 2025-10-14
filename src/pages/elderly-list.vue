@@ -160,7 +160,11 @@ const resetFilters = () => {
 
 // 거주자 상세 페이지로 이동
 const handleEdit = (id: string) => {
-  router.push(`/elderly-detail/${id}`)
+  const params = buildingId.value ? { building_id: buildingId.value } : {}
+  router.push({
+    path: `/elderly-detail/${id}`,
+    query: params,
+  })
 }
 // 거주자 추가 페이지로 이동 (건물 ID 포함)
 const handleAdd = () => {
@@ -265,6 +269,16 @@ const getHospitalizationStatusColor = (status: string) => {
 // 입원 상태별 텍스트
 const getHospitalizationStatusText = (status: string) => {
   return status // 이미 일본어로 오므로 그대로 반환
+}
+
+// 페이지 제목
+const pageTitle = computed(() => {
+  return '介護施設入居者リスト'
+})
+
+// 건물 이름 가져오기
+const getBuildingName = (item: Elderly) => {
+  return (item.current_room as any)?.building?.name || '-'
 }
 
 // 초기화
@@ -381,7 +395,7 @@ onMounted(() => {
             class="elevation-1"
           >
             <!-- 이름 컬럼 템플릿 -->
-            <template #item.name="{ item }">
+            <template #[`item.name`]="{ item }">
               <div>
                 <div>{{ item.name }}</div>
                 <div class="text-caption text-medium-emphasis">{{ item.name_katakana }}</div>
@@ -389,20 +403,20 @@ onMounted(() => {
             </template>
 
             <!-- 건물명 컬럼 템플릿 -->
-            <template #item.current_room.building.name="{ item }">
+            <template #[`item.current_room.building.name`]="{ item }">
               <div>
-                <div>{{ item.current_room?.building?.name || '-' }}</div>
+                <div>{{ getBuildingName(item) }}</div>
               </div>
             </template>
 
-            <template #item.current_room="{ item }">
+            <template #[`item.current_room`]="{ item }">
               <div>
                 <div>{{ item.current_room?.room_number || '-' }}</div>
               </div>
             </template>
 
             <!-- 요양 등급 컬럼 템플릿 -->
-            <template #item.care_level="{ item }">
+            <template #[`item.care_level`]="{ item }">
               <VChip
                 :color="getCareLevelColor(item.care_level)"
                 size="small"
@@ -413,7 +427,7 @@ onMounted(() => {
             </template>
 
             <!-- 입원 상태 컬럼 템플릿 -->
-            <template #item.hospitalization_status="{ item }">
+            <template #[`item.hospitalization_status`]="{ item }">
               <VChip
                 v-if="item.hospitalization_status"
                 :color="getHospitalizationStatusColor(item.hospitalization_status)"
@@ -426,7 +440,7 @@ onMounted(() => {
             </template>
 
             <!-- 작업 컬럼 템플릿 -->
-            <template #item.actions="{ item }">
+            <template #[`item.actions`]="{ item }">
               <VBtn
                 icon
                 variant="text"

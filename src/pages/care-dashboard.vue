@@ -77,9 +77,13 @@ const goToMealRecord = () => {
   }
 }
 
-// 연락 작성으로 이동
+// 연락 작성으로 이동 (선택된 빌딩 포함)
 const goToContact = () => {
-  router.push('/elderly-contact')
+  if (selectedBuilding.value) {
+    router.push({ path: '/elderly-contact', query: { building_id: selectedBuilding.value.building_id } })
+  } else {
+    router.push('/elderly-contact')
+  }
 }
 
 onMounted(() => {
@@ -281,16 +285,19 @@ onMounted(() => {
         <!-- 식사 기록 카드 -->
         <VCol cols="12" md="6" lg="4">
           <VCard 
-            class="menu-card meal-card"
-            hover
-            @click="goToMealRecord"
+            class="menu-card meal-card disabled"
           >
             <VCardText class="menu-card-content">
               <div class="menu-icon-wrapper">
                 <VIcon size="64" color="success">ri-receipt-line</VIcon>
               </div>
               <div class="menu-info">
-                <h2 class="menu-title">請求管理</h2>
+                <div class="d-flex align-center gap-2 mb-2">
+                  <h2 class="menu-title mb-0">請求管理</h2>
+                  <VChip size="small" color="warning" variant="elevated">
+                    開発中
+                  </VChip>
+                </div>
                 <p class="menu-description">
                   施設内の請求を管理します
                 </p>
@@ -309,7 +316,6 @@ onMounted(() => {
                   </div>
                 </div>
               </div>
-              <VIcon class="menu-arrow" size="32" color="success">ri-arrow-right-line</VIcon>
             </VCardText>
           </VCard>
         </VCol>
@@ -505,6 +511,20 @@ onMounted(() => {
 .menu-card.contact-card:hover {
   border-color: #ef4444;
   background: linear-gradient(135deg, #ffffff 0%, #fef2f2 100%);
+}
+
+.menu-card.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  pointer-events: none;
+  filter: grayscale(0.3);
+}
+
+.menu-card.disabled:hover {
+  transform: none;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  border-color: transparent;
+  background: white;
 }
 
 .menu-card-content {

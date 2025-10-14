@@ -1,10 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { elderlyService, type ElderlyCreateRequestV2 } from '@/services/elderly'
-import { elderlyCategoriesService, type ElderlyCategory } from '@/services/elderly-categories'
-import { roomService, type Room } from '@/services/room'
-import { buildingService, type Building } from '@/services/building'
 
 const router = useRouter()
 const route = useRoute()
@@ -21,10 +18,7 @@ const form = ref<ElderlyCreateRequestV2>({
   gender: '',
   birth_date: '',
   care_level: '',
-  categories_id: null,
-  current_room_id: null,
   note: '',
-  status: 'ACTIVE',
 })
 
 // 로딩 상태
@@ -32,19 +26,6 @@ const loading = ref(false)
 const submitting = ref(false)
 const error = ref<string | null>(null)
 const success = ref<string | null>(null)
-
-// 옵션 데이터
-const categories = ref<ElderlyCategory[]>([])
-const buildings = ref<Building[]>([])
-const rooms = ref<Room[]>([])
-
-// 방 목록에 display_name 추가
-const roomsWithDisplayName = computed(() => {
-  return rooms.value.map(room => ({
-    ...room,
-    display_name: `${room.room_number}`,
-  }))
-})
 
 // 성별 옵션
 const genderOptions = [
@@ -54,18 +35,13 @@ const genderOptions = [
 
 // 요양 등급 옵션
 const careLevelOptions = [
-  { title: '要介護1', value: '要介護1' },
-  { title: '要介護2', value: '要介護2' },
-  { title: '要介護3', value: '要介護3' },
-  { title: '要介護4', value: '要介護4' },
-  { title: '要介護5', value: '要介護5' },
-]
-
-// 상태 옵션
-const statusOptions = [
-  { title: 'アクティブ', value: 'ACTIVE' },
-  { title: '退居予定', value: 'PENDING_RESIGNATION' },
-  { title: '退居済み', value: 'RESIGNED' },
+  { title: '介護1', value: '介護1' },
+  { title: '介護2', value: '介護2' },
+  { title: '介護3', value: '介護3' },
+  { title: '介護4', value: '介護4' },
+  { title: '介護5', value: '介護5' },
+  { title: '要支援1', value: '要支援1' },
+  { title: '要支援2', value: '要支援2' },
 ]
 
 // 필수항목 검증
@@ -79,57 +55,6 @@ const isFormValid = computed(() => {
   )
 })
 
-// 카테고리 목록 조회
-const fetchCategories = async () => {
-  try {
-    const response = await elderlyCategoriesService.getElderlyCategories()
-    categories.value = response.items
-  } catch (err: any) {
-    console.error('카테고리 조회 실패:', err)
-  }
-}
-
-// 빌딩 목록 조회
-const fetchBuildings = async () => {
-  try {
-    const response = await buildingService.getBuildings()
-    buildings.value = response.items
-  } catch (err: any) {
-    console.error('빌딩 목록 조회 실패:', err)
-  }
-}
-
-// 방 목록 조회 (특정 건물의 방만 또는 모든 건물의 방)
-const fetchRooms = async () => {
-  try {
-    const allRooms: Room[] = []
-    
-    if (buildingId.value) {
-      // 특정 건물의 방만 조회
-      try {
-        const response = await roomService.getRoomsByBuilding(buildingId.value)
-        allRooms.push(...response.items)
-      } catch (err) {
-        console.error(`건물 ${buildingId.value}의 방 목록 조회 실패:`, err)
-      }
-    } else {
-      // 모든 건물의 방 조회
-      for (const building of buildings.value) {
-        try {
-          const response = await roomService.getRoomsByBuilding(building.id)
-          allRooms.push(...response.items)
-        } catch (err) {
-          console.error(`건물 ${building.id}의 방 목록 조회 실패:`, err)
-        }
-      }
-    }
-    
-    rooms.value = allRooms
-  } catch (err: any) {
-    console.error('방 목록 조회 실패:', err)
-  }
-}
-
 // 폼 제출
 const handleSubmit = async () => {
   if (!isFormValid.value) return
@@ -139,13 +64,7 @@ const handleSubmit = async () => {
     error.value = null
     success.value = null
 
-    const elderlyData = {
-      ...form.value,
-      categories_id: form.value.categories_id || null,
-      current_room_id: form.value.current_room_id || null,
-    }
-
-    await elderlyService.createElderly(elderlyData)
+    await elderlyService.createElderly(form.value)
 
     success.value = '入居者情報が正常に作成されました。'
     
@@ -170,22 +89,6 @@ const handleCancel = () => {
     query: params,
   })
 }
-
-// 초기화
-onMounted(async () => {
-  loading.value = true
-  try {
-    await Promise.all([
-      fetchCategories(),
-      fetchBuildings(),
-      fetchRooms(),
-    ])
-  } catch (err) {
-    console.error('초기 데이터 로드 실패:', err)
-  } finally {
-    loading.value = false
-  }
-})
 </script>
 
 <template>
@@ -322,42 +225,6 @@ onMounted(async () => {
           </VCard>
         </VCol>
 
-        <!-- 입주 정보 섹션 -->
-        <VCol cols="12">
-          <VCard variant="outlined" class="pa-4 mb-6">
-            <VCardTitle class="text-h6 text-success">
-              <VIcon class="me-2">ri-home-line</VIcon>
-              入居情報
-            </VCardTitle>
-            <VRow>
-              <VCol cols="12" md="6">
-                <VSelect
-                  v-model="form.current_room_id"
-                  :items="roomsWithDisplayName"
-                  item-title="display_name"
-                  item-value="id"
-                  label="部屋"
-                  placeholder="部屋を選択してください"
-                  :disabled="loading"
-                  clearable
-                />
-              </VCol>
-
-              <VCol cols="12" md="6">
-                <VSelect
-                  v-model="form.status"
-                  :items="statusOptions"
-                  item-title="title"
-                  item-value="value"
-                  label="ステータス"
-                  placeholder="ステータスを選択してください"
-                  :disabled="loading"
-                />
-              </VCol>
-            </VRow>
-          </VCard>
-        </VCol>
-
         <!-- 추가 정보 섹션 -->
         <VCol cols="12">
           <VCard variant="outlined" class="pa-4 mb-6">
@@ -366,18 +233,6 @@ onMounted(async () => {
               追加情報
             </VCardTitle>
             <VRow>
-              <VCol cols="12" md="6">
-                <VSelect
-                  v-model="form.categories_id"
-                  :items="categories"
-                  item-title="label"
-                  item-value="id"
-                  label="カテゴリ"
-                  placeholder="カテゴリを選択してください"
-                  :disabled="loading"
-                  clearable
-                />
-              </VCol>
 
               <VCol cols="12">
                 <VTextarea

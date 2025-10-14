@@ -260,28 +260,6 @@ const canManageStudents = computed(() => {
         to: '/care-dashboard',
       }"
     />
-    <VerticalNavGroup
-      :item="{
-        title: '山本施設',
-        icon: 'ri-hospital-line',
-      }"
-    >
-    <VerticalNavLink
-        :item="{
-          title: '入居者リスト',
-          icon: 'ri-user-line',
-          to: '/elderly-list?building_id=d7d58f49-9a96-427c-a468-c6940459b450',
-        }"
-      />
-      <VerticalNavLink
-        :item="{
-          title: '請求関連',
-          icon: 'ri-receipt-line',
-          to: '/care-facility-meal-record?building_id=d7d58f49-9a96-427c-a468-c6940459b450',
-        }"
-      />
-      
-    </VerticalNavGroup>
     <VerticalNavSectionTitle
       :item="{
         heading: '介護賃管理',

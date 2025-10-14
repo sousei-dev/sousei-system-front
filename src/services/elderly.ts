@@ -102,7 +102,7 @@ export const elderlyService = {
 
   // 고령자 수정
   async updateElderly(id: string, data: ElderlyUpdateRequest): Promise<Elderly> {
-    const response = await api.put(`/elderly/${id}`, data)
+    const response = await api.put(`/elderly/${id}/update`, data)
 
     return response.data
   },

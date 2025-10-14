@@ -17,7 +17,7 @@ export interface CareItemListParams {
 
 export const careItemService = {
   async getCareItems(params?: CareItemListParams): Promise<CareItemResponse[]> {
-    const response = await api.get('/care-items', { params })
+    const response = await api.get('/elderly-care/care-items', { params })
     return response.data
   },
 } 

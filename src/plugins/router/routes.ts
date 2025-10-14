@@ -85,6 +85,10 @@ export const routes = [
         component: () => import('@/pages/elderly-create.vue'),
       },
       {
+        path: 'elderly-detail/:id',
+        component: () => import('@/pages/elderly-detail.vue'),
+      },
+      {
         path: 'elderly-contact',
         component: () => import('@/pages/elderly-contact.vue'),
       },
