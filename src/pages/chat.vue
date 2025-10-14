@@ -329,14 +329,26 @@
           </div>
         </div>
         
-        <div
-          v-else
-          v-for="message in selectedChat?.messages || []"
-          :key="message.id"
-          :class="['message', message.css_class, { 'mentioned-me': isCurrentUserMentioned(message) }]"
-          :data-message-id="message.id"
-        >          
-          <!-- 상대방 메시지: 왼쪽에 아바타와 이름 -->
+        <template v-else>
+          <template v-for="(message, index) in selectedChat?.messages || []" :key="message.id">
+            <!-- 날짜 구분선 -->
+            <div 
+              v-if="shouldShowDateDivider(message, selectedChat?.messages[index - 1])"
+              class="date-divider"
+            >
+              <div class="date-divider-line"></div>
+              <div class="date-divider-text">
+                {{ formatDateDivider(message.created_at) }}
+              </div>
+              <div class="date-divider-line"></div>
+            </div>
+            
+            <!-- 메시지 -->
+            <div
+              :class="['message', message.css_class, { 'mentioned-me': isCurrentUserMentioned(message) }]"
+              :data-message-id="message.id"
+            >          
+              <!-- 상대방 메시지: 왼쪽에 아바타와 이름 -->
           <div v-if="!message.is_own_message" class="message-left-content">
             <div class="message-avatar" v-if="message.show_avatar">
               <VAvatar size="32">
@@ -495,7 +507,9 @@
               </div>
             </div>
           </div>
-        </div>
+            </div>
+          </template>
+        </template>
       </div>
 
       <!-- メッセージ入力エリア -->
@@ -1333,6 +1347,42 @@ const formatMessageTime = (dateString: string): string => {
     hour: 'numeric', 
     minute: '2-digit',
     hour12: true 
+  })
+}
+
+// 날짜 구분선 표시 여부 확인
+const shouldShowDateDivider = (currentMessage: any, previousMessage: any): boolean => {
+  if (!previousMessage) return true
+  
+  const currentDate = new Date(currentMessage.created_at).toDateString()
+  const previousDate = new Date(previousMessage.created_at).toDateString()
+  
+  return currentDate !== previousDate
+}
+
+// 날짜를 일본어로 포맷팅
+const formatDateDivider = (dateString: string): string => {
+  const messageDate = new Date(dateString)
+  const today = new Date()
+  const yesterday = new Date(today)
+  yesterday.setDate(yesterday.getDate() - 1)
+  
+  // 오늘인지 확인
+  if (messageDate.toDateString() === today.toDateString()) {
+    return '今日'
+  }
+  
+  // 어제인지 확인
+  if (messageDate.toDateString() === yesterday.toDateString()) {
+    return '昨日'
+  }
+  
+  // 그 외는 년월일 형식으로
+  return messageDate.toLocaleDateString('ja-JP', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    weekday: 'short'
   })
 }
 
@@ -4704,7 +4754,7 @@ const addReaction = async (messageId: string, emoji: string) => {
   .message-bubble {
     padding: 10px 14px;
     font-size: 13px;
-    max-width: calc(100vw - 100px);
+    max-width: calc(100vw - 190px);
     box-sizing: border-box;
   }
   
@@ -6710,6 +6760,33 @@ const addReaction = async (messageId: string, emoji: string) => {
   border: 1px solid #6d28d9;
 }
 
+/* 날짜 구분선 */
+.date-divider {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 24px 0;
+  width: 100%;
+}
+
+.date-divider-line {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(to right, transparent, #e0e0e0 20%, #e0e0e0 80%, transparent);
+}
+
+.date-divider-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: #666;
+  background-color: #f8f9fa;
+  padding: 6px 16px;
+  border-radius: 16px;
+  white-space: nowrap;
+  border: 1px solid #e0e0e0;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
 /* 멘션 배지 */
 .mention-badge {
   position: absolute;
@@ -6748,6 +6825,17 @@ const addReaction = async (messageId: string, emoji: string) => {
   .message-right .mention-badge {
     left: auto;
     right: -10px;
+  }
+  
+  /* 날짜 구분선 (모바일) */
+  .date-divider {
+    margin: 16px 0;
+    gap: 12px;
+  }
+  
+  .date-divider-text {
+    font-size: 12px;
+    padding: 5px 12px;
   }
 }
 </style>
