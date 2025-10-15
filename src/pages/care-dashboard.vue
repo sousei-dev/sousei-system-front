@@ -26,25 +26,42 @@ const stats = computed(() => {
       nonHospitalized: 0,
       hospitalizationRate: 0,
       totalRooms: 0,
+      occupiedRooms: 0,
       emptyRooms: 0,
       occupancyRate: 0
     }
   }
   
   const building = selectedBuilding.value
+  const statistics = buildingStatistics.value?.statistics
+  
+  // API 데이터가 있으면 사용, 없으면 기존 계산 방식 사용
+  if (statistics) {
+    return {
+      totalElderly: statistics.total_residents,
+      hospitalized: statistics.hospitalized_count,
+      nonHospitalized: statistics.non_hospitalized_count,
+      hospitalizationRate: statistics.hospitalization_rate,
+      totalRooms: statistics.total_rooms,
+      occupiedRooms: statistics.occupied_rooms,
+      emptyRooms: statistics.vacant_rooms,
+      occupancyRate: statistics.occupancy_rate
+    }
+  }
+  
+  // Fallback: API 데이터 없을 때
   const emptyRooms = building.total_rooms - building.active_residents_count
   const occupancyRate = building.total_rooms > 0 
     ? Math.round((building.active_residents_count / building.total_rooms) * 100) 
     : 0
   
-  const statistics = buildingStatistics.value?.statistics
-  
   return {
-    totalElderly: statistics?.total_residents || building.active_residents_count,
-    hospitalized: statistics?.hospitalized_count || 0,
-    nonHospitalized: statistics?.non_hospitalized_count || 0,
-    hospitalizationRate: statistics?.hospitalization_rate || 0,
+    totalElderly: building.active_residents_count,
+    hospitalized: 0,
+    nonHospitalized: building.active_residents_count,
+    hospitalizationRate: 0,
     totalRooms: building.total_rooms,
+    occupiedRooms: building.active_residents_count,
     emptyRooms: emptyRooms,
     occupancyRate: occupancyRate
   }

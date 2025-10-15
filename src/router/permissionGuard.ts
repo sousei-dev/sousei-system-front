@@ -40,6 +40,15 @@ const PERMISSION_PAGES = {
   mishima_user: [
     '/dashboard',
     '/chat',
+    '/care-dashboard',
+    '/elderly-building-list',
+    '/building-create',
+    '/building-detail/:id',
+    '/elderly-list',
+    '/elderly-create',
+    '/elderly-contact',
+    '/elderly-detail/:id',
+    '/care-facility-meal-record'
   ],
   care_user: [
     '/care-dashboard',

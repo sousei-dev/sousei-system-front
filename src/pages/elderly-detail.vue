@@ -838,18 +838,6 @@ onMounted(async () => {
                 </VAlert>
               </div>
 
-              <!-- 삭제 버튼 -->
-              <div class="d-flex justify-start">
-                <VBtn
-                  color="error"
-                  variant="outlined"
-                  prepend-icon="ri-delete-bin-line"
-                  @click="handleDelete"
-                  :disabled="submitting"
-                >
-                  削除
-                </VBtn>
-              </div>
             </VCardText>
           </VCard>
         </VWindowItem>

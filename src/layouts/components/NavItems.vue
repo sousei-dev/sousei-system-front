@@ -22,6 +22,8 @@ const isManagerGeneral = computed(() => currentPermission.value === 'manager_gen
 // 技能実習 관리자 권한 확인
 const isUser = computed(() => currentPermission.value === 'user' || currentPermission.value === 'mishima_user');
 
+const mishimaUser = computed(() => currentPermission.value === 'mishima_user');
+
 // 介護管理 권한 확인
 const isCareUser = computed(() => currentPermission.value === 'care_user');
 
@@ -39,8 +41,8 @@ const canManageStudents = computed(() => {
   <template v-if="isCareUser">
     <VerticalNavLink
       :item="{
-        title: '介護管理',
-        icon: 'ri-heart-pulse-line',
+        title: '管理ダッシュボード',
+        icon: 'ri-dashboard-line',
         to: '/care-dashboard',
       }"
     />
@@ -248,6 +250,9 @@ const canManageStudents = computed(() => {
         to: '/building-list?type=student',
       }"
     />
+  </template>
+
+  <template v-if="isAdmin || mishimaUser">
     <VerticalNavSectionTitle
       :item="{
         heading: '介護管理',
@@ -271,9 +276,8 @@ const canManageStudents = computed(() => {
         icon: 'ri-community-line',
         to: '/elderly-building-list?type=elderly',
       }"
-    />
+    />  
   </template>
-
   <!-- <VerticalNavLink
     :item="{
       title: 'スケジュール',

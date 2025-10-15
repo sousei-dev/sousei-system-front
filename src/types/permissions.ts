@@ -120,10 +120,20 @@ export const PERMISSION_CONFIG: PermissionConfig = {
   },
   mishima_user: {
     pages: [
-      '/chat'
+      '/chat',
+      '/care-dashboard',
+      '/elderly-building-list',
+      '/building-create',
+      '/building-detail',
+      '/elderly-list',
+      '/elderly-create',
+      '/elderly-contact',
+      '/care-facility-meal-record'
     ],
     features: [
-      'chat_management'
+      'chat_management',
+      'care_management',
+      'building_management'
     ],
     studentTypes: []
   },

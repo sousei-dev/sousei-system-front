@@ -96,6 +96,10 @@ export interface ElderlyBuildingStatistics {
   building_name: string
   building_address: string
   statistics: {
+    total_rooms: number
+    occupied_rooms: number
+    vacant_rooms: number
+    occupancy_rate: number
     total_residents: number
     hospitalized_count: number
     non_hospitalized_count: number
