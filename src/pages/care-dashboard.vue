@@ -2,6 +2,7 @@
 import { ref, onMounted, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { buildingService, type MyBuildingItem } from '@/services/building'
+import { elderlyService, type ElderlyBuildingStatistics } from '@/services/elderly'
 
 const router = useRouter()
 
@@ -13,13 +14,18 @@ const myBuildings = ref<MyBuildingItem[]>([])
 const selectedBuilding = ref<MyBuildingItem | null>(null)
 const buildingsLoading = ref(false)
 
+// 빌딩 통계 데이터
+const buildingStatistics = ref<ElderlyBuildingStatistics | null>(null)
+
 // 통계 데이터 (선택된 빌딩 기반)
 const stats = computed(() => {
   if (!selectedBuilding.value) {
     return {
       totalElderly: 0,
       hospitalized: 0,
-      pendingRecords: 0,
+      nonHospitalized: 0,
+      hospitalizationRate: 0,
+      totalRooms: 0,
       emptyRooms: 0,
       occupancyRate: 0
     }
@@ -31,13 +37,62 @@ const stats = computed(() => {
     ? Math.round((building.active_residents_count / building.total_rooms) * 100) 
     : 0
   
+  const statistics = buildingStatistics.value?.statistics
+  
   return {
-    totalElderly: building.active_residents_count,
-    hospitalized: 0, // TODO: API 연동
-    pendingRecords: 0, // TODO: API 연동
+    totalElderly: statistics?.total_residents || building.active_residents_count,
+    hospitalized: statistics?.hospitalized_count || 0,
+    nonHospitalized: statistics?.non_hospitalized_count || 0,
+    hospitalizationRate: statistics?.hospitalization_rate || 0,
+    totalRooms: building.total_rooms,
     emptyRooms: emptyRooms,
     occupancyRate: occupancyRate
   }
+})
+
+// 요양등급 분포 데이터
+const careLevelData = computed(() => {
+  if (!buildingStatistics.value?.statistics) return []
+  
+  return Object.entries(buildingStatistics.value.statistics.care_level_distribution)
+    .map(([level, count]) => ({ level, count }))
+    .sort((a, b) => b.count - a.count)
+})
+
+// 연령대 분포 데이터
+const ageDistributionData = computed(() => {
+  if (!buildingStatistics.value?.statistics) return []
+  
+  return Object.entries(buildingStatistics.value.statistics.age_distribution)
+    .map(([range, count]) => ({ range, count }))
+})
+
+// 성별 분포 데이터
+const genderDistributionData = computed(() => {
+  if (!buildingStatistics.value?.statistics) return []
+  
+  const dist = buildingStatistics.value.statistics.gender_distribution
+  return [
+    { gender: '男性', count: dist['男'] || 0, color: 'primary' },
+    { gender: '女性', count: dist['女'] || 0, color: 'error' },
+    { gender: 'その他', count: dist['その他'] || 0, color: 'grey' }
+  ].filter(item => item.count > 0)
+})
+
+// 입원 중인 입주자 목록
+const hospitalizedResidents = computed(() => {
+  return buildingStatistics.value?.hospitalized_residents || []
+})
+
+// 최다 연령대 계산
+const topAgeRange = computed(() => {
+  if (ageDistributionData.value.length === 0) {
+    return { range: '-', count: 0 }
+  }
+  return ageDistributionData.value.reduce((max, curr) => 
+    curr.count > max.count ? curr : max, 
+    ageDistributionData.value[0]
+  )
 })
 
 // 내 빌딩 목록 조회
@@ -57,6 +112,25 @@ const fetchMyBuildings = async () => {
     isLoading.value = false
   }
 }
+
+// 빌딩 통계 조회
+const fetchBuildingStatistics = async (buildingId: string) => {
+  try {
+    buildingStatistics.value = await elderlyService.getBuildingStatistics(buildingId)
+  } catch (error) {
+    console.error('빌딩 통계 조회 오류:', error)
+    buildingStatistics.value = null
+  }
+}
+
+// 선택된 빌딩이 변경될 때마다 통계 조회
+watch(selectedBuilding, (newBuilding) => {
+  if (newBuilding) {
+    fetchBuildingStatistics(newBuilding.building_id)
+  } else {
+    buildingStatistics.value = null
+  }
+})
 
 
 // 노인 목록으로 이동 (선택된 빌딩 포함)
@@ -86,8 +160,13 @@ const goToContact = () => {
   }
 }
 
-onMounted(() => {
-  fetchMyBuildings()
+onMounted(async () => {
+  await fetchMyBuildings()
+  
+  // 첫 번째 빌딩이 선택되었으면 통계 조회
+  if (selectedBuilding.value) {
+    await fetchBuildingStatistics(selectedBuilding.value.building_id)
+  }
 })
 </script>
 
@@ -138,7 +217,7 @@ onMounted(() => {
     <div v-else class="dashboard-content">
       <!-- 통계 카드 -->
       <VRow class="mb-6">
-        <VCol cols="12" sm="6" md="4" lg="2-4">
+        <VCol cols="12" sm="6" md="3">
           <VCard class="stat-card">
             <VCardText>
               <div class="stat-icon-wrapper primary">
@@ -152,7 +231,7 @@ onMounted(() => {
           </VCard>
         </VCol>
 
-        <VCol cols="12" sm="6" md="4" lg="2-4">
+        <VCol cols="12" sm="6" md="3">
           <VCard class="stat-card">
             <VCardText>
               <div class="stat-icon-wrapper success">
@@ -165,22 +244,21 @@ onMounted(() => {
             </VCardText>
           </VCard>
         </VCol>
-
-        <VCol cols="12" sm="6" md="4" lg="2-4">
+        <VCol cols="12" sm="6" md="3">
           <VCard class="stat-card">
             <VCardText>
-              <div class="stat-icon-wrapper warning">
-                <VIcon size="32" color="white">ri-file-list-line</VIcon>
+              <div class="stat-icon-wrapper error">
+                <VIcon size="32" color="white">ri-door-line</VIcon>
               </div>
               <div class="stat-info">
-                <div class="stat-label">未完了記録</div>
-                <div class="stat-value">{{ stats.pendingRecords }}</div>
+                <div class="stat-label">総部屋数</div>
+                <div class="stat-value">{{ stats.totalRooms }}</div>
               </div>
             </VCardText>
           </VCard>
         </VCol>
 
-        <VCol cols="12" sm="6" md="4" lg="2-4">
+        <VCol cols="12" sm="6" md="3">
           <VCard class="stat-card">
             <VCardText>
               <div class="stat-icon-wrapper info">
@@ -194,7 +272,7 @@ onMounted(() => {
           </VCard>
         </VCol>
 
-        <VCol cols="12" sm="6" md="4" lg="2-4">
+        <VCol cols="12" sm="6" md="3">
           <VCard class="stat-card">
             <VCardText>
               <div class="stat-icon-wrapper secondary">
@@ -203,6 +281,34 @@ onMounted(() => {
               <div class="stat-info">
                 <div class="stat-label">入居率</div>
                 <div class="stat-value">{{ stats.occupancyRate }}%</div>
+              </div>
+            </VCardText>
+          </VCard>
+        </VCol>
+        <VCol cols="12" sm="6" md="3">
+          <VCard class="stat-card">
+            <VCardText>
+              <div class="stat-icon-wrapper primary">
+                <VIcon size="32" color="white">ri-men-line</VIcon>
+              </div>
+              <div class="stat-info">
+                <div class="stat-label">男性</div>
+                <div class="stat-value">{{ genderDistributionData.find(g => g.gender === '男性')?.count || 0 }}</div>
+              </div>
+            </VCardText>
+          </VCard>
+        </VCol>
+
+        <!-- 여성 -->
+        <VCol cols="12" sm="6" md="3">
+          <VCard class="stat-card">
+            <VCardText>
+              <div class="stat-icon-wrapper error">
+                <VIcon size="32" color="white">ri-women-line</VIcon>
+              </div>
+              <div class="stat-info">
+                <div class="stat-label">女性</div>
+                <div class="stat-value">{{ genderDistributionData.find(g => g.gender === '女性')?.count || 0 }}</div>
               </div>
             </VCardText>
           </VCard>
@@ -407,6 +513,12 @@ onMounted(() => {
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.12);
 }
 
+.building-address {
+  display: flex;
+  align-items: center;
+  padding: 4px 8px;
+}
+
 .loading-container {
   display: flex;
   flex-direction: column;
@@ -466,6 +578,10 @@ onMounted(() => {
   background-color: #8b5cf6;
 }
 
+.stat-icon-wrapper.error {
+  background-color: #ef4444;
+}
+
 .stat-info {
   flex: 1;
 }
@@ -480,6 +596,18 @@ onMounted(() => {
   font-size: 28px;
   font-weight: 700;
   color: #333;
+}
+
+.stat-value-small {
+  font-size: 20px;
+  font-weight: 700;
+  color: #333;
+}
+
+.stat-sub-value {
+  font-size: 13px;
+  color: #666;
+  margin-top: 2px;
 }
 
 /* 메뉴 카드 */
@@ -600,6 +728,29 @@ onMounted(() => {
 
 .menu-card:hover .menu-arrow {
   transform: translateX(8px);
+}
+
+/* 입원 중인 입주자 카드 */
+.hospitalized-card {
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.hospitalized-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.hospitalized-item {
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.hospitalized-item:hover {
+  border-color: #f59e0b;
+  background-color: rgba(245, 158, 11, 0.02);
 }
 
 /* 모바일 반응형 */

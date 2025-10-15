@@ -78,6 +78,47 @@ export interface ElderlySearchParams {
   page_size?: number
 }
 
+export interface HospitalizedResident {
+  elderly_id: string
+  elderly_name: string
+  elderly_name_katakana: string | null
+  room_number: string
+  care_level: string
+  admission_date: string
+  hospital_name: string
+  last_meal_date: string
+  last_meal_type: string
+  note: string | null
+}
+
+export interface ElderlyBuildingStatistics {
+  building_id: string
+  building_name: string
+  building_address: string
+  statistics: {
+    total_residents: number
+    hospitalized_count: number
+    non_hospitalized_count: number
+    hospitalization_rate: number
+    care_level_distribution: {
+      [key: string]: number
+    }
+    age_distribution: {
+      '60-69': number
+      '70-79': number
+      '80-89': number
+      '90-99': number
+      '100+': number
+    }
+    gender_distribution: {
+      '男': number
+      '女': number
+      'その他': number
+    }
+  }
+  hospitalized_residents: HospitalizedResident[]
+}
+
 export const elderlyService = {
   // 고령자 목록 조회 (검색 포함)
   async getElderlys(params?: ElderlySearchParams): Promise<ElderlyListResponse> {
@@ -110,5 +151,11 @@ export const elderlyService = {
   // 고령자 삭제
   async deleteElderly(id: string): Promise<void> {
     await api.delete(`/elderly/${id}`)
+  },
+
+  // 빌딩별 고령자 통계 조회
+  async getBuildingStatistics(buildingId: string): Promise<ElderlyBuildingStatistics> {
+    const response = await api.get(`/elderly/buildings/${buildingId}/statistics`)
+    return response.data
   },
 }

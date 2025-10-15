@@ -4,9 +4,13 @@ import { useRouter, useRoute } from 'vue-router'
 import { elderlyService, type Elderly } from '@/services/elderly'
 import { elderlyHospitalizationService, type ElderlyHospitalizationCreate, type ElderlyHospitalizationResponse } from '@/services/elderlyHospitalization'
 import { contactService } from '@/services/contact'
+import { getCurrentUserPermission } from '@/utils/permissions'
 
 const router = useRouter()
 const route = useRoute()
+
+// 현재 사용자 권한
+const userPermission = computed(() => getCurrentUserPermission())
 
 // 고령자 데이터
 const elderlys = ref<Elderly[]>([])
@@ -231,7 +235,7 @@ const tableHeaders = [
   { title: '生年月日', key: 'birth_date', sortable: false, filterable: true },
   { title: '性別', key: 'gender', sortable: false, filterable: true },
   { title: '介護度', key: 'care_level' },
-  { title: '入居日', key: 'admission_date' },
+  { title: '入居日', key: 'check_in_date' },
   { title: '入院状態', key: 'hospitalization_status' },
   { title: '操作', key: 'actions', sortable: false },
 ]
@@ -297,6 +301,7 @@ onMounted(() => {
             <h3 class="text-h3">{{ pageTitle }}</h3>
             <div class="d-flex gap-2">
               <VBtn
+                v-if="userPermission === 'mishima_user' || userPermission === 'admin'"
                 color="primary"
                 prepend-icon="ri-add-line"
                 @click="handleAdd"
@@ -442,6 +447,7 @@ onMounted(() => {
             <!-- 작업 컬럼 템플릿 -->
             <template #[`item.actions`]="{ item }">
               <VBtn
+                v-if="userPermission === 'mishima_user' || userPermission === 'admin'"
                 icon
                 variant="text"
                 size="small"

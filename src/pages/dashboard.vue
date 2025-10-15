@@ -762,7 +762,7 @@ onMounted(() => {
   </VDialog>
 
   <!-- 연락 상세 팝업 (Admin만 접근 가능) -->
-  <PermissionGuard permission="admin">
+  <PermissionGuard :permission="['mishima_user', 'admin']">>
     <VDialog v-model="showContactDetailDialog" max-width="800px">
     <VCard>
       <VCardTitle class="d-flex align-center justify-space-between">
