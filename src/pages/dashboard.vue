@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { studentService, type VisaRenewalStudent } from '@/services/student'
 import { contactService, type ContactResponse } from '@/services/contact'
+import { elderlyHospitalizationService, type ElderlyHospitalizationResponse } from '@/services/elderlyHospitalization'
 import { getCurrentUserPermission } from '@/utils/permissions';
 import { pushService } from '@/services/pushService'
 
@@ -25,6 +26,14 @@ const showCommentInput = ref(false)
 const commentType = ref<'completed' | 'rejected' | 'pending' | 'cancel' | null>(null)
 const commentText = ref('')
 const processingContact = ref(false)
+
+// 입원자 리스트 관련 상태
+const hospitalizationRecords = ref<any[]>([])
+const loadingHospitalization = ref(false)
+const errorHospitalization = ref<string | null>(null)
+const isHospitalizationCardExpanded = ref(true)
+const showHospitalizationDetailDialog = ref(false)
+const selectedHospitalization = ref<any | null>(null)
 
 // PWA 알림 관련 상태
 const notificationPermission = ref<NotificationPermission>('default')
@@ -50,9 +59,9 @@ const fetchVisaRenewalStudents = async () => {
     } else if (studentType === 'manager_general') {
       response = await studentService.getVisaRenewalStudents('GENERAL')
     } else {
-      response = await studentService.getVisaRenewalStudents()
+      response = await studentService.getVisaRenewalStudents('ALL')
     }
-    visaRenewalStudents.value = response.items || []
+    visaRenewalStudents.value = response.data || []
   } catch (error) {
     console.error('ビザ更新が迫っている技能生の取得中にエラーが発生しました:', error)
     errorVisaStudents.value = 'ビザ更新が迫っている技能生の取得に失敗しました。'
@@ -74,6 +83,27 @@ const fetchContact = async () => {
     errorContact.value = '連絡リストの取得に失敗しました。'
   } finally {
     loadingContact.value = false
+  }
+}
+
+// 입원자 리스트 조회
+const fetchHospitalizationList = async () => {
+  try {
+    loadingHospitalization.value = true
+    errorHospitalization.value = null
+
+    const currentDate = new Date()
+    const year = currentDate.getFullYear()
+    const month = currentDate.getMonth() + 1
+
+    const response = await elderlyHospitalizationService.getElderlyHospitalizationsByMonth(year, month)
+    // admission_date가 있는 경우만 필터링
+    hospitalizationRecords.value = (response.items || []).filter(record => record.admission_date)
+  } catch (error) {
+    console.error('입원자 리스트 조회 실패:', error)
+    errorHospitalization.value = '입원자 리스트 조회에 실패했습니다.'
+  } finally {
+    loadingHospitalization.value = false
   }
 }
 
@@ -326,24 +356,85 @@ const openContactDetail = (contact: ContactResponse) => {
   commentText.value = ''
 }
 
+// 입원자 상세 팝업 열기
+const openHospitalizationDetail = (hospitalization: any) => {
+  selectedHospitalization.value = hospitalization
+  showHospitalizationDetailDialog.value = true
+}
+
+// 입원 타입을 일본어로 변환
+const getHospitalizationTypeText = (type: string) => {
+  switch (type) {
+    case 'admission':
+      return '入院'
+    case 'discharge':
+      return '退院'
+    default:
+      return type
+  }
+}
+
+// 입원 타입 색상
+const getHospitalizationTypeColor = (type: string) => {
+  switch (type) {
+    case 'admission':
+      return 'error'
+    case 'discharge':
+      return 'success'
+    default:
+      return 'default'
+  }
+}
+
+// 식사 타입을 일본어로 변환
+const getMealTypeText = (type: string) => {
+  switch (type) {
+    case 'breakfast':
+      return '朝食'
+    case 'lunch':
+      return '昼食'
+    case 'dinner':
+      return '夕食'
+    default:
+      return type
+  }
+}
+
+// 연락 작성자 이름 가져오기
+const getContactCreatorName = (contact: ContactResponse) => {
+  return (contact as any).creator?.name || 'システム'
+}
+
+// 사진 URL 가져오기
+const getPhotoUrl = (photo: any) => {
+  return photo.photo_url || photo
+}
+
+// 코멘트 내용 가져오기
+const getCommentContent = (comment: any) => {
+  return comment.comment || comment.content
+}
+
 // 처리/철회 버튼 클릭
 const handleActionClick = async (type: 'completed' | 'rejected' | 'pending' | 'comment' | 'cancel') => {
-  commentType.value = type
-  if (type === 'pending') {
-    // 되돌릴 것인지 확인
-    const confirmed = confirm('この連絡を再処理状態に戻しますか？')
-    if (confirmed) {
-      showCommentInput.value = false
-      commentText.value = ''
-      await submitAction()
-    }
-  } else if (type === 'comment') {
+  if (type === 'comment') {
     commentType.value = 'pending'
     showCommentInput.value = true
     commentText.value = ''
   } else {
-    showCommentInput.value = true
-    commentText.value = ''
+    commentType.value = type
+    if (type === 'pending') {
+      // 되돌릴 것인지 확인
+      const confirmed = confirm('この連絡を再処理状態に戻しますか？')
+      if (confirmed) {
+        showCommentInput.value = false
+        commentText.value = ''
+        await submitAction()
+      }
+    } else {
+      showCommentInput.value = true
+      commentText.value = ''
+    }
   }
 }
 
@@ -357,11 +448,13 @@ const submitAction = async () => {
     processingContact.value = true
     
     // 실제 API 호출로 변경
-    await contactService.updateContactStatus(
-      selectedContact.value.id, 
-      commentType.value, 
-      commentText.value
-    )
+    if (commentType.value) {
+      await contactService.updateContactStatus(
+        selectedContact.value.id, 
+        commentType.value as 'completed' | 'rejected', 
+        commentText.value
+      )
+    }
     
     // 성공 메시지 표시
     alert('処理しました。')
@@ -471,6 +564,7 @@ const handleDismissNotificationPrompt = () => {
 onMounted(() => {
   fetchVisaRenewalStudents()
   fetchContact()
+  fetchHospitalizationList()
   
   initializePushNotifications()
 })
@@ -480,8 +574,7 @@ onMounted(() => {
   <!-- 기존 대시보드 내용만 유지 -->
   <VRow class="match-height">
     <!-- 비자갱신 임박 학생 리스트 -->
-    <VCol cols="12" md="6">
-      <PermissionGuard :permission="[ 'manager_general', 'manager_specified' ]">
+    <VCol v-if="getCurrentUserPermission() === 'manager_general' || getCurrentUserPermission() === 'manager_specified'" cols="12" md="6">
         <VCard :class="isVisaCardExpanded ? 'h-400' : 'h-auto'">
           <VCardTitle class="d-flex align-center justify-space-between">
             <div class="d-flex align-center">
@@ -594,13 +687,11 @@ onMounted(() => {
             </div>
           </VCardText>
         </VCard>
-      </PermissionGuard>
     </VCol>
 
     <!-- 연락 리스트 (Admin만 접근 가능) -->
-    <VCol cols="12" md="6">
-      <PermissionGuard :permission="['mishima_user', 'admin']">
-        <VCard :class="isContactCardExpanded ? 'h-400' : 'h-auto'">
+    <VCol v-if="getCurrentUserPermission() === 'mishima_user' || getCurrentUserPermission() === 'admin' || getCurrentUserPermission() === 'manager_general' || getCurrentUserPermission() === 'manager_specified'" cols="12" md="6">
+      <VCard :class="isContactCardExpanded ? 'h-400' : 'h-auto'">
           <VCardTitle class="d-flex align-center justify-space-between">
             <div class="d-flex align-center">
               <VIcon class="me-2" color="info">ri-file-text-line</VIcon>
@@ -673,7 +764,7 @@ onMounted(() => {
                   <VListItemSubtitle>
                     <div class="d-flex align-center">
                       <VIcon size="small" class="me-1">ri-user-line</VIcon>
-                      {{ contact.creator?.name || 'システム' }}
+                      {{ getContactCreatorName(contact) }}
                     </div>
                     <div class="d-flex align-center mt-1">
                       <VIcon size="small" class="me-1">ri-calendar-line</VIcon>
@@ -715,7 +806,144 @@ onMounted(() => {
             </div>
           </VCardText>
         </VCard>
-      </PermissionGuard>
+    </VCol>
+
+    <!-- 입원자 리스트 (Admin만 접근 가능) -->
+    <VCol v-if="getCurrentUserPermission() === 'mishima_user' || getCurrentUserPermission() === 'admin'" cols="12" md="6">
+      <VCard :class="isHospitalizationCardExpanded ? 'h-400' : 'h-auto'">
+          <VCardTitle class="d-flex align-center justify-space-between">
+            <div class="d-flex align-center">
+              <VIcon class="me-2" color="warning">ri-hospital-line</VIcon>
+              <span>入院者一覧</span>
+            </div>
+            <div class="d-flex align-center">
+              <VBtn
+                icon
+                variant="text"
+                size="small"
+                @click="isHospitalizationCardExpanded = !isHospitalizationCardExpanded"
+                class="me-2"
+              >
+                <VIcon>{{ isHospitalizationCardExpanded ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line' }}</VIcon>
+              </VBtn>
+              <VBtn
+                icon
+                variant="text"
+                size="small"
+                @click="fetchHospitalizationList"
+                :loading="loadingHospitalization"
+              >
+                <VIcon>ri-refresh-line</VIcon>
+              </VBtn>
+            </div>
+          </VCardTitle>
+          
+          <VCardText v-if="isHospitalizationCardExpanded" class="hospitalization-card-content">
+            <!-- 에러 메시지 -->
+            <VAlert
+              v-if="errorHospitalization"
+              type="error"
+              variant="tonal"
+              class="mb-4"
+            >
+              {{ errorHospitalization }}
+            </VAlert>
+            
+            <!-- 로딩 상태 -->
+            <div v-if="loadingHospitalization" class="d-flex justify-center align-center py-8">
+              <VProgressCircular
+                indeterminate
+                color="primary"
+                size="32"
+              />
+              <span class="ms-3">データを読み込み中...</span>
+            </div>
+            
+            <!-- 입원자 리스트 -->
+            <div v-else-if="hospitalizationRecords.length > 0" class="hospitalization-list-container">
+              <VList>
+                <VListItem
+                  v-for="record in hospitalizationRecords"
+                  :key="record.id"
+                  @click="openHospitalizationDetail(record)"
+                  class="mb-2 cursor-pointer"
+                  :style="`border-left: 4px solid ${record.discharge_date ? 'rgb(var(--v-theme-success))' : 'rgb(var(--v-theme-error))'}; border-radius: 4px;`"
+                >
+                  <template #prepend>
+                    <VAvatar
+                      :color="record.discharge_date ? 'success' : 'error'"
+                      size="40"
+                    >
+                      <VIcon>{{ record.discharge_date ? 'ri-home-heart-line' : 'ri-hospital-line' }}</VIcon>
+                    </VAvatar>
+                  </template>
+                  <VListItemTitle class="font-weight-bold">
+                    {{ record.elderly_name || '입원자' }}
+                  </VListItemTitle>
+                  <VListItemSubtitle>
+                    <div class="d-flex align-center">
+                      <VIcon size="small" class="me-1">{{ record.discharge_date ? 'ri-home-heart-line' : 'ri-hospital-line' }}</VIcon>
+                      {{ record.discharge_date ? '退院済み' : '入院中' }}
+                      <VChip
+                        :color="record.discharge_date ? 'success' : 'error'"
+                        size="x-small"
+                        variant="tonal"
+                        class="ms-2"
+                      >
+                        {{ record.hospital_name }}
+                      </VChip>
+                    </div>
+                    <div class="d-flex align-center mt-1">
+                      <VIcon size="small" class="me-1">ri-calendar-line</VIcon>
+                      入院日: {{ new Date(record.admission_date).toLocaleDateString('ja-JP') }}
+                    </div>
+                    <div class="d-flex align-center mt-1" v-if="record.discharge_date">
+                      <VIcon size="small" class="me-1">ri-calendar-check-line</VIcon>
+                      退院日: {{ new Date(record.discharge_date).toLocaleDateString('ja-JP') }}
+                    </div>
+                    <div class="d-flex align-center mt-1" v-if="record.last_meal_date">
+                      <VIcon size="small" class="me-1">ri-restaurant-line</VIcon>
+                      最後の食事: {{ new Date(record.last_meal_date).toLocaleDateString('ja-JP') }}
+                      <VChip
+                        size="x-small"
+                        variant="tonal"
+                        class="ms-2"
+                      >
+                        {{ getMealTypeText(record.last_meal_type || '') }}
+                      </VChip>
+                    </div>
+                    <div class="d-flex align-center mt-1" v-if="record.created_by">
+                      <VIcon size="small" class="me-1">ri-user-line</VIcon>
+                      作成者: {{ record.created_by }}
+                    </div>
+                    <div class="d-flex align-center mt-1" v-if="record.note">
+                      <VIcon size="small" class="me-1">ri-file-text-line</VIcon>
+                      <span class="text-truncate" style="max-width: 200px;">
+                        {{ record.note }}
+                      </span>
+                    </div>
+                  </VListItemSubtitle>
+                  <template #append>
+                    <VBtn
+                      icon
+                      variant="text"
+                      size="small"
+                      @click.stop="openHospitalizationDetail(record)"
+                    >
+                      <VIcon>ri-arrow-right-line</VIcon>
+                    </VBtn>
+                  </template>
+                </VListItem>
+              </VList>
+            </div>
+            
+            <!-- 데이터 없음 -->
+            <div v-else class="text-center py-8">
+              <VIcon size="64" color="grey-lighten-1">ri-hospital-line</VIcon>
+              <p class="text-grey mt-2">入院記録がありません。</p>
+            </div>
+          </VCardText>
+        </VCard>
     </VCol>
   </VRow>
 
@@ -762,8 +990,7 @@ onMounted(() => {
   </VDialog>
 
   <!-- 연락 상세 팝업 (Admin만 접근 가능) -->
-  <PermissionGuard :permission="['mishima_user', 'admin']">>
-    <VDialog v-model="showContactDetailDialog" max-width="800px">
+  <VDialog v-if="getCurrentUserPermission() === 'mishima_user' || getCurrentUserPermission() === 'admin'" v-model="showContactDetailDialog" max-width="800px">
     <VCard>
       <VCardTitle class="d-flex align-center justify-space-between">
         <div class="d-flex align-center gap-2">
@@ -792,7 +1019,7 @@ onMounted(() => {
                   </div>
                   <div class="info-item">
                     <span class="info-label">作成者:</span>
-                    <span class="info-value">{{ selectedContact.creator?.name || 'システム' }}</span>
+                    <span class="info-value">{{ getContactCreatorName(selectedContact) }}</span>
                   </div>
                   <div class="info-item">
                     <span class="info-label">連絡種類:</span>
@@ -886,10 +1113,10 @@ onMounted(() => {
                 class="photo-container"
               >
                 <img
-                  :src="photo.photo_url"
+                  :src="getPhotoUrl(photo)"
                   :alt="`写真${index + 1}`"
                   class="photo-preview"
-                  @click="openPhotoInNewTab(photo.photo_url)"
+                  @click="openPhotoInNewTab(getPhotoUrl(photo))"
                 />
               </div>
             </div>
@@ -914,7 +1141,7 @@ onMounted(() => {
                       minute: '2-digit'
                     }) }}
                   </span>
-                  <span class="comment-content">{{ comment.comment }}</span>
+                  <span class="comment-content">{{ getCommentContent(comment) }}</span>
                 </div>
               </div>
             </div>
@@ -974,7 +1201,6 @@ onMounted(() => {
               variant="outlined"
               prepend-icon="ri-check-line"
               @click="handleActionClick('comment')"
-              :disabled="selectedContact.status === 'completed'"
             >
               コメント入力
             </VBtn>
@@ -983,7 +1209,6 @@ onMounted(() => {
               variant="outlined"
               prepend-icon="ri-check-line"
               @click="handleActionClick('completed')"
-              :disabled="selectedContact.status === 'completed'"
             >
               完了
             </VBtn>
@@ -992,7 +1217,6 @@ onMounted(() => {
               variant="outlined"
               prepend-icon="ri-close-line"
               @click="handleActionClick('rejected')"
-              :disabled="selectedContact.status === 'rejected'"
             >
               却下
             </VBtn>
@@ -1014,7 +1238,167 @@ onMounted(() => {
         </VCardText>
     </VCard>
   </VDialog>
-  </PermissionGuard>
+
+  <!-- 입원자 상세 팝업 (Admin만 접근 가능) -->
+  <VDialog v-if="getCurrentUserPermission() === 'mishima_user' || getCurrentUserPermission() === 'admin'" v-model="showHospitalizationDetailDialog" max-width="600px">
+      <VCard>
+        <VCardTitle class="d-flex align-center justify-space-between">
+          <div class="d-flex align-center gap-2">
+            <VIcon>ri-hospital-line</VIcon>
+            <span>入院者詳細情報</span>
+          </div>
+          <VBtn
+            icon
+            variant="text"
+            @click="showHospitalizationDetailDialog = false"
+          >
+            <VIcon>ri-close-line</VIcon>
+          </VBtn>
+        </VCardTitle>
+        
+        <VCardText v-if="selectedHospitalization">
+          <!-- 상세 정보 그리드 -->
+          <VRow>
+            <VCol cols="12" md="6">
+              <VCard variant="outlined" class="pa-3 info-card">
+                <div class="d-flex align-center mb-2">
+                  <VIcon color="info" size="20" class="me-2">ri-information-line</VIcon>
+                  <span class="text-subtitle-2 font-weight-bold">基本情報</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">入居者名:</span>
+                  <span class="info-value">{{ selectedHospitalization.elderly_name || '입원자' }}</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">入院状態:</span>
+                  <VChip
+                    color="error"
+                    size="small"
+                    variant="tonal"
+                    class="ms-2"
+                  >
+                    {{ selectedHospitalization.discharge_date ? '退院済み' : '入院中' }}
+                  </VChip>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">病院名:</span>
+                  <span class="info-value">{{ selectedHospitalization.hospital_name }}</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">入院日:</span>
+                  <span class="info-value">{{ new Date(selectedHospitalization.admission_date).toLocaleDateString('ja-JP') }}</span>
+                </div>
+                <div class="info-item" v-if="selectedHospitalization.discharge_date">
+                  <span class="info-label">退院日:</span>
+                  <span class="info-value">{{ new Date(selectedHospitalization.discharge_date).toLocaleDateString('ja-JP') }}</span>
+                </div>
+                <div class="info-item" v-if="selectedHospitalization.created_by">
+                  <span class="info-label">作成者:</span>
+                  <span class="info-value">{{ selectedHospitalization.created_by }}</span>
+                </div>
+              </VCard>
+            </VCol>
+            <VCol cols="12" md="6">
+              <VCard variant="outlined" class="pa-3 info-card">
+                <div class="d-flex align-center mb-3">
+                  <VIcon color="primary" size="20" class="me-2">ri-restaurant-line</VIcon>
+                  <span class="text-subtitle-2 font-weight-bold">食事情報</span>
+                </div>
+                
+                <!-- 입원 시 식사 정보 -->
+                <div class="mb-4">
+                  <div class="d-flex align-center mb-2">
+                    <VIcon color="error" size="16" class="me-2">ri-hospital-line</VIcon>
+                    <span class="text-subtitle-2 font-weight-medium text-error">入院時食事</span>
+                  </div>
+                  <div class="info-item" v-if="selectedHospitalization.last_meal_date">
+                    <span class="info-label">最後の食事:</span>
+                    <span class="info-value">{{ new Date(selectedHospitalization.last_meal_date).toLocaleDateString('ja-JP') }}</span>
+                  </div>
+                  <div class="info-item" v-if="selectedHospitalization.last_meal_type">
+                    <span class="info-label">食事タイプ:</span>
+                    <VChip
+                      color="error"
+                      size="small"
+                      variant="tonal"
+                      class="ms-2"
+                    >
+                      {{ getMealTypeText(selectedHospitalization.last_meal_type) }}
+                    </VChip>
+                  </div>
+                  <div v-if="!selectedHospitalization.last_meal_date && !selectedHospitalization.last_meal_type" class="text-center py-2">
+                    <span class="text-caption text-medium-emphasis">入院時食事情報なし</span>
+                  </div>
+                </div>
+                
+                <!-- 구분선 -->
+                <VDivider class="my-3" />
+                
+                <!-- 퇴원 시 식사 정보 (퇴원한 경우만 표시) -->
+                <div v-if="selectedHospitalization.discharge_date">
+                  <div class="d-flex align-center mb-2">
+                    <VIcon color="success" size="16" class="me-2">ri-home-heart-line</VIcon>
+                    <span class="text-subtitle-2 font-weight-medium text-success">退院時食事</span>
+                  </div>
+                  <div class="info-item" v-if="selectedHospitalization.meal_resume_date">
+                    <span class="info-label">食事再開日:</span>
+                    <span class="info-value">{{ new Date(selectedHospitalization.meal_resume_date).toLocaleDateString('ja-JP') }}</span>
+                  </div>
+                  <div class="info-item" v-if="selectedHospitalization.meal_resume_type">
+                    <span class="info-label">再開食事:</span>
+                    <VChip
+                      color="success"
+                      size="small"
+                      variant="tonal"
+                      class="ms-2"
+                    >
+                      {{ getMealTypeText(selectedHospitalization.meal_resume_type) }}
+                    </VChip>
+                  </div>
+                  <div v-if="!selectedHospitalization.meal_resume_date && !selectedHospitalization.meal_resume_type" class="text-center py-2">
+                    <span class="text-caption text-medium-emphasis">退院時食事情報なし</span>
+                  </div>
+                </div>
+              </VCard>
+            </VCol>
+          </VRow>
+
+          <!-- 메모 정보 -->
+          <VCard 
+            v-if="selectedHospitalization.note"
+            variant="outlined" 
+            class="pa-4 mt-4 contact-content-card"
+          >
+            <div class="d-flex align-center mb-3">
+              <VAvatar
+                color="primary"
+                size="32"
+                class="me-3"
+              >
+                <VIcon size="20">ri-file-text-line</VIcon>
+              </VAvatar>
+              <div>
+                <h6 class="text-h6 mb-1">メモ</h6>
+                <p class="text-caption text-medium-emphasis mb-0">
+                  {{ new Date(selectedHospitalization.admission_date).toLocaleDateString('ja-JP', { 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric',
+                    weekday: 'long'
+                  }) }}
+                </p>
+              </div>
+            </div>
+            
+            <VDivider class="my-3" />
+            
+            <div class="contact-content-text">
+              {{ selectedHospitalization.note }}
+            </div>
+          </VCard>
+        </VCardText>
+      </VCard>
+    </VDialog>
 </template>
 
 <style scoped>
@@ -1169,44 +1553,45 @@ onMounted(() => {
   height: auto !important;
 }
 
-.visa-card-content {
-  height: calc(400px - 80px); /* 카드 제목 높이 제외 */
-  overflow-y: auto;
-  padding-right: 8px;
-}
-
-.contact-card-content {
+.visa-card-content,
+.contact-card-content,
+.hospitalization-card-content {
   height: calc(400px - 80px); /* 카드 제목 높이 제외 */
   overflow-y: auto;
   padding-right: 8px;
 }
 
 .visa-list-container,
-.contact-list-container {
+.contact-list-container,
+.hospitalization-list-container {
   max-height: 100%;
   overflow-y: auto;
 }
 
 /* 스크롤바 스타일링 */
 .visa-card-content::-webkit-scrollbar,
-.contact-card-content::-webkit-scrollbar {
+.contact-card-content::-webkit-scrollbar,
+.hospitalization-card-content::-webkit-scrollbar {
   width: 6px;
 }
 
 .visa-card-content::-webkit-scrollbar-track,
-.contact-card-content::-webkit-scrollbar-track {
+.contact-card-content::-webkit-scrollbar-track,
+.hospitalization-card-content::-webkit-scrollbar-track {
   background: rgba(var(--v-theme-outline), 0.1);
   border-radius: 3px;
 }
 
 .visa-card-content::-webkit-scrollbar-thumb,
-.contact-card-content::-webkit-scrollbar-thumb {
+.contact-card-content::-webkit-scrollbar-thumb,
+.hospitalization-card-content::-webkit-scrollbar-thumb {
   background: rgba(var(--v-theme-outline), 0.3);
   border-radius: 3px;
 }
 
 .visa-card-content::-webkit-scrollbar-thumb:hover,
-.contact-card-content::-webkit-scrollbar-thumb:hover {
+.contact-card-content::-webkit-scrollbar-thumb:hover,
+.hospitalization-card-content::-webkit-scrollbar-thumb:hover {
   background: rgba(var(--v-theme-outline), 0.5);
 }
 

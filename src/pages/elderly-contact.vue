@@ -3,7 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { contactService } from '@/services/contact'
 import { elderlyService, type Elderly } from '@/services/elderly'
-import { elderlyHospitalizationService, type ElderlyHospitalizationCreate, type ElderlyHospitalizationResponse } from '@/services/elderlyHospitalization'
+import { elderlyHospitalizationService, type ElderlyHospitalizationCreate, type ElderlyHospitalizationResponse, type ElderlyHospitalizationDischarge } from '@/services/elderlyHospitalization'
 
 const router = useRouter()
 const route = useRoute()
@@ -267,10 +267,12 @@ const fetchElderlyList = async () => {
     elderlyList.value = response.items
     console.log('노인 목록:', elderlyList.value)
     
-    // 입원 기록 수집
+    // 입원 기록 수집 (admission_date가 있고 discharge_date가 없는 경우만)
     hospitalizationRecords.value = []
     response.items.forEach(elderly => {
-      if (elderly.latest_hospitalization) {
+      if (elderly.latest_hospitalization && 
+          elderly.latest_hospitalization.admission_date && 
+          !elderly.latest_hospitalization.discharge_date) {
         hospitalizationRecords.value.push(elderly.latest_hospitalization)
       }
     })
@@ -303,7 +305,7 @@ const prepareDischargeForm = (elderly: Elderly) => {
   console.log('퇴원 연락표 작성:', elderly)
   selectedElderly.value = elderly
   const record = hospitalizationRecords.value.find(
-    r => r.elderly_id === elderly.id && r.hospitalization_type === 'admission'
+    r => r.elderly_id === elderly.id && r.admission_date && !r.discharge_date
   )
   
   if (record) {
@@ -330,7 +332,7 @@ const saveAdmissionRecord = async () => {
       elderly_id: admissionForm.value.elderly_id,
       hospitalization_type: 'admission',
       hospital_name: admissionForm.value.hospital_name,
-      date: admissionForm.value.admission_date,
+      admission_date: admissionForm.value.admission_date,
       last_meal_date: admissionForm.value.meal_final_date,
       last_meal_type: admissionForm.value.meal_final_type as 'breakfast' | 'lunch' | 'dinner',
     }
@@ -372,19 +374,20 @@ const saveDischargeRecord = async () => {
     error.value = null
     
     const record = hospitalizationRecords.value.find(
-      r => r.elderly_id === dischargeForm.value.elderly_id && r.hospitalization_type === 'admission'
+      r => r.elderly_id === dischargeForm.value.elderly_id && r.admission_date && !r.discharge_date
     )
     
-    const data: ElderlyHospitalizationCreate = {
-      elderly_id: dischargeForm.value.elderly_id,
-      hospitalization_type: 'discharge',
-      hospital_name: record?.hospital_name || '',
-      date: record?.date || '',
+    if (!record || !record.id) {
+      throw new Error('入院記録が見つかりません。')
+    }
+    
+    const data: ElderlyHospitalizationDischarge = {
+      discharge_date: dischargeForm.value.discharge_date,
       meal_resume_date: dischargeForm.value.meal_resume_date,
       meal_resume_type: dischargeForm.value.meal_resume_type as 'breakfast' | 'lunch' | 'dinner',
     }
 
-    await elderlyHospitalizationService.createElderlyHospitalization(data)
+    await elderlyHospitalizationService.dischargeElderlyHospitalization(record.id, data)
     success.value = '退院連絡票が正常に保存されました。'
     
     // 다이얼로그 닫기
@@ -414,10 +417,10 @@ const saveDischargeRecord = async () => {
   }
 }
 
-// 입원 기록 확인
+// 입원 기록 확인 (admission_date가 있고 discharge_date가 없는 경우만)
 const hasAdmissionRecord = (elderlyId: string) => {
   return hospitalizationRecords.value.some(
-    r => r.elderly_id === elderlyId && r.hospitalization_type === 'admission'
+    r => r.elderly_id === elderlyId && r.admission_date && !r.discharge_date
   )
 }
 
