@@ -126,10 +126,13 @@ self.addEventListener('push', event => {
       if (focusedClient) {
         console.log('사용자가 웹사이트를 보고 있습니다. 알림을 표시하지 않고 메시지만 전송합니다.')
         // 포커스된 클라이언트에게만 메시지 전송
-        return focusedClient.postMessage({
+        focusedClient.postMessage({
           type: 'PUSH_RECEIVED',
           data: notificationData
         })
+        
+        // 일반 알림은 접속 중일 때 표시하지 않음 (입원 알림만 무조건 표시)
+        return
       }
       
       // 포커스된 클라이언트가 없으면 모든 클라이언트에게 알림
@@ -259,6 +262,55 @@ self.addEventListener('message', event => {
         tag: 'test-notification'
       })
       break
+    case 'TEST_HOSPITALIZATION':
+      // 입원 알림 테스트
+      console.log('🏥 입원 알림 테스트 시작')
+      const testData = {
+        type: 'hospitalization_notification',
+        elderly_id: 'test-elderly-id',
+        elderly_name: '테스트 환자',
+        hospital_name: '테스트 병원',
+        admission_date: new Date().toISOString().split('T')[0]
+      }
+      
+      const testNotificationData = {
+        title: '🏥 입원 알림',
+        body: `입원자: ${testData.elderly_name}`,
+        icon: '/pwa-192x192.png',
+        badge: '/pwa-192x192.png',
+        tag: 'hospitalization-notification',
+        data: testData,
+        vibrate: [300, 200, 300],
+        requireInteraction: true
+      }
+      
+      self.registration.showNotification(testNotificationData.title, {
+        body: testNotificationData.body,
+        icon: testNotificationData.icon,
+        badge: testNotificationData.badge,
+        tag: testNotificationData.tag,
+        requireInteraction: testNotificationData.requireInteraction,
+        silent: false,
+        vibrate: testNotificationData.vibrate,
+        data: testNotificationData.data,
+        actions: [
+          {
+            action: 'view_hospitalization',
+            title: '입원자 확인',
+            icon: '/pwa-192x192.png'
+          },
+          {
+            action: 'close',
+            title: '닫기',
+            icon: '/pwa-192x192.png'
+          }
+        ]
+      }).then(() => {
+        console.log('🏥 입원 알림 테스트 표시 성공')
+      }).catch(error => {
+        console.error('🏥 입원 알림 테스트 표시 실패:', error)
+      })
+      break
     default:
       console.log('Unknown message type:', type)
   }
@@ -314,11 +366,40 @@ function handleHospitalizationNotification(event, notificationData) {
       const focusedClient = clients.find(client => client.focused)
       
       if (focusedClient) {
-        console.log('사용자가 웹사이트를 보고 있습니다. 입원 알림 메시지를 전송합니다.')
+        console.log('사용자가 웹사이트를 보고 있습니다. 입원 알림 메시지를 전송하고 알림도 표시합니다.')
         // 포커스된 클라이언트에게 입원 알림 메시지 전송
-        return focusedClient.postMessage({
+        focusedClient.postMessage({
           type: 'HOSPITALIZATION_NOTIFICATION',
           data: notificationData
+        })
+        
+        // 입원 알림은 무조건 표시
+        console.log('🏥 입원 알림 강제 표시 (중요한 알림)')
+        return self.registration.showNotification(notificationData.title, {
+          body: notificationData.body,
+          icon: notificationData.icon,
+          badge: notificationData.badge,
+          tag: notificationData.tag,
+          requireInteraction: notificationData.requireInteraction,
+          silent: false,
+          vibrate: notificationData.vibrate,
+          data: notificationData.data,
+          actions: [
+            {
+              action: 'view_hospitalization',
+              title: '입원자 확인',
+              icon: '/pwa-192x192.png'
+            },
+            {
+              action: 'close',
+              title: '닫기',
+              icon: '/pwa-192x192.png'
+            }
+          ]
+        }).then(() => {
+          console.log('🏥 입원 알림 표시 성공 (접속 중)')
+        }).catch(error => {
+          console.error('🏥 입원 알림 표시 실패 (접속 중):', error)
         })
       }
       
