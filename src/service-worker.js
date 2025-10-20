@@ -65,7 +65,38 @@ self.addEventListener('push', event => {
     }
   }
 
-  // 백엔드에서 보낸 데이터 구조에 맞게 처리
+  // 푸시 타입에 따른 처리
+  const pushType = data.data?.type || data.type || 'general'
+  
+  // 입원 알림인 경우 특별 처리
+  if (pushType === 'hospitalization_notification') {
+    console.log('🏥 입원 알림 수신:', data)
+    
+    // 입원 알림 데이터 구조 처리
+    const hospitalizationData = data.data || {}
+    const notificationData = {
+      title: data.notification?.title || data.title || '🏥 입원 알림',
+      body: data.notification?.body || data.body || `입원자: ${hospitalizationData.elderly_name || '알 수 없음'}`,
+      icon: data.notification?.icon || data.icon || '/pwa-192x192.png',
+      badge: data.notification?.badge || data.badge || '/pwa-192x192.png',
+      tag: 'hospitalization-notification',
+      data: {
+        type: 'hospitalization_notification',
+        elderly_id: hospitalizationData.elderly_id,
+        elderly_name: hospitalizationData.elderly_name,
+        hospital_name: hospitalizationData.hospital_name,
+        admission_date: hospitalizationData.admission_date,
+        ...hospitalizationData
+      },
+      vibrate: [300, 200, 300], // 입원 알림은 더 강한 진동
+      requireInteraction: true // 입원 알림은 사용자 상호작용 필요
+    }
+    
+    // 입원 알림 전용 처리
+    return handleHospitalizationNotification(event, notificationData)
+  }
+  
+  // 일반 알림 처리
   const notificationData = {
     title: data.notification?.title || data.title || 'SOUSEI 시스템',
     body: data.notification?.body || data.body || '새 메시지가 도착했습니다',
@@ -151,11 +182,38 @@ self.addEventListener('notificationclick', event => {
   
   event.notification.close()
 
-  // 알림을 클릭하면 배지 제거 (채팅 페이지로 이동하는 경우)
-  // 실제로는 앱에서 읽지 않은 메시지를 확인한 후 배지를 업데이트해야 함
-  // 여기서는 사용자가 알림을 확인했다고 가정하고 배지를 제거하지 않음
-  // 앱 내부에서 메시지를 읽으면 store가 자동으로 배지를 업데이트함
+  // 입원 알림인 경우 특별 처리
+  if (event.notification.tag === 'hospitalization-notification') {
+    console.log('🏥 입원 알림 클릭됨')
+    
+    if (event.action === 'close') {
+      return
+    }
+    
+    // 입원자 확인 액션이거나 일반 클릭
+    if (event.action === 'view_hospitalization' || !event.action) {
+      event.waitUntil(
+        clients.matchAll({ type: 'window' }).then(clientList => {
+          for (const client of clientList) {
+            if (client.url.includes(self.location.origin) && 'focus' in client) {
+              // 대시보드로 이동하여 입원자 리스트 표시
+              return client.postMessage({
+                type: 'NAVIGATE_TO_HOSPITALIZATION',
+                data: event.notification.data
+              }).then(() => client.focus())
+            }
+          }
+          
+          if (clients.openWindow) {
+            return clients.openWindow('/')
+          }
+        })
+      )
+    }
+    return
+  }
 
+  // 일반 알림 처리
   if (event.action === 'close') {
     return
   }
@@ -234,4 +292,76 @@ function closeAllNotifications() {
   return self.registration.getNotifications().then(notifications => {
     notifications.forEach(notification => notification.close())
   })
+}
+
+// 입원 알림 전용 처리 함수
+function handleHospitalizationNotification(event, notificationData) {
+  console.log('🏥 입원 알림 처리 시작:', notificationData)
+  
+  // 앱 배지 업데이트 (입원 알림 카운트)
+  if ('setAppBadge' in self.navigator) {
+    self.navigator.setAppBadge(1).catch((error) => {
+      console.error('입원 알림 배지 설정 실패:', error)
+    })
+  }
+  
+  // 사용자가 웹사이트를 보고 있는지 확인
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
+      console.log('입원 알림 - 활성 클라이언트:', clients.length)
+      
+      // 포커스된 클라이언트가 있는지 확인
+      const focusedClient = clients.find(client => client.focused)
+      
+      if (focusedClient) {
+        console.log('사용자가 웹사이트를 보고 있습니다. 입원 알림 메시지를 전송합니다.')
+        // 포커스된 클라이언트에게 입원 알림 메시지 전송
+        return focusedClient.postMessage({
+          type: 'HOSPITALIZATION_NOTIFICATION',
+          data: notificationData
+        })
+      }
+      
+      // 포커스된 클라이언트가 없으면 모든 클라이언트에게 알림
+      console.log('사용자가 웹사이트를 보고 있지 않습니다. 입원 푸시 알림을 표시합니다.')
+      clients.forEach(client => {
+        client.postMessage({
+          type: 'HOSPITALIZATION_NOTIFICATION',
+          data: notificationData
+        })
+      })
+      
+      // 입원 알림 전용 옵션
+      const hospitalizationOptions = {
+        body: notificationData.body,
+        icon: notificationData.icon,
+        badge: notificationData.badge,
+        tag: notificationData.tag,
+        requireInteraction: notificationData.requireInteraction,
+        silent: false,
+        vibrate: notificationData.vibrate,
+        data: notificationData.data,
+        actions: [
+          {
+            action: 'view_hospitalization',
+            title: '입원자 확인',
+            icon: '/pwa-192x192.png'
+          },
+          {
+            action: 'close',
+            title: '닫기',
+            icon: '/pwa-192x192.png'
+          }
+        ]
+      }
+
+      return self.registration.showNotification(notificationData.title, hospitalizationOptions)
+        .then(() => {
+          console.log('입원 알림 표시 성공')
+        })
+        .catch(error => {
+          console.error('입원 알림 표시 실패:', error)
+        })
+    })
+  )
 }
