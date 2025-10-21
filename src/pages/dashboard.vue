@@ -27,7 +27,7 @@ const commentType = ref<'completed' | 'rejected' | 'pending' | 'cancel' | null>(
 const commentText = ref('')
 const processingContact = ref(false)
 
-// 입원자 리스트 관련 상태
+// 入院者 리스트 관련 상태
 const hospitalizationRecords = ref<any[]>([])
 const loadingHospitalization = ref(false)
 const errorHospitalization = ref<string | null>(null)
@@ -86,7 +86,7 @@ const fetchContact = async () => {
   }
 }
 
-// 입원자 리스트 조회
+// 入院者 리스트 조회
 const fetchHospitalizationList = async () => {
   try {
     loadingHospitalization.value = true
@@ -100,8 +100,8 @@ const fetchHospitalizationList = async () => {
     // admission_date가 있는 경우만 필터링
     hospitalizationRecords.value = (response.items || []).filter(record => record.admission_date)
   } catch (error) {
-    console.error('입원자 리스트 조회 실패:', error)
-    errorHospitalization.value = '입원자 리스트 조회에 실패했습니다.'
+    console.error('入院者リスト取得中にエラーが発生しました:', error)
+    errorHospitalization.value = '入院者リストの取得に失敗しました。'
   } finally {
     loadingHospitalization.value = false
   }
@@ -356,7 +356,7 @@ const openContactDetail = (contact: ContactResponse) => {
   commentText.value = ''
 }
 
-// 입원자 상세 팝업 열기
+// 入院者 상세 팝업 열기
 const openHospitalizationDetail = (hospitalization: any) => {
   selectedHospitalization.value = hospitalization
   showHospitalizationDetailDialog.value = true
@@ -808,7 +808,7 @@ onMounted(() => {
         </VCard>
     </VCol>
 
-    <!-- 입원자 리스트 (Admin만 접근 가능) -->
+    <!-- 入院者 리스트 (Admin만 접근 가능) -->
     <VCol v-if="getCurrentUserPermission() === 'mishima_user' || getCurrentUserPermission() === 'admin'" cols="12" md="6">
       <VCard :class="isHospitalizationCardExpanded ? 'h-400' : 'h-auto'">
           <VCardTitle class="d-flex align-center justify-space-between">
@@ -859,7 +859,7 @@ onMounted(() => {
               <span class="ms-3">データを読み込み中...</span>
             </div>
             
-            <!-- 입원자 리스트 -->
+            <!-- 入院者 리스트 -->
             <div v-else-if="hospitalizationRecords.length > 0" class="hospitalization-list-container">
               <VList>
                 <VListItem
@@ -878,7 +878,7 @@ onMounted(() => {
                     </VAvatar>
                   </template>
                   <VListItemTitle class="font-weight-bold">
-                    {{ record.elderly_name || '입원자' }}
+                    {{ record.elderly_name || '入院者' }}
                   </VListItemTitle>
                   <VListItemSubtitle>
                     <div class="d-flex align-center">
@@ -1239,7 +1239,7 @@ onMounted(() => {
     </VCard>
   </VDialog>
 
-  <!-- 입원자 상세 팝업 (Admin만 접근 가능) -->
+  <!-- 入院者 상세 팝업 (Admin만 접근 가능) -->
   <VDialog v-if="getCurrentUserPermission() === 'mishima_user' || getCurrentUserPermission() === 'admin'" v-model="showHospitalizationDetailDialog" max-width="600px">
       <VCard>
         <VCardTitle class="d-flex align-center justify-space-between">
@@ -1267,7 +1267,7 @@ onMounted(() => {
                 </div>
                 <div class="info-item">
                   <span class="info-label">入居者名:</span>
-                  <span class="info-value">{{ selectedHospitalization.elderly_name || '입원자' }}</span>
+                  <span class="info-value">{{ selectedHospitalization.elderly_name || '入院者' }}</span>
                 </div>
                 <div class="info-item">
                   <span class="info-label">入院状態:</span>

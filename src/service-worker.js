@@ -76,7 +76,7 @@ self.addEventListener('push', event => {
     const hospitalizationData = data.data || {}
     const notificationData = {
       title: data.notification?.title || data.title || '🏥 입원 알림',
-      body: data.notification?.body || data.body || `입원자: ${hospitalizationData.elderly_name || '알 수 없음'}`,
+      body: data.notification?.body || data.body || `入院者: ${hospitalizationData.elderly_name || '알 수 없음'}`,
       icon: data.notification?.icon || data.icon || '/pwa-192x192.png',
       badge: data.notification?.badge || data.badge || '/pwa-192x192.png',
       tag: 'hospitalization-notification',
@@ -193,13 +193,13 @@ self.addEventListener('notificationclick', event => {
       return
     }
     
-    // 입원자 확인 액션이거나 일반 클릭
+    // 入院者 확인 액션이거나 일반 클릭
     if (event.action === 'view_hospitalization' || !event.action) {
       event.waitUntil(
         clients.matchAll({ type: 'window' }).then(clientList => {
           for (const client of clientList) {
             if (client.url.includes(self.location.origin) && 'focus' in client) {
-              // 대시보드로 이동하여 입원자 리스트 표시
+              // 대시보드로 이동하여 入院者 리스트 표시
               return client.postMessage({
                 type: 'NAVIGATE_TO_HOSPITALIZATION',
                 data: event.notification.data
@@ -275,7 +275,7 @@ self.addEventListener('message', event => {
       
       const testNotificationData = {
         title: '🏥 입원 알림',
-        body: `입원자: ${testData.elderly_name}`,
+        body: `入院者: ${testData.elderly_name}`,
         icon: '/pwa-192x192.png',
         badge: '/pwa-192x192.png',
         tag: 'hospitalization-notification',
@@ -296,7 +296,7 @@ self.addEventListener('message', event => {
         actions: [
           {
             action: 'view_hospitalization',
-            title: '입원자 확인',
+            title: '入院者 確認',
             icon: '/pwa-192x192.png'
           },
           {
@@ -387,7 +387,7 @@ function handleHospitalizationNotification(event, notificationData) {
           actions: [
             {
               action: 'view_hospitalization',
-              title: '입원자 확인',
+              title: '入院者 確認',
               icon: '/pwa-192x192.png'
             },
             {
@@ -425,12 +425,12 @@ function handleHospitalizationNotification(event, notificationData) {
         actions: [
           {
             action: 'view_hospitalization',
-            title: '입원자 확인',
+            title: '入院者 確認',
             icon: '/pwa-192x192.png'
           },
           {
             action: 'close',
-            title: '닫기',
+            title: '閉じる',
             icon: '/pwa-192x192.png'
           }
         ]

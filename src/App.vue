@@ -215,6 +215,17 @@ const handleGlobalWebSocketMessage = (message: WebSocketMessage) => {
       console.log('전역 웹소켓: 사용자 상태 변경:', message.type, message.data)
       break
       
+    case 'unread_counts':
+      // 읽지 않은 메시지 개수 업데이트
+      console.log('전역 웹소켓: 읽지 않은 메시지 개수 업데이트:', message)
+      
+      if (message.data && message.data.total_unread_messages !== undefined) {
+        // 서버에서 받은 총 읽지 않은 메시지 개수로 설정
+        chatNotificationStore.setUnreadCount(message.data.total_unread_messages)
+        console.log('전역 웹소켓: 총 읽지 않은 메시지 개수 갱신:', message.data.total_unread_messages)
+      }
+      break
+      
     case 'system_update':
       // 시스템 업데이트 알림
       console.log('전역 웹소켓: 시스템 업데이트 알림 수신:', message)
